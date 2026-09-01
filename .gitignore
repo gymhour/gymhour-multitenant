@@ -10,15 +10,12 @@ node_modules/
 !**/.env.example
 
 # Backend generated files
-boxeomp-backend/dist/
-boxeomp-backend/tsconfig.tsbuildinfo
-boxeomp-backend/.rag-vector-store-cache.json
-boxeomp-backend/uploads-asistente/*
-!boxeomp-backend/uploads-asistente/.gitkeep
+trainer-backend/dist/
+trainer-backend/tsconfig.tsbuildinfo
 
 # Frontend generated files
-boxeomp-frontend/build/
-boxeomp-frontend/coverage/
+trainer-frontend/build/
+trainer-frontend/coverage/
 
 # Logs and editor files
 *.log

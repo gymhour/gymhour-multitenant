@@ -7,8 +7,8 @@
   },
   "servers": [
     {
-      "url": "https://gymbackend-qr97.onrender.com",
-      "description": "Servidor en la nube"
+      "url": "/",
+      "description": "Servidor actual"
     }
   ],
   "paths": {

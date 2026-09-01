@@ -1,5 +1,5 @@
 {
-  "name": "@boxeomp/backend",
+  "name": "@trainer/backend",
   "type": "module",
   "version": "1.0.0",
   "description": "",
@@ -48,7 +48,6 @@
     "multer": "^1.4.5-lts.1",
     "node-cron": "^4.2.1",
     "nodemailer": "^6.10.1",
-    "openai": "^5.12.2",
     "swagger-ui-express": "^5.0.1"
   }
 }

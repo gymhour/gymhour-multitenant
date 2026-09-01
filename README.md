@@ -1,11 +1,11 @@
-# BoxeoMP
+# Trainer
 
-Monorepo de la plataforma BoxeoMP.
+Monorepo de la plataforma Trainer.
 
 ```text
-boxeomp/
-├── boxeomp-backend/   API Node.js, Express, TypeScript y Prisma/MySQL
-├── boxeomp-frontend/  Aplicación React
+trainer/
+├── trainer-backend/   API Node.js, Express, TypeScript y Prisma/MySQL
+├── trainer-frontend/  Aplicación React
 └── package.json       Workspaces y comandos del monorepo
 ```
 
@@ -26,9 +26,14 @@ npm run dev:backend
 npm run dev:frontend
 ```
 
-El backend utiliza `boxeomp-backend/.env`. El frontend puede utilizar
-`boxeomp-frontend/.env` para variables locales. Ninguno de estos archivos se
-versiona.
+El backend utiliza `trainer-backend/.env`. Partir de la plantilla versionada:
+
+```bash
+cp trainer-backend/.env.example trainer-backend/.env
+```
+
+El frontend puede utilizar `trainer-frontend/.env` para variables locales.
+Ninguno de los `.env` se versiona; sí se versiona el `.env.example`.
 
 ## Builds
 
@@ -41,7 +46,7 @@ npm run build:frontend
 ## Configuración del frontend por cliente
 
 La configuración visual y comercial está centralizada en
-`boxeomp-frontend/src/setup.js`. Desde ese archivo se controlan:
+`trainer-frontend/src/setup.js`. Desde ese archivo se controlan:
 
 - URL de la API (`REACT_APP_API_URL` puede sobrescribirla por ambiente).
 - Nombre, título y descripción del cliente.
@@ -74,17 +79,17 @@ el mismo repositorio de GitHub con una carpeta raíz diferente:
 
 ### API
 
-- Root Directory: `/boxeomp-backend`
+- Root Directory: `/trainer-backend`
 - Build Command: `npm ci && npm run build`
 - Pre-deploy Command: `npm run migrate:deploy`
 - Start Command: `npm start`
-- Watch Path: `/boxeomp-backend/**`
+- Watch Path: `/trainer-backend/**`
 
 ### Frontend
 
-- Root Directory: `/boxeomp-frontend`
+- Root Directory: `/trainer-frontend`
 - Build Command: `npm ci && npm run build`
-- Watch Path: `/boxeomp-frontend/**`
+- Watch Path: `/trainer-frontend/**`
 
 La base MySQL es un servicio separado del mismo proyecto Railway. Las variables
 de entorno se configuran por servicio; `DATABASE_URL` pertenece únicamente a la
