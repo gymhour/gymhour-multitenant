@@ -59,3 +59,10 @@
 .cuotas-wsp-btn:hover {
     background-color: #26b85c;
 }
+/* Placeholder de "Datos de cuenta" cuando el cliente todavía no cargó sus
+   datos de cobro en setup.js (todos los campos con prefijo COMPLETAR_). */
+.cuotas-datos-pagos-vacio {
+  margin: 0;
+  color: var(--text-color-distinct);
+  font-size: 0.95rem;
+}

@@ -6,48 +6,54 @@
 // editar solamente los imports y valores de este archivo.
 // ============================================================================
 
-// Logo blanco para fondos oscuros, variante carbón para fondos claros y
-// versión cuadrada optimizada para favicon/PWA.
-import logoDark from './assets/client/boxeomp_white_logo.png';
-import logoLight from './assets/client/boxeomp_dark_logo.png';
-import favicon from './assets/client/boxeomp_favicon.png';
+// Logo blanco para fondos oscuros, variante negra para fondos claros y
+// versión cuadrada (marca sobre el color primario) para favicon/PWA.
+import logoDark from './assets/gymhour/logo_gymhour_text_right.png';
+import logoLight from './assets/gymhour/logo_gymhour_black_text_right.png';
+import favicon from './assets/client/gymhour_favicon.png';
 import loginBackground from './assets/login/login_background.png';
 
 const CLIENT_SETUP = {
-  // REACT_APP_API_URL tiene prioridad en builds de cada ambiente.
-  apiUrl: process.env.REACT_APP_API_URL || 'https://boxeomp-backend-production.up.railway.app',
+  // REACT_APP_API_URL manda en los builds de cada ambiente. El fallback apunta
+  // al backend local a propósito: así un build sin la variable falla de forma
+  // evidente en vez de pegarle a la API de otro cliente.
+  apiUrl: process.env.REACT_APP_API_URL || 'http://localhost:3000',
 
   branding: {
-    name: 'BoxeoMP',
-    logoAlt: 'BoxeoMP',
+    name: 'Trainer',
+    logoAlt: 'Trainer',
     logo: logoDark,
     logoLight,
     favicon,
     appleTouchIcon: favicon,
     loginBackground,
     metadata: {
-      title: 'BoxeoMP',
-      description: 'BoxeoMP — gestión de entrenamiento y gimnasio.',
-      themeColor: '#E15158',
+      title: 'Trainer',
+      description: 'Trainer — gestión de entrenamiento y gimnasio.',
+      themeColor: '#DA4632',
     },
+    // Estos valores se inyectan como variables CSS en applyClientSetup().
+    // Los mismos colores están replicados como fallback en variables.css:
+    // si se cambian acá, actualizar también ese archivo.
     theme: {
-      primaryColor: '#E15158',
-      primaryColorHover: '#C43F47',
-      backgroundHoverColor: '#E1515826',
+      primaryColor: '#DA4632',
+      primaryColorHover: '#B93C2B',
+      backgroundHoverColor: '#DA463226',
     },
   },
 
+  // Datos de cobro. Cada campo se muestra en la pantalla de Cuotas solamente
+  // si está completo: mientras conserve el prefijo COMPLETAR_ queda oculto,
+  // así que la pantalla se ve consistente hasta tener los datos del cliente.
   payment: {
-    // TODO(boxeomp): completar cuando recibamos los datos reales del cliente.
-    accountHolder: 'BOXEOMP',
-    alias: '',
-    cbu: '',
-    cuil: '',
+    accountHolder: 'COMPLETAR_TITULAR',
+    alias: 'COMPLETAR_ALIAS',
+    cbu: 'COMPLETAR_CBU',
+    cuil: 'COMPLETAR_CUIL',
     whatsapp: {
-      // Código de país incluido, sin el signo "+".
-      // TODO(boxeomp): reemplazar por el WhatsApp real del cliente.
-      phoneNumber: '5493510000000',
-      message: 'Hola BoxeoMP! Les comparto el comprobante de pago de este mes:',
+      // Código de país incluido, sin el signo "+". Ej: 5493510000000
+      phoneNumber: 'COMPLETAR_WHATSAPP',
+      message: 'Hola Trainer! Les comparto el comprobante de pago de este mes:',
     },
   },
 };

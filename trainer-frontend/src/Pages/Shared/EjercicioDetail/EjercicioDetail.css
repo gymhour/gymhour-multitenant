@@ -110,7 +110,7 @@
 .ejercicio-detail__section h2 {
     font-size: 18px;
     margin-bottom: 8px;
-    /* color: var(--primary-color, #ff6f3c); */
+    /* color: var(--primary-color, #DA4632); */
 }
 
 .chip-list {
@@ -120,7 +120,7 @@
 }
 
 .chip {
-    background: var(--primary-color, #ff6f3c);
+    background: var(--primary-color, #DA4632);
     color: white;
     padding: 4px 10px;
     border-radius: 20px;

@@ -16,6 +16,9 @@ const Cuotas = () => {
   const { accountHolder, alias, cbu, cuil, whatsapp } = CLIENT_SETUP.payment;
   const whatsappHref = `https://wa.me/${whatsapp.phoneNumber}?text=${encodeURIComponent(whatsapp.message)}`;
   const isConfigured = value => value && !String(value).startsWith('COMPLETAR_');
+  // Mientras el cliente no tenga cargados sus datos de cobro, todos los campos
+  // vienen con el prefijo COMPLETAR_ y la sección quedaría como un título vacío.
+  const hasPaymentData = [accountHolder, alias, cbu, cuil, whatsapp.phoneNumber].some(isConfigured);
 
   const handleCopy = async (text) => {
     try {
@@ -82,10 +85,12 @@ const Cuotas = () => {
         <div className="cuotas-datos-pagos">
           <h2>Datos de cuenta</h2>
           <div className="cuotas-datos-pagos-info">
-            <span style={{ fontWeight: '600' }} className="alias-and-bank">
-              {accountHolder}
-              {/* <GaliciaIcon width="120" /> */}
-            </span>
+            {isConfigured(accountHolder) && (
+              <span style={{ fontWeight: '600' }} className="alias-and-bank">
+                {accountHolder}
+                {/* <GaliciaIcon width="120" /> */}
+              </span>
+            )}
             {/* <span>
               GIMNASIO GYMHOUR
             </span> */}
@@ -115,6 +120,11 @@ const Cuotas = () => {
             >
               <button className="cuotas-wsp-btn">Enviar comprobante por WhatsApp</button>
             </a>
+          )}
+          {!hasPaymentData && (
+            <p className="cuotas-datos-pagos-vacio">
+              Todavía no hay datos de pago cargados. Consultá con el gimnasio.
+            </p>
           )}
 
         </div>

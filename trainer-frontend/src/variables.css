@@ -1,8 +1,10 @@
 /* variables.css */
 :root {
-    --primary-color: #E15158;
-    --primary-color-hover: #C43F47;
-    --background-hover-color: #E1515826;
+    /* Color de marca GymHour. Replicado en setup.js (branding.theme), que lo
+       inyecta inline al arrancar: si se cambia acá, cambiarlo también allá. */
+    --primary-color: #DA4632;
+    --primary-color-hover: #B93C2B;
+    --background-hover-color: #DA463226;
     --medium-grey: #8d8d8d;
     --light-grey: #ffffff36;
     --admin-kpi-card-gradient: linear-gradient(180deg, rgba(16, 16, 16, 0.035) 0%, rgba(16, 16, 16, 0.015) 46%, rgba(255, 255, 255, 0) 100%);

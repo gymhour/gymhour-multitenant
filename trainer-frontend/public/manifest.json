@@ -1,6 +1,6 @@
 {
-  "short_name": "BoxeoMP",
-  "name": "BoxeoMP",
+  "short_name": "Trainer",
+  "name": "Trainer",
   "icons": [
     {
       "src": "/logo_192.png",
@@ -28,6 +28,6 @@
   ],
   "start_url": ".",
   "display": "standalone",
-  "theme_color": "#E15158",
+  "theme_color": "#DA4632",
   "background_color": "#101010"
 }
