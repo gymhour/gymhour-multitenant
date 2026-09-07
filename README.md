@@ -1,96 +1,81 @@
-# Trainer
+# Gymhour
 
-Monorepo de la plataforma Trainer.
+Proyecto base de Gymhour para la gestión integral de gimnasios. El monorepo reúne una API Node.js/Express con Prisma y una aplicación web React.
 
 ```text
-trainer/
-├── trainer-backend/   API Node.js, Express, TypeScript y Prisma/MySQL
-├── trainer-frontend/  Aplicación React
+gymhour/
+├── gymhour-backend/   API Node.js, Express, TypeScript y Prisma/MySQL
+├── gymhour-frontend/  Aplicación React
 └── package.json       Workspaces y comandos del monorepo
 ```
 
-## Instalación
+## Requisitos
 
-Desde la raíz:
+- Node.js 20 o superior.
+- npm 10 o superior.
+- Una base de datos MySQL accesible para Prisma.
+
+## Instalación y configuración
+
+Desde la raíz del repositorio:
 
 ```bash
 npm install
+cp gymhour-backend/.env.example gymhour-backend/.env
 ```
 
-También se puede trabajar de manera independiente dentro de cada workspace.
+Completá las variables del backend antes de iniciarlo. El frontend puede usar `gymhour-frontend/.env` con `REACT_APP_API_URL` para apuntar a otra API; si no se define, usa `http://localhost:3000`.
+
+Los archivos `.env` no se versionan. La plantilla `.env.example` sí forma parte del repositorio.
 
 ## Desarrollo
+
+Ejecutá cada proceso en una terminal diferente:
 
 ```bash
 npm run dev:backend
 npm run dev:frontend
 ```
 
-El backend utiliza `trainer-backend/.env`. Partir de la plantilla versionada:
+## Comandos
 
 ```bash
-cp trainer-backend/.env.example trainer-backend/.env
+npm run build             # Compila backend y frontend
+npm run build:backend     # Genera Prisma y compila TypeScript
+npm run build:frontend    # Genera el build de React
+npm run migrate:deploy    # Aplica migraciones existentes
+npm run seed              # Carga datos de prueba intencionalmente
+npm start                 # Inicia el backend compilado
 ```
 
-El frontend puede utilizar `trainer-frontend/.env` para variables locales.
-Ninguno de los `.env` se versiona; sí se versiona el `.env.example`.
+## Identidad y configuración de Gymhour
 
-## Builds
+La configuración visual y comercial está centralizada en `gymhour-frontend/src/setup.js`. Allí se controlan:
 
-```bash
-npm run build
-npm run build:backend
-npm run build:frontend
-```
+- URL de la API.
+- Nombre, título y descripción de la aplicación.
+- Logos, favicon y fondo de autenticación.
+- Colores de interfaz y reportes PDF.
+- Datos de cobro y WhatsApp para comprobantes.
 
-## Configuración del frontend por cliente
+Los componentes deben consumir `CLIENT_SETUP` en lugar de importar datos o logos de marca directamente. Los campos de pago cuyo valor comienza con `COMPLETAR_` permanecen ocultos hasta que se configuren.
 
-La configuración visual y comercial está centralizada en
-`trainer-frontend/src/setup.js`. Desde ese archivo se controlan:
+## Despliegue en Railway
 
-- URL de la API (`REACT_APP_API_URL` puede sobrescribirla por ambiente).
-- Nombre, título y descripción del cliente.
-- Logo para tema oscuro y claro.
-- Favicon, apple-touch icon y fondo de autenticación.
-- Colores principales de la interfaz y de los reportes PDF.
-- Titular de cuenta, alias, CBU/CUIL y WhatsApp para comprobantes.
-
-Los componentes no deben importar logos del cliente directamente; deben tomar
-los recursos desde `CLIENT_SETUP`.
-
-## Base de datos
-
-Para aplicar en producción las migraciones existentes de Prisma:
-
-```bash
-npm run migrate:deploy
-```
-
-El seed carga datos de prueba y solamente debe ejecutarse de forma intencional:
-
-```bash
-npm run seed
-```
-
-## Railway
-
-El repositorio se despliega como un monorepo aislado. Cada servicio debe usar
-el mismo repositorio de GitHub con una carpeta raíz diferente:
+Cada servicio usa el mismo repositorio con una carpeta raíz distinta.
 
 ### API
 
-- Root Directory: `/trainer-backend`
+- Root Directory: `/gymhour-backend`
 - Build Command: `npm ci && npm run build`
 - Pre-deploy Command: `npm run migrate:deploy`
 - Start Command: `npm start`
-- Watch Path: `/trainer-backend/**`
+- Watch Path: `/gymhour-backend/**`
 
 ### Frontend
 
-- Root Directory: `/trainer-frontend`
+- Root Directory: `/gymhour-frontend`
 - Build Command: `npm ci && npm run build`
-- Watch Path: `/trainer-frontend/**`
+- Watch Path: `/gymhour-frontend/**`
 
-La base MySQL es un servicio separado del mismo proyecto Railway. Las variables
-de entorno se configuran por servicio; `DATABASE_URL` pertenece únicamente a la
-API.
+La base MySQL se despliega como otro servicio del mismo proyecto. `DATABASE_URL` pertenece exclusivamente a la API y las variables se configuran por servicio.

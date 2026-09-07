@@ -10,12 +10,12 @@ node_modules/
 !**/.env.example
 
 # Backend generated files
-trainer-backend/dist/
-trainer-backend/tsconfig.tsbuildinfo
+gymhour-backend/dist/
+gymhour-backend/tsconfig.tsbuildinfo
 
 # Frontend generated files
-trainer-frontend/build/
-trainer-frontend/coverage/
+gymhour-frontend/build/
+gymhour-frontend/coverage/
 
 # Logs and editor files
 *.log
