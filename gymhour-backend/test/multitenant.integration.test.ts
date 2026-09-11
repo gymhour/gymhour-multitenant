@@ -66,6 +66,17 @@ describe.runIf(hasTestDatabase)('API multi-tenant (MySQL aislada)', () => {
     expect(a.body.tenant.slug).toBe(slugs[0]);
     expect(b.body.tenant.slug).toBe(slugs[1]);
 
+    await systemPrisma.tenantSettings.update({
+      where: { tenantId: a.body.tenant.id },
+      data: { primaryColor: '#123456', logoPublicId: `tenants/${a.body.tenant.id}/branding/logo-test` },
+    });
+    const branding = await request(app).get(`/auth/tenants/${slugs[0]}/branding`);
+    expect(branding.status).toBe(200);
+    expect(branding.body).toMatchObject({ name: 'Vitest Gym A', slug: slugs[0], primaryColor: '#123456' });
+    expect(branding.body.logoUrl).toContain('logo-test');
+    expect(branding.body).not.toHaveProperty('id');
+    expect((await request(app).get('/auth/tenants/no-existe/branding')).status).toBe(404);
+
     const duplicatedName = await request(app).post('/auth/tenants').send({
       email: 'other-admin@gymhour.test',
       password: 'TestPassword123!',
@@ -133,9 +144,19 @@ describe.runIf(hasTestDatabase)('API multi-tenant (MySQL aislada)', () => {
     const studentA = await systemPrisma.user.create({ data: {
       tenantId: tenantA.id, email: 'same-student@gymhour.test', dni: '44999999', password, role: 'STUDENT', estado: true,
     } });
-    await expect(systemPrisma.user.create({ data: {
+    const studentB = await systemPrisma.user.create({ data: {
       tenantId: tenantB.id, email: 'same-student@gymhour.test', dni: '44999999', password, role: 'STUDENT', estado: true,
-    } })).resolves.toBeTruthy();
+    } });
+    const publicCheckInA = await request(app).post(`/usuarios/asistencias/public/${tenantA.slug}/registrar`)
+      .send({ dni: '44999999', metodo: 'QR' });
+    const publicCheckInB = await request(app).post(`/usuarios/asistencias/public/${tenantB.slug}/registrar`)
+      .send({ dni: '44999999', metodo: 'QR' });
+    expect(publicCheckInA.status).toBe(403);
+    expect(publicCheckInA.body.alumno.id).toBe(studentA.ID_Usuario);
+    expect(publicCheckInB.status).toBe(403);
+    expect(publicCheckInB.body.alumno.id).toBe(studentB.ID_Usuario);
+    expect((await request(app).post('/usuarios/asistencias/public/no-existe/registrar')
+      .send({ dni: '44999999', metodo: 'QR' })).status).toBe(404);
     await expect(systemPrisma.cuota.create({ data: {
       tenantId: tenantB.id,
       ID_Usuario: studentA.ID_Usuario,

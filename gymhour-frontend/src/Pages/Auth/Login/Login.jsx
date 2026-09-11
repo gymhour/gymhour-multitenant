@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import './login.css';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Link } from 'react-router-dom';
@@ -16,9 +16,29 @@ const Login = () => {
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [tenantSelection, setTenantSelection] = useState(null);
+  const [tenantBranding, setTenantBranding] = useState(null);
+  const [brandingLoading, setBrandingLoading] = useState(Boolean(routeSlug));
+  const [brandingError, setBrandingError] = useState(false);
 
   const [showBirthdayModal, setShowBirthdayModal] = useState(false);
   const [pendingRedirect, setPendingRedirect] = useState(null);
+
+  useEffect(() => {
+    let active = true;
+    if (!routeSlug) {
+      setTenantBranding(null);
+      setBrandingLoading(false);
+      setBrandingError(false);
+      return () => { active = false; };
+    }
+    setBrandingLoading(true);
+    setBrandingError(false);
+    authClient.get(`/auth/tenants/${routeSlug}/branding`)
+      .then(({ data }) => { if (active) setTenantBranding(data); })
+      .catch(() => { if (active) setBrandingError(true); })
+      .finally(() => { if (active) setBrandingLoading(false); });
+    return () => { active = false; };
+  }, [routeSlug]);
 
   const todayKey = () => {
     // YYYY-MM-DD en horario local del navegador
@@ -58,7 +78,8 @@ const Login = () => {
     setIsLoading(true);
 
     try {
-      const { data } = await authClient.post('/auth/login', { email, password });
+      const endpoint = routeSlug ? `/auth/tenants/${routeSlug}/login` : '/auth/login';
+      const { data } = await authClient.post(endpoint, { email, password });
       if (data.requiresTenantSelection) {
         setTenantSelection({ token: data.selectionToken, tenants: data.tenants });
         return;
@@ -107,13 +128,24 @@ const Login = () => {
 
   return (
     <>
-      <AuthShell variant="login">
+      <AuthShell variant="login" tenantBranding={tenantBranding} tenantMode={Boolean(routeSlug)}>
+        {brandingLoading ? (
+          <div className="auth-card__heading"><h2>Cargando gimnasio...</h2></div>
+        ) : brandingError ? (
+          <div className="auth-card__heading">
+            <span className="auth-card__kicker">Enlace no disponible</span>
+            <h2>Gimnasio no encontrado</h2>
+            <p>Revisá la dirección o pedile al gimnasio su enlace de acceso.</p>
+          </div>
+        ) : <>
         <div className="auth-card__heading">
           {!tenantSelection && <span className="auth-card__kicker">Acceso a tu cuenta</span>}
           <h2>{tenantSelection ? 'Elegí tu gimnasio' : 'Bienvenido de nuevo'}</h2>
           <p>{tenantSelection
             ? 'Tus credenciales coinciden en más de un gimnasio.'
-            : 'Ingresá para gestionar tu gimnasio o acceder como parte del equipo.'}</p>
+            : tenantBranding
+              ? `Ingresá a tu cuenta de ${tenantBranding.name}.`
+              : 'Ingresá para gestionar tu gimnasio o acceder como parte del equipo.'}</p>
         </div>
         <div className="login-form-container">
           {tenantSelection ? (
@@ -146,7 +178,7 @@ const Login = () => {
 
               <div className="login-form__help">
                 <span />
-                <Link to={routeSlug ? `/g/${routeSlug}/forgot-password` : '/forgot-password'}>
+                <Link to={routeSlug ? `/${routeSlug}/forgot-password` : '/forgot-password'}>
                   ¿Olvidaste tu contraseña?
                 </Link>
               </div>
@@ -159,7 +191,7 @@ const Login = () => {
           )}
         </div>
 
-        {!tenantSelection && (
+        {!tenantSelection && !tenantBranding && (
           <div className="auth-card__footer">
             <div>
               <strong>¿Sos dueño de un gimnasio?</strong>
@@ -168,6 +200,7 @@ const Login = () => {
             <Link to="/sign-up">Registrar mi gimnasio <b aria-hidden="true">→</b></Link>
           </div>
         )}
+        </>}
       </AuthShell>
 
       {showBirthdayModal && (

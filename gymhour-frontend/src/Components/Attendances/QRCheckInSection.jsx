@@ -5,7 +5,7 @@ import { useMemo, useRef, useState } from 'react';
 import CLIENT_SETUP from '../../setup';
 import './CheckInSections.css';
 
-const QRCheckInSection = ({ publicPath = '/ingreso?source=qr' }) => {
+const QRCheckInSection = ({ publicPath = '/ingreso?source=qr', tenant = null }) => {
   const [copied, setCopied] = useState(false);
   const [pdfLoading, setPdfLoading] = useState(false);
   const qrRef = useRef(null);
@@ -50,7 +50,7 @@ const QRCheckInSection = ({ publicPath = '/ingreso?source=qr' }) => {
 
     try {
       const logoDataUrl = await rasterizeImageToPng(
-        CLIENT_SETUP.branding.logoLight || CLIENT_SETUP.branding.logo
+        tenant?.settings?.logoUrl || CLIENT_SETUP.branding.logoLight || CLIENT_SETUP.branding.logo
       );
 
       const doc = new jsPDF({ unit: 'pt', format: 'a4' });
@@ -73,7 +73,7 @@ const QRCheckInSection = ({ publicPath = '/ingreso?source=qr' }) => {
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(22);
       doc.setTextColor(50, 50, 50);
-      doc.text('Código QR de Ingreso', cx, M + 112, { align: 'center' });
+      doc.text(`Ingreso a ${tenant?.name || CLIENT_SETUP.branding.name}`, cx, M + 112, { align: 'center' });
 
       // Subtitle
       doc.setFont('helvetica', 'normal');
@@ -101,9 +101,9 @@ const QRCheckInSection = ({ publicPath = '/ingreso?source=qr' }) => {
       // Footer
       doc.setFontSize(9);
       doc.setTextColor(180, 180, 180);
-      doc.text(`${CLIENT_SETUP.branding.name} — Control de Acceso`, cx, pageH - M, { align: 'center' });
+      doc.text(`${tenant?.name || CLIENT_SETUP.branding.name} — Control de Acceso`, cx, pageH - M, { align: 'center' });
 
-      const clientSlug = CLIENT_SETUP.branding.name.replace(/[^a-z0-9]+/gi, '-').replace(/^-|-$/g, '');
+      const clientSlug = (tenant?.slug || CLIENT_SETUP.branding.name).replace(/[^a-z0-9]+/gi, '-').replace(/^-|-$/g, '');
       doc.save(`${clientSlug}_codigoQR_Ingreso.pdf`);
     } catch (error) {
       console.error('Error al generar el PDF:', error);

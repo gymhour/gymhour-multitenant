@@ -5,6 +5,7 @@ import { respondUnexpected } from '../services/apiError.service.js';
 import { authServices } from '../services/auth.service.js';
 import { sendResetPasswordEmail, sendWelcomeEmail } from '../services/email.service.js';
 import { comparePassword, hashPassword } from '../services/password.service.js';
+import { getTenantLogoUrl } from '../services/cloudinary.service.js';
 
 const TIMEZONE = process.env.TIMEZONE || 'America/Argentina/Cordoba';
 const normalizeEmail = (value: unknown): string => String(value ?? '').trim().toLowerCase();
@@ -35,6 +36,35 @@ const birthdayToday = (fechaCumple: Date | null): boolean => {
   const month = Number(parts.find(part => part.type === 'month')?.value);
   const day = Number(parts.find(part => part.type === 'day')?.value);
   return fechaCumple.getUTCMonth() + 1 === month && fechaCumple.getUTCDate() === day;
+};
+
+export const tenantBranding = async (req: Request, res: Response): Promise<void> => {
+  const slug = normalizeSlug(req.params.slug);
+  if (!slug) { res.status(404).json({ message: 'Gimnasio no encontrado.' }); return; }
+
+  try {
+    const tenant = await systemPrisma.tenant.findFirst({
+      where: { slug, status: 'ACTIVE' },
+      select: {
+        name: true,
+        slug: true,
+        settings: { select: { primaryColor: true, logoPublicId: true, onboardingCompleted: true } },
+      },
+    });
+    if (!tenant || tenant.settings?.onboardingCompleted !== true) {
+      res.status(404).json({ message: 'Gimnasio no encontrado.' });
+      return;
+    }
+
+    res.json({
+      name: tenant.name,
+      slug: tenant.slug,
+      primaryColor: tenant.settings.primaryColor,
+      logoUrl: tenant.settings.logoPublicId ? getTenantLogoUrl(tenant.settings.logoPublicId) : null,
+    });
+  } catch (error) {
+    respondUnexpected(res, error, 'cargar la identidad del gimnasio');
+  }
 };
 
 export const registerTenant = async (req: Request, res: Response): Promise<void> => {
@@ -225,7 +255,7 @@ export const forgotPassword = async (req: Request, res: Response): Promise<void>
     });
     if (process.env.NODE_ENV !== 'test') {
       try {
-        await sendResetPasswordEmail(user.email, `${process.env.FRONTEND_URL}/g/${slug}/reset-password?token=${token}`);
+        await sendResetPasswordEmail(user.email, `${process.env.FRONTEND_URL}/${slug}/reset-password?token=${token}`);
       } catch (error) { console.error('Error enviando email de reset:', error); }
     }
     res.json(response);
@@ -270,5 +300,5 @@ export const changePassword = async (req: Request, res: Response): Promise<void>
 };
 
 export const authMethods = {
-  registerTenant, login, loginWithoutTenant, selectLoginTenant, me, forgotPassword, resetPassword, changePassword,
+  tenantBranding, registerTenant, login, loginWithoutTenant, selectLoginTenant, me, forgotPassword, resetPassword, changePassword,
 };

@@ -697,10 +697,15 @@ const deleteGasto = async (id) => {
 }
 
 // Asistencias
-const registerAttendance = async ({ dni, method = 'DNI', kioskToken = null }) => {
+const registerAttendance = async ({ dni, method = 'DNI', kioskToken = null, tenantSlug = null }) => {
     try {
-        const client = kioskToken ? authClient : apiClient;
-        const path = kioskToken ? '/usuarios/asistencias/kiosk/registrar' : '/usuarios/asistencias/registrar';
+        const isPublicTenantCheckIn = Boolean(tenantSlug);
+        const client = kioskToken || isPublicTenantCheckIn ? authClient : apiClient;
+        const path = kioskToken
+            ? '/usuarios/asistencias/kiosk/registrar'
+            : isPublicTenantCheckIn
+                ? `/usuarios/asistencias/public/${encodeURIComponent(tenantSlug)}/registrar`
+                : '/usuarios/asistencias/registrar';
         const response = await client.post(path, {
             dni,
             metodo: method,
@@ -714,6 +719,15 @@ const registerAttendance = async ({ dni, method = 'DNI', kioskToken = null }) =>
         throw new Error(error.message || 'No se pudo registrar la asistencia');
     }
 }
+
+const getTenantBranding = async slug => {
+    try {
+        const response = await authClient.get(`/auth/tenants/${encodeURIComponent(slug)}/branding`);
+        return response.data;
+    } catch (error) {
+        throw new Error(getApiErrorMessage(error, 'No pudimos identificar el gimnasio.'));
+    }
+};
 
 const getAttendances = async (filters = {}, { page = 1, take = 20 } = {}) => {
     try {
@@ -954,6 +968,7 @@ export default {
     updateGasto,
     deleteGasto,
     // Asistencias
+    getTenantBranding,
     registerAttendance,
     getAttendances,
     getMyAttendances,

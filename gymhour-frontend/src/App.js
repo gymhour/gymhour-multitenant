@@ -84,14 +84,18 @@ function App() {
       <Routes>
         {/* Rutas públicas */}
         <Route path="/" element={<Login />} />
+        <Route path="/:slug/login" element={<Login />} />
         <Route path="/g/:slug/login" element={<Login />} />
         <Route path="/sign-up" element={<SignUp />} />
         <Route path="/onboarding" element={<ProtectedRoute roles={['ADMIN']}><Onboarding /></ProtectedRoute>} />
         <Route path='/forgot-password' element={<ForgotPassword />} />
+        <Route path='/:slug/forgot-password' element={<ForgotPassword />} />
         <Route path='/g/:slug/forgot-password' element={<ForgotPassword />} />
         <Route path='/reset-password' element={<ResetPassword />} />
+        <Route path='/:slug/reset-password' element={<ResetPassword />} />
         <Route path='/g/:slug/reset-password' element={<ResetPassword />} />
         <Route path='/ingreso' element={<PublicCheckInPage />} />
+        <Route path='/:slug/ingreso' element={<PublicCheckInPage />} />
 
         {/* Rutas protegidas */}
         {/* Admin */}

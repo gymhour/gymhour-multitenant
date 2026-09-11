@@ -5,6 +5,7 @@ import DNICheckInSection from '../../../Components/Attendances/DNICheckInSection
 import QRCheckInSection from '../../../Components/Attendances/QRCheckInSection';
 import CheckInResultCard from '../../../Components/Attendances/CheckInResultCard';
 import apiService from '../../../services/apiService';
+import { useAuth } from '../../../context/AuthContext';
 import './AdminCheckInPage.css';
 
 const CHECKIN_TABS = {
@@ -18,16 +19,18 @@ const RESULT_TIMEOUT_MS = 2000;
 const REJECTED_RESULT_TIMEOUT_MS = 10000;
 
 const AdminCheckInPage = () => {
+  const { tenant } = useAuth();
   const [activeTab, setActiveTab] = useState(CHECKIN_TABS.DNI);
   const [result, setResult] = useState(null);
   const [loading, setLoading] = useState(false);
   const [kioskCopied, setKioskCopied] = useState(false);
 
-  // URL genérica para la PC de la entrada (modo kiosko: auto-reset, sin salida a login)
+  // URL pública del gimnasio para la PC de entrada (auto-reset, sin credenciales en el dispositivo).
   const kioskUrl = useMemo(() => {
-    if (typeof window === 'undefined') return '/ingreso?mode=kiosk';
-    return new URL('/ingreso?mode=kiosk', window.location.origin).toString();
-  }, []);
+    const path = `/${tenant?.slug || ''}/ingreso?mode=kiosk`;
+    if (typeof window === 'undefined') return path;
+    return new URL(path, window.location.origin).toString();
+  }, [tenant?.slug]);
 
   const handleCopyKioskUrl = async () => {
     try {
@@ -103,7 +106,7 @@ const AdminCheckInPage = () => {
                   onCheckIn={dni => runCheckIn(() => apiService.registerAttendance({ dni, method: 'DNI' }))}
                 />
 
-                {/* URL genérica para la PC de ingreso (modo kiosko) */}
+                {/* URL pública propia del gimnasio para la PC de ingreso. */}
                 <section className="checkin-section" style={{ marginTop: '18px' }}>
                   <div className="checkin-section-header">
                     <h3>PC de ingreso (modo kiosko)</h3>
@@ -130,7 +133,8 @@ const AdminCheckInPage = () => {
               </>
             ) : (
               <QRCheckInSection
-                publicPath="/ingreso?source=qr"
+                publicPath={`/${tenant?.slug}/ingreso?source=qr`}
+                tenant={tenant}
               />
             )}
           </div>

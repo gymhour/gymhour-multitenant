@@ -59,7 +59,7 @@ const ForgotPassword = () => {
         </div>
 
         <div className='reset-back-login-container'>
-          <Link to={routeSlug ? `/g/${routeSlug}/login` : '/'} className='back-login-link'> Volver a inicio de sesión </Link>
+          <Link to={routeSlug ? `/${routeSlug}/login` : '/'} className='back-login-link'> Volver a inicio de sesión </Link>
         </div>
       </div>
     </div>

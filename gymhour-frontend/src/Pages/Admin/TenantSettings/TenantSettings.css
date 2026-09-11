@@ -37,6 +37,11 @@
 .settings-color { display: flex; align-items: center; height: 42px; padding: 5px 8px; box-sizing: border-box; background: var(--background-color-distinct); border: 1px solid var(--border-color); border-radius: 8px; }
 .settings-color input { width: 28px; height: 28px; padding: 0; border: 0; cursor: pointer; }
 .settings-color b { margin-left: 9px; color: var(--text-color-distinct); font-size: 9px; }
+.settings-login-url { display: flex; align-items: center; gap: 9px; margin: 20px 26px 0; padding: 13px; background: var(--background-hover-color); border: 1px solid color-mix(in srgb, var(--primary-color) 30%, transparent); border-radius: 9px; }
+.settings-login-url > div { display: flex; flex: 1; min-width: 0; flex-direction: column; gap: 5px; }
+.settings-login-url strong { font-size: 10px; }
+.settings-login-url code { overflow: hidden; color: var(--text-color-distinct); font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
+.settings-login-url button, .settings-login-url a { display: flex; align-items: center; gap: 5px; padding: 7px 9px; color: var(--text-color); background: var(--background-color); border: 1px solid var(--border-color); border-radius: 7px; font-size: 9px; font-weight: 700; text-decoration: none; cursor: pointer; white-space: nowrap; }
 .settings-separator { height: 1px; margin: 26px 0; background: var(--border-color); }
 .settings-actions { display: flex; align-items: center; justify-content: space-between; gap: 18px; margin: 26px 0 0; padding: 16px 26px; background: color-mix(in srgb, var(--background-color-distinct) 55%, transparent); border-top: 1px solid var(--border-color); }
 .settings-actions > span { color: var(--text-color-distinct); font-size: 9px; }
@@ -83,6 +88,9 @@
   .settings-logo-row { grid-template-columns: 52px minmax(0, 1fr); }
   .settings-logo-preview { width: 52px; height: 52px; }
   .settings-logo-action { grid-column: 1 / -1; justify-content: center; width: 100%; }
+  .settings-login-url { align-items: stretch; flex-wrap: wrap; margin-right: 16px; margin-left: 16px; }
+  .settings-login-url > div { flex-basis: 100%; }
+  .settings-login-url button, .settings-login-url a { flex: 1; justify-content: center; }
   .settings-actions { align-items: stretch; flex-direction: column; padding-right: 16px; padding-left: 16px; }
   .settings-actions > span { text-align: center; }
   .settings-save { width: 100%; }
