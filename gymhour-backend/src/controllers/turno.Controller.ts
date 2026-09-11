@@ -173,10 +173,10 @@ const createTurno = async (req: Request, res: Response): Promise<void> => {
     const { ID_HorarioClase, fecha } = req.body;
     // Ownership: un cliente sólo puede crear turnos para sí mismo.
     // Admin/entrenador pueden crear turnos para otros indicando ID_Usuario.
-    const userTipo = String(req.user?.tipo || '').toLowerCase();
-    const isAdmin = userTipo === 'admin';
-    const isStaff = ['admin', 'entrenador'].includes(userTipo);
-    const ID_Usuario = isStaff ? Number(req.body.ID_Usuario) : req.user?.ID_Usuario;
+    const userTipo = String(req.user?.role || '').toUpperCase();
+    const isAdmin = userTipo === 'ADMIN';
+    const isStaff = ['ADMIN', 'TRAINER'].includes(userTipo);
+    const ID_Usuario = isStaff ? Number(req.body.ID_Usuario) : req.user?.id;
     const fechaUTC = getArgentinaDate();
     // Validar que los datos necesarios estén presentes
     if (!ID_Usuario || !ID_HorarioClase || !fecha) {
@@ -333,11 +333,11 @@ const deleteTurno = async (req: Request, res: Response): Promise<void> => {
     }
 
     // Ownership: un cliente sólo puede cancelar sus propios turnos.
-    const userTipo = String(req.user?.tipo || '').toLowerCase();
-    const isAdmin = userTipo === 'admin';
-    const isStaff = ['admin', 'entrenador'].includes(userTipo);
-    if (!isStaff && turno.ID_Usuario !== req.user?.ID_Usuario) {
-      res.status(403).json({ message: "No tenés permiso para cancelar este turno" });
+    const userTipo = String(req.user?.role || '').toUpperCase();
+    const isAdmin = userTipo === 'ADMIN';
+    const isStaff = ['ADMIN', 'TRAINER'].includes(userTipo);
+    if (!isStaff && turno.ID_Usuario !== req.user?.id) {
+      res.status(404).json({ message: "No encontramos ese turno." });
       return;
     }
 
@@ -400,6 +400,12 @@ const getTurnoById = async (req: Request, res: Response): Promise<void> => {
 
     // Verificar si el turno existe
     if (!turno) {
+      res.status(404).json({ message: "No encontramos ese turno." });
+      return;
+    }
+
+    const isStaff = req.user?.role === 'ADMIN' || req.user?.role === 'TRAINER';
+    if (!isStaff && turno.ID_Usuario !== req.user?.id) {
       res.status(404).json({ message: "No encontramos ese turno." });
       return;
     }
@@ -549,9 +555,9 @@ const getTurnosByUsuario = async (req: Request, res: Response): Promise<void> =>
     }
 
     // Ownership: un cliente sólo puede ver sus propios turnos.
-    const isStaff = ['admin', 'entrenador'].includes(String(req.user?.tipo || '').toLowerCase());
-    if (!isStaff && req.user?.ID_Usuario !== userId) {
-      res.status(403).json({ message: "No tenés permiso para ver los turnos de otro usuario" });
+    const isStaff = ['ADMIN', 'TRAINER'].includes(String(req.user?.role || '').toUpperCase());
+    if (!isStaff && req.user?.id !== userId) {
+      res.status(404).json({ message: "Recurso no encontrado" });
       return;
     }
 

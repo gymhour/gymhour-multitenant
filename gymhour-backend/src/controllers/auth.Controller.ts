@@ -1,265 +1,274 @@
-import crypto from "crypto";
-import { respondUnexpected } from "../services/apiError.service.js";
-import { Request, Response } from "express";
-import prisma from "../models/User.js";
-import { authServices } from "../services/auth.service.js";
-import { sendResetPasswordEmail, sendWelcomeEmail } from "../services/email.service.js";
-import { comparePassword, hashPassword } from "../services/password.service.js";
-//import { sendEmail } from "../services/mail"; // tu capa de envío de mail
+import crypto from 'node:crypto';
+import type { Request, Response } from 'express';
+import { systemPrisma } from '../models/Prisma.js';
+import { respondUnexpected } from '../services/apiError.service.js';
+import { authServices } from '../services/auth.service.js';
+import { sendResetPasswordEmail, sendWelcomeEmail } from '../services/email.service.js';
+import { comparePassword, hashPassword } from '../services/password.service.js';
 
-const register = async (req: Request, res: Response): Promise<void> => {
-  const {
-    email,
-    password,
-    dni,
-    nombre,
-    apellido,
-    profesion,
-    direc,
-    tel,
-    tipo,
-    fechaCumple,
-    estado,
-  } = req.body;
+const TIMEZONE = process.env.TIMEZONE || 'America/Argentina/Cordoba';
+const normalizeEmail = (value: unknown): string => String(value ?? '').trim().toLowerCase();
+const normalizeSlug = (value: unknown): string => String(value ?? '')
+  .trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+  .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 50);
+const hashOpaqueToken = (token: string): string => crypto.createHash('sha256').update(token).digest('hex');
 
-  try {
-    if (!email) {
-      res.status(400).json({ message: "Ingresá un email para crear la cuenta." });
-      return;
-    }
-    if (!password) {
-      res.status(400).json({ message: "Elegí una contraseña para crear la cuenta." });
-      return;
-    }
-
-    const hashedPassword = await hashPassword(password);
-    const user = await prisma.create({
-      data: {
-        email,
-        dni: dni || null,
-        nombre: nombre || null,
-        apellido: apellido || null,
-        direc: direc || null,
-        password: hashedPassword,
-        // El registro público SIEMPRE crea clientes. La asignación de roles
-        // (admin/entrenador) sólo se hace por un endpoint protegido de admin.
-        tipo: "cliente",
-        profesion: profesion || null,
-        fechaCumple: fechaCumple || null,
-        tel: tel || null,
-        estado: estado || null,
-      },
-    });
-
-    try {
-      await sendWelcomeEmail(user.email, user.nombre ?? "");
-    } catch (mailError) {
-      console.error("No se pudo enviar el email de bienvenida:", mailError);
-    }
-    const token = authServices.generateToken(user);
-    res.status(201).json({ token });
-  } catch (error: any) {
-    if (error?.code === "P2002") {
-      if (error?.meta?.target?.includes("email")) {
-        res.status(409).json({ message: "Ya hay una cuenta registrada con ese email. Probá iniciar sesión." });
-        return;
-      }
-      if (error?.meta?.target?.includes("dni")) {
-        res.status(409).json({ message: "Ya hay una cuenta registrada con ese DNI. Probá iniciar sesión." });
-        return;
-      }
-    }
-    respondUnexpected(res, error, "crear tu cuenta");
+const availableTenantSlug = async (gymName: string): Promise<string> => {
+  const base = normalizeSlug(gymName) || 'gimnasio';
+  const existing = await systemPrisma.tenant.findMany({
+    where: { slug: { startsWith: base } },
+    select: { slug: true },
+  });
+  const taken = new Set(existing.map(tenant => tenant.slug));
+  if (!taken.has(base)) return base;
+  for (let suffix = 2; suffix <= 9999; suffix += 1) {
+    const candidate = `${base.slice(0, 50 - String(suffix).length - 1)}-${suffix}`;
+    if (!taken.has(candidate)) return candidate;
   }
+  return `${base.slice(0, 41)}-${crypto.randomBytes(4).toString('hex')}`;
 };
 
-const TIMEZONE = process.env.TIMEZONE || "America/Argentina/Cordoba";
+const birthdayToday = (fechaCumple: Date | null): boolean => {
+  if (!fechaCumple) return false;
+  const parts = new Intl.DateTimeFormat('en-GB', { timeZone: TIMEZONE, month: '2-digit', day: '2-digit' })
+    .formatToParts(new Date());
+  const month = Number(parts.find(part => part.type === 'month')?.value);
+  const day = Number(parts.find(part => part.type === 'day')?.value);
+  return fechaCumple.getUTCMonth() + 1 === month && fechaCumple.getUTCDate() === day;
+};
 
-function getMonthDayFromDate(d: Date, timeZone = TIMEZONE) {
-  const fmt = new Intl.DateTimeFormat("en-GB", {
-    timeZone,
-    month: "2-digit",
-    day: "2-digit",
-  });
-  const parts = fmt.formatToParts(d);
-  const month = Number(parts.find(p => p.type === "month")!.value);
-  const day = Number(parts.find(p => p.type === "day")!.value);
-  return { month, day };
-}
+export const registerTenant = async (req: Request, res: Response): Promise<void> => {
+  const email = normalizeEmail(req.body?.email);
+  const password = String(req.body?.password ?? '');
+
+  if (!email || !/^\S+@\S+\.\S+$/.test(email) || password.length < 8) {
+    res.status(400).json({ message: 'Ingresá un email válido y una contraseña de al menos 8 caracteres.' });
+    return;
+  }
+
+  try {
+    const passwordHash = await hashPassword(password);
+    const kioskToken = crypto.randomBytes(32).toString('base64url');
+    let result;
+    for (let attempt = 0; attempt < 3 && !result; attempt += 1) {
+      const slug = await availableTenantSlug(`nuevo-gimnasio-${crypto.randomBytes(4).toString('hex')}`);
+      try {
+        result = await systemPrisma.$transaction(async tx => {
+          const tenant = await tx.tenant.create({
+            data: {
+              name: 'Mi gimnasio',
+              slug,
+              settings: { create: { timezone: TIMEZONE, currency: 'ARS', onboardingCompleted: false } },
+              kiosks: { create: { tokenHash: hashOpaqueToken(kioskToken) } },
+            },
+          });
+          const user = await tx.user.create({
+            data: {
+              tenantId: tenant.id, email, password: passwordHash,
+              role: 'ADMIN', estado: true,
+            },
+          });
+          return { tenant, user };
+        });
+      } catch (error: any) {
+        if (error?.code !== 'P2002' || attempt === 2) throw error;
+      }
+    }
+    if (!result) throw new Error('TENANT_CREATION_FAILED');
+
+    if (process.env.NODE_ENV !== 'test') {
+      try { await sendWelcomeEmail(result.user.email, result.user.nombre ?? ''); } catch (error) {
+        console.error('No se pudo enviar el email de bienvenida:', error);
+      }
+    }
+
+    res.status(201).json({
+      token: authServices.generateToken(result.user),
+      user: { id: result.user.ID_Usuario, email: result.user.email, role: result.user.role },
+      tenant: { id: result.tenant.id, name: result.tenant.name, slug: result.tenant.slug, onboardingCompleted: false },
+      kioskActivationToken: kioskToken,
+    });
+  } catch (error: any) {
+    if (error?.code === 'P2002') {
+      res.status(409).json({ message: 'No pudimos generar un identificador disponible. Intentá nuevamente.' });
+      return;
+    }
+    respondUnexpected(res, error, 'crear el gimnasio');
+  }
+};
 
 export const login = async (req: Request, res: Response): Promise<void> => {
-  const { email, password } = req.body;
+  const slug = normalizeSlug(req.params.slug);
+  const email = normalizeEmail(req.body?.email);
+  const password = String(req.body?.password ?? '');
+  const invalid = () => res.status(401).json({ message: 'Gimnasio, email o contraseña incorrectos.' });
 
+  if (!slug || !email || !password) { invalid(); return; }
   try {
-    if (!email) {
-      res.status(400).json({ message: "Escribí tu email para iniciar sesión." });
-      return;
+    const tenant = await systemPrisma.tenant.findUnique({ where: { slug } });
+    if (!tenant || tenant.status !== 'ACTIVE') { invalid(); return; }
+    const user = await systemPrisma.user.findUnique({
+      where: { tenantId_email: { tenantId: tenant.id, email } },
+    });
+    if (!user || user.estado !== true || !(await comparePassword(password, user.password))) {
+      invalid(); return;
     }
-    if (!password) {
-      res.status(400).json({ message: "Escribí tu contraseña para iniciar sesión." });
+    res.status(200).json({ token: authServices.generateToken(user), isBirthday: birthdayToday(user.fechaCumple) });
+  } catch (error) {
+    respondUnexpected(res, error, 'iniciar sesión');
+  }
+};
+
+export const loginWithoutTenant = async (req: Request, res: Response): Promise<void> => {
+  const email = normalizeEmail(req.body?.email);
+  const password = String(req.body?.password ?? '');
+  const invalid = () => res.status(401).json({ message: 'Email o contraseña incorrectos.' });
+
+  if (!email || !password) { invalid(); return; }
+  try {
+    const candidates = await systemPrisma.user.findMany({
+      where: { email, estado: true, tenant: { status: 'ACTIVE' } },
+      include: { tenant: true },
+      orderBy: { tenantId: 'asc' },
+    });
+    const passwordMatches = await Promise.all(candidates.map(user => comparePassword(password, user.password)));
+    const matches = candidates.filter((_user, index) => passwordMatches[index]);
+    if (!matches.length) { invalid(); return; }
+
+    if (matches.length === 1) {
+      const [user] = matches;
+      res.status(200).json({
+        requiresTenantSelection: false,
+        token: authServices.generateToken(user),
+        isBirthday: birthdayToday(user.fechaCumple),
+      });
       return;
     }
 
-    const user = await prisma.findUnique({ where: { email } });
-    if (!user) {
-      res.status(404).json({ message: "No encontramos ninguna cuenta con ese email. Revisalo o pedile el alta al administrador." });
-      return;
-    }
+    const memberships = matches.map(user => ({
+      userId: user.ID_Usuario,
+      tenantId: user.tenantId,
+      authVersion: user.authVersion,
+    }));
+    res.status(200).json({
+      requiresTenantSelection: true,
+      selectionToken: authServices.generateTenantSelectionToken(memberships),
+      tenants: matches.map(user => ({
+        id: user.tenant.id,
+        name: user.tenant.name,
+        slug: user.tenant.slug,
+        role: user.role,
+      })),
+    });
+  } catch (error) {
+    respondUnexpected(res, error, 'iniciar sesión');
+  }
+};
 
-    // Validar si el usuario está activo
-    if (user.estado === false || user.estado === null) {
-      res.status(403).json({ message: "Tu cuenta está inactiva. Hablá con el administrador para que la reactive." });
-      return;
-    }
+export const selectLoginTenant = async (req: Request, res: Response): Promise<void> => {
+  const selectionToken = String(req.body?.selectionToken ?? '');
+  const tenantId = Number(req.body?.tenantId);
+  const invalid = () => res.status(401).json({ message: 'La selección venció. Iniciá sesión nuevamente.' });
 
-    const passwordMatch = await comparePassword(password, user.password);
-    if (!passwordMatch) {
-      res.status(401).json({ message: "La contraseña no es correcta. Revisala e intentá de nuevo." });
-      return;
-    }
+  if (!selectionToken || !Number.isInteger(tenantId)) { invalid(); return; }
+  try {
+    const memberships = authServices.verifyTenantSelectionToken(selectionToken);
+    const selected = memberships.find(candidate => candidate.tenantId === tenantId);
+    if (!selected) { invalid(); return; }
+    const user = await systemPrisma.user.findFirst({
+      where: {
+        ID_Usuario: selected.userId,
+        tenantId: selected.tenantId,
+        authVersion: selected.authVersion,
+        estado: true,
+        tenant: { status: 'ACTIVE' },
+      },
+      include: { tenant: true },
+    });
+    if (!user) { invalid(); return; }
+    res.status(200).json({
+      requiresTenantSelection: false,
+      token: authServices.generateToken(user),
+      isBirthday: birthdayToday(user.fechaCumple),
+    });
+  } catch {
+    invalid();
+  }
+};
 
-    const token = authServices.generateToken(user);
+export const me = async (req: Request, res: Response): Promise<void> => {
+  if (!req.user || !req.tenant) { res.status(401).json({ error: 'No autorizado' }); return; }
+  const settings = await systemPrisma.tenantSettings.findUnique({ where: { tenantId: req.tenant.id } });
+  let enrichedSettings: any = settings;
+  if (settings?.logoPublicId) {
+    const { getTenantLogoUrl } = await import('../services/cloudinary.service.js');
+    enrichedSettings = { ...settings, logoUrl: getTenantLogoUrl(settings.logoPublicId) };
+  }
+  res.json({ user: req.user, tenant: { ...req.tenant, settings: enrichedSettings } });
+};
 
-    // Determinar si hoy es su cumpleaños (según TIMEZONE)
-    let isBirthday = false;
-    if (user.fechaCumple) {
+export const forgotPassword = async (req: Request, res: Response): Promise<void> => {
+  const slug = normalizeSlug(req.params.slug);
+  const email = normalizeEmail(req.body?.email);
+  const response = { message: 'Si esos datos existen, recibirás instrucciones.' };
+  if (!slug || !email) { res.json(response); return; }
+  try {
+    const tenant = await systemPrisma.tenant.findUnique({ where: { slug } });
+    const user = tenant ? await systemPrisma.user.findUnique({
+      where: { tenantId_email: { tenantId: tenant.id, email } },
+    }) : null;
+    if (!user) { res.json(response); return; }
+    const token = crypto.randomBytes(32).toString('hex');
+    await systemPrisma.user.update({
+      where: { ID_Usuario: user.ID_Usuario },
+      data: { resetToken: token, resetTokenExpiry: new Date(Date.now() + 15 * 60 * 1000) },
+    });
+    if (process.env.NODE_ENV !== 'test') {
       try {
-        // Para hoy: usa directamente el current timestamp con Intl para obtener local month/day
-        const { month: curMonth, day: curDay } = getMonthDayFromDate(new Date(), TIMEZONE);
-
-        // Para birthday: usa UTC methods para extraer month/day sin shift (asumiendo DB es local date)
-        const fechaCumpleDate = new Date(user.fechaCumple);
-        const birthMonth = fechaCumpleDate.getUTCMonth() + 1; // getUTCMonth() es 0-indexed
-        const birthDay = fechaCumpleDate.getUTCDate();
-
-        isBirthday = (curMonth === birthMonth && curDay === birthDay);
-      } catch (err) {
-        console.warn("Error calculando cumpleaños:", err);
-        isBirthday = false;
-      }
+        await sendResetPasswordEmail(user.email, `${process.env.FRONTEND_URL}/g/${slug}/reset-password?token=${token}`);
+      } catch (error) { console.error('Error enviando email de reset:', error); }
     }
-
-    // Devolvemos token + flag isBirthday
-    res.status(200).json({ token, isBirthday });
-  } catch (error: any) {
-    respondUnexpected(res, error, "iniciar sesión");
-  }
+    res.json(response);
+  } catch (error) { respondUnexpected(res, error, 'recuperar la contraseña'); }
 };
 
-const forgotPassword = async (req: Request, res: Response): Promise<void> => {
-  const { email } = req.body;
-  if (!email) {
-    res.status(400).json({ message: "Ingresá tu email." });
+export const resetPassword = async (req: Request, res: Response): Promise<void> => {
+  const token = String(req.body?.token ?? '');
+  const newPassword = String(req.body?.newPassword ?? '');
+  if (!token || newPassword.length < 8) {
+    res.status(400).json({ message: 'El enlace no es válido o la contraseña es demasiado corta.' });
     return;
   }
-  // Buscar usuario por email
-  const user = await prisma.findUnique({ where: { email } });
-  if (!user) {
-    // Para no revelar si existe o no, respondé siempre 200
-    res.json({ message: "Si ese email existe, recibirás instrucciones." });
-    return;
-  }
-
-  // Generar token y expiración (15 minutos)
-  const token = crypto.randomBytes(32).toString("hex");
-  const expiry = new Date(Date.now() + 15 * 60 * 1000);
-  // Guardar token y expiración en la BD
-  await prisma.update({
+  const user = await systemPrisma.user.findFirst({
+    where: { resetToken: token, resetTokenExpiry: { gt: new Date() } },
+  });
+  if (!user) { res.status(400).json({ message: 'El enlace venció o no es válido.' }); return; }
+  await systemPrisma.user.update({
     where: { ID_Usuario: user.ID_Usuario },
-    data: { resetToken: token, resetTokenExpiry: expiry },
+    data: { password: await hashPassword(newPassword), resetToken: null, resetTokenExpiry: null, authVersion: { increment: 1 } },
   });
-  // Construir URL de reset
-  const resetUrl = `${process.env.FRONTEND_URL}/reset-password?token=${token}`;
-  // Enviar email (no bloqueante)
-  try {
-    await sendResetPasswordEmail(user.email, resetUrl);
-  } catch (mailError) {
-    console.error("Error enviando email de reset:", mailError);
-    // No abortamos la respuesta por fallo en el mail
-  }
-  // Responder siempre 200 para no filtrar existencia
-  res.json({ message: "Si ese email existe, recibirás instrucciones." });
-};
-
-const resetPassword = async (req: Request, res: Response): Promise<void> => {
-  const { token, newPassword } = req.body;
-  if (!token || !newPassword) {
-    res.status(400).json({ message: "El enlace no es válido. Pedí uno nuevo desde \"Olvidé mi contraseña\"." });
-    return;
-  }
-  // Buscar usuario con token válido
-  const user = await prisma.findFirst({
-    where: {
-      resetToken: token,
-      resetTokenExpiry: { gt: new Date() }
-    }
-  });
-  if (!user) {
-    res.status(400).json({ message: "El enlace para cambiar la contraseña ya venció. Pedí uno nuevo desde \"Olvidé mi contraseña\"." });
-    return;
-  }
-  // Hashear y actualizar
-  const hash = await hashPassword(newPassword);
-  await prisma.update({
-    where: { ID_Usuario: user.ID_Usuario },
-    data: {
-      password: hash,
-      resetToken: null,
-      resetTokenExpiry: null
-    }
-  });
-  res.json({ message: "Contraseña reseteada con éxito." });
-  return;
+  res.json({ message: 'Contraseña reseteada con éxito.' });
 };
 
 export const changePassword = async (req: Request, res: Response): Promise<void> => {
-  if (!req.user) {
-    res.status(401).json({ message: 'Necesitás iniciar sesión para hacer esto.' });
+  if (!req.user) { res.status(401).json({ message: 'No autorizado' }); return; }
+  const currentPassword = String(req.body?.currentPassword ?? '');
+  const newPassword = String(req.body?.newPassword ?? '');
+  if (!currentPassword || newPassword.length < 8) {
+    res.status(400).json({ message: 'Completá la contraseña actual y una nueva de al menos 8 caracteres.' });
     return;
   }
-  const userId = req.user.ID_Usuario;  // <-- TS sabe que ya no es undefined
-  const { currentPassword, newPassword } = req.body;
-
-  // 1. Validaciones básicas
-  if (!currentPassword || !newPassword) {
-    res.status(400).json({ message: "Completá tu contraseña actual y la nueva." });
-    return;
+  const user = await systemPrisma.user.findFirst({ where: { ID_Usuario: req.user.id, tenantId: req.user.tenantId } });
+  if (!user || !(await comparePassword(currentPassword, user.password))) {
+    res.status(401).json({ message: 'La contraseña actual es incorrecta.' }); return;
   }
-  if (newPassword.length < 8) {
-    res.status(400).json({ message: "La nueva contraseña tiene que tener al menos 8 caracteres." });
-    return;
-  }
-
-  // 2. Buscar usuario y verificar contraseña actual
-  const user = await prisma.findUnique({ where: { ID_Usuario: userId } });
-  if (!user) {
-    res.status(404).json({ message: "No encontramos ese usuario." });
-    return;
-  }
-  const match = await comparePassword(currentPassword, user.password);
-  if (!match) {
-    res.status(401).json({ message: "La contraseña actual es incorrecta." });
-    return;
-  }
-
-  // 3. Hashear y actualizar nueva contraseña
-  const hashed = await hashPassword(newPassword);
-  await prisma.update({
-    where: { ID_Usuario: userId },
-    data: { password: hashed }
+  await systemPrisma.user.update({
+    where: { ID_Usuario: user.ID_Usuario },
+    data: { password: await hashPassword(newPassword), authVersion: { increment: 1 } },
   });
-
-  // 4. (Opcional) invalidar tokens anteriores:
-  //    Podés llevar un campo tokenVersion en el modelo User y subirlo aquí
-  //    para que todos los JWT antiguos dejen de ser válidos.
-
-  res.json({ message: "Contraseña cambiada exitosamente." });
+  res.json({ message: 'Contraseña cambiada exitosamente.' });
 };
 
 export const authMethods = {
-  register,
-  login,
-  forgotPassword,
-  resetPassword,
-  changePassword
-}
+  registerTenant, login, loginWithoutTenant, selectLoginTenant, me, forgotPassword, resetPassword, changePassword,
+};

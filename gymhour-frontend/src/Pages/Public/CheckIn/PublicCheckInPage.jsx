@@ -16,6 +16,16 @@ const PublicCheckInPage = () => {
   const [dni, setDni] = useState('');
   const [result, setResult] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [kioskToken] = useState(() => {
+    const fragment = new URLSearchParams(window.location.hash.replace(/^#/, ''));
+    const activationToken = fragment.get('token');
+    if (activationToken) {
+      localStorage.setItem('gymhourKioskToken', activationToken);
+      window.history.replaceState(null, '', `${window.location.pathname}${window.location.search}`);
+      return activationToken;
+    }
+    return localStorage.getItem('gymhourKioskToken') || '';
+  });
 
   // Logo según el tema (claro = negro, oscuro = el actual). Reactivo a cambios de tema.
   const [theme, setTheme] = useState(
@@ -40,7 +50,8 @@ const PublicCheckInPage = () => {
 
     setLoading(true);
     try {
-      const data = await apiService.registerAttendance({ dni, method: 'QR' });
+      if (!kioskToken) throw new Error('Este kiosco todavía no fue activado por el gimnasio.');
+      const data = await apiService.registerAttendance({ dni, method: 'QR', kioskToken });
       setResult(data);
       if (data.allowed) {
         setDni('');

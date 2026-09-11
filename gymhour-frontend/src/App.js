@@ -4,6 +4,7 @@ import { ToastContainer } from 'react-toastify'; // Importa el ToastContainer
 import ProtectedRoute from './ProtectedRoute';
 import Login from './Pages/Auth/Login/Login';
 import SignUp from './Pages/Auth/SignUp/SignUp';
+import Onboarding from './Pages/Auth/Onboarding/Onboarding';
 import NotFound from './Pages/NotFound/NotFound';
 import AlumnoInicio from './Pages/Alumno/Inicio/AlumnoInicio';
 import ClasesActividades from './Pages/Alumno/ClasesActividades/ClasesActividades';
@@ -47,6 +48,7 @@ import ChurnRiskPage from './Pages/Admin/ChurnRisk/ChurnRiskPage';
 import Gastos from './Pages/Admin/Gastos/Gastos';
 import UserMyAttendancesPage from './Pages/Alumno/MisAsistencias/UserMyAttendancesPage';
 import PublicCheckInPage from './Pages/Public/CheckIn/PublicCheckInPage';
+import TenantSettings from './Pages/Admin/TenantSettings/TenantSettings';
 import React, { useState, useEffect } from 'react';
 
 function App() {
@@ -82,9 +84,13 @@ function App() {
       <Routes>
         {/* Rutas públicas */}
         <Route path="/" element={<Login />} />
+        <Route path="/g/:slug/login" element={<Login />} />
         <Route path="/sign-up" element={<SignUp />} />
+        <Route path="/onboarding" element={<ProtectedRoute roles={['ADMIN']}><Onboarding /></ProtectedRoute>} />
         <Route path='/forgot-password' element={<ForgotPassword />} />
+        <Route path='/g/:slug/forgot-password' element={<ForgotPassword />} />
         <Route path='/reset-password' element={<ResetPassword />} />
+        <Route path='/g/:slug/reset-password' element={<ResetPassword />} />
         <Route path='/ingreso' element={<PublicCheckInPage />} />
 
         {/* Rutas protegidas */}
@@ -275,6 +281,14 @@ function App() {
           element={
             <ProtectedRoute>
               <AdminCheckInPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin/configuracion"
+          element={
+            <ProtectedRoute>
+              <TenantSettings />
             </ProtectedRoute>
           }
         />

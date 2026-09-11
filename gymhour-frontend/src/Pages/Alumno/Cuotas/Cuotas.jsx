@@ -1,3 +1,4 @@
+import { getCurrentUserId } from '../../../authSession';
 import React, { useEffect, useState } from 'react';
 import SidebarMenu from '../../../Components/SidebarMenu/SidebarMenu';
 import './Cuotas.css';
@@ -7,13 +8,23 @@ import { Copy } from 'lucide-react';
 import { toast } from 'react-toastify';
 import apiService from '../../../services/apiService';
 import CLIENT_SETUP from '../../../setup';
+import { useAuth } from '../../../context/AuthContext';
 
 const Cuotas = () => {
+  const { tenant } = useAuth();
   const [cuotas, setCuotas] = useState([]);   // siempre array
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  const { accountHolder, alias, cbu, cuil, whatsapp } = CLIENT_SETUP.payment;
+  const settings = tenant?.settings || {};
+  const accountHolder = settings.paymentAccountHolder || CLIENT_SETUP.payment.accountHolder;
+  const alias = settings.paymentAlias || CLIENT_SETUP.payment.alias;
+  const cbu = settings.paymentCbu || CLIENT_SETUP.payment.cbu;
+  const cuil = settings.paymentTaxId || CLIENT_SETUP.payment.cuil;
+  const whatsapp = {
+    phoneNumber: settings.paymentWhatsapp || CLIENT_SETUP.payment.whatsapp.phoneNumber,
+    message: `¡Hola, ${tenant?.name || 'Gymhour'}! Les comparto el comprobante de pago de este mes:`,
+  };
   const whatsappHref = `https://wa.me/${whatsapp.phoneNumber}?text=${encodeURIComponent(whatsapp.message)}`;
   const isConfigured = value => value && !String(value).startsWith('COMPLETAR_');
   // Mientras el cliente no tenga cargados sus datos de cobro, todos los campos
@@ -44,13 +55,13 @@ const Cuotas = () => {
     iso ? new Date(iso).toLocaleDateString('es-AR') : '–';
 
   const formatCurrency = (val) =>
-    new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(val ?? 0);
+    new Intl.NumberFormat('es-AR', { style: 'currency', currency: settings.currency || 'ARS' }).format(val ?? 0);
 
   useEffect(() => {
     const fetchCuotas = async () => {
       setLoading(true);
       try {
-        const userId = localStorage.getItem('usuarioId');
+        const userId = getCurrentUserId();
 
         // Esperamos la promesa y normalizamos la respuesta a array
         const res = await apiService.getCuotasUsuario(userId);

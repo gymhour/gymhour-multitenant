@@ -12,9 +12,9 @@
 // Uso:
 //   node prisma/consolidarSlotsHorarios.js            -> dry-run, no escribe nada
 //   node prisma/consolidarSlotsHorarios.js --apply    -> aplica los cambios
-import { PrismaClient } from "@prisma/client";
+import { createScriptTenantPrisma } from "./scriptClient.js";
 
-const prisma = new PrismaClient();
+const prisma = await createScriptTenantPrisma();
 const APPLY = process.argv.includes("--apply");
 
 const normalizeDayKey = (value) => (

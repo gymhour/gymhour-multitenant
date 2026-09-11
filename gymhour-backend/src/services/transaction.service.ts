@@ -39,7 +39,7 @@ type SerializableTransactionOptions = {
  * en el primer intento. Sólo se reintenta lo que detecta isRetryableTransactionError.
  */
 export const runSerializableTransaction = async <T>(
-    fn: (tx: Prisma.TransactionClient) => Promise<T>,
+    fn: (tx: any) => Promise<T>,
     options: SerializableTransactionOptions = {},
 ): Promise<T> => {
     const { maxRetries = 3, maxWait, timeout } = options;

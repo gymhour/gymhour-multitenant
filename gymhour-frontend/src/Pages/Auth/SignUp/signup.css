@@ -1,0 +1,55 @@
+.signup-heading {
+  position: relative;
+}
+
+.signup-form {
+  display: flex;
+  flex-direction: column;
+  gap: 13px;
+}
+
+.signup-form__row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.signup-form .auth-field small {
+  margin-top: -2px;
+  color: rgba(255, 255, 255, 0.38);
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.signup-error {
+  padding: 11px 13px;
+  color: #ffb3a8;
+  background: rgba(218, 70, 50, 0.1);
+  border: 1px solid rgba(218, 70, 50, 0.28);
+  border-radius: 10px;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+@media (min-width: 901px) and (max-height: 820px) {
+  .signup-form {
+    gap: 12px;
+  }
+
+  .signup-form .auth-field {
+    gap: 6px;
+  }
+
+  .signup-form .auth-field small {
+    line-height: 1.25;
+  }
+
+}
+
+@media (max-width: 540px) {
+  .signup-form__row {
+    grid-template-columns: 1fr;
+  }
+
+  .auth-shell--signup .auth-shell__grid { gap: 22px; }
+}

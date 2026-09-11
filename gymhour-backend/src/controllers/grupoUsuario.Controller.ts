@@ -21,7 +21,7 @@ const includeGrupo = {
                     apellido: true,
                     dni: true,
                     email: true,
-                    tipo: true,
+                    role: true,
                     estado: true
                 }
             }

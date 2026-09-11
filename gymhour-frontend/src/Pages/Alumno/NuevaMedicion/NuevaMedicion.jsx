@@ -1,3 +1,4 @@
+import { getCurrentUserId } from '../../../authSession';
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import SidebarMenu from '../../../Components/SidebarMenu/SidebarMenu';
@@ -34,7 +35,7 @@ const NuevaMedicion = () => {
 
     try {
       const bodyEjercicio = {
-        ID_Usuario: localStorage.getItem('usuarioId'),
+        ID_Usuario: getCurrentUserId(),
         nombre: nombre,
         tipoMedicion: tipoMedicion,
       };

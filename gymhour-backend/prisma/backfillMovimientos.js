@@ -3,9 +3,9 @@
 //   - 1 ALTA por usuario (con su fechaRegistro).
 //   - 1 BAJA para los usuarios inactivos que tengan fechaBaja.
 // Uso: node prisma/backfillMovimientos.js
-import { PrismaClient } from "@prisma/client";
+import { createScriptTenantPrisma } from "./scriptClient.js";
 
-const prisma = new PrismaClient();
+const prisma = await createScriptTenantPrisma();
 const MOTIVO_BAJA_DEFAULT = "Otros / Sin motivo";
 
 async function main() {

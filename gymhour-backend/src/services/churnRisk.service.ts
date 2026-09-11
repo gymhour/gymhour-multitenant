@@ -248,7 +248,7 @@ export const getChurnRiskReport = async ({
   const users = await prisma.user.findMany({
     where: {
       estado: true,
-      tipo: "cliente",
+      role: "STUDENT",
       ...(cleanSearch ? {
         OR: [
           { nombre: { contains: cleanSearch } },

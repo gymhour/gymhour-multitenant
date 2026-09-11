@@ -111,22 +111,23 @@ const enrichHorariosWithCupos = async <T extends { HorariosClase?: any[] }>(clas
 const getAllClasesAndHorarioClases = async (req: Request, res: Response): Promise<void> => {
     try {
         // Traemos todas las clases con sus horarios y entrenadores
-        const clases = await prisma.clase.findMany({
+        const clasesRaw = await prisma.clase.findMany({
             include: {
                 HorariosClase: true,
                 Entrenadores: {
-                    select: {
-                        ID_Usuario: true,
-                        email: true,
-                        nombre: true,
-                        apellido: true,
-                        profesion: true,
-                        fechaRegistro: true,
-                        imagenUsuario: true,
+                    include: {
+                        entrenador: { select: {
+                            ID_Usuario: true, email: true, nombre: true, apellido: true,
+                            profesion: true, fechaRegistro: true, imagenUsuario: true,
+                        } },
                     }
                 },
             },
         });
+        const clases = clasesRaw.map(clase => ({
+            ...clase,
+            Entrenadores: clase.Entrenadores.map(asignacion => asignacion.entrenador),
+        }));
 
         // Contar TurnosFijos activos por HorarioClase
         const horarioIds = clases.flatMap(c => c.HorariosClase.map(h => h.ID_HorarioClase));
@@ -227,23 +228,24 @@ const getClaseById = async (req: Request, res: Response): Promise<void> => {
     const claseId = parseInt(req.params.id, 10);
 
     try {
-        const clase = await prisma.clase.findUnique({
+        const claseRaw = await prisma.clase.findUnique({
             where: { ID_Clase: claseId },
             include: {
                 HorariosClase: true,
                 Entrenadores: {
-                    select: {
-                        ID_Usuario: true,
-                        email: true,
-                        nombre: true,
-                        apellido: true,
-                        profesion: true,
-                        fechaRegistro: true,
-                        imagenUsuario: true,
+                    include: {
+                        entrenador: { select: {
+                            ID_Usuario: true, email: true, nombre: true, apellido: true,
+                            profesion: true, fechaRegistro: true, imagenUsuario: true,
+                        } },
                     }
                 },
             },
         });
+        const clase = claseRaw ? {
+            ...claseRaw,
+            Entrenadores: claseRaw.Entrenadores.map(asignacion => asignacion.entrenador),
+        } : null;
 
         if (!clase) {
             res.status(404).json({ message: 'No encontramos esa clase.' });
@@ -732,7 +734,7 @@ export const modifyHorarioSingle = async (req: Request, res: Response) => {
                         estado: true,
                     },
                 });
-                const futurosIds = new Set(futuros.map(ft => ft.id_turno));
+                const futurosIds = new Set(futuros.map((ft: any) => ft.id_turno));
                 // Se proyecta sobre TODO el slot: los turnos de los hermanos ocupan la misma
                 // sesión aunque no se muevan (sólo se mueven los del horario que se edita).
                 const activeTurnos = await tx.turno.findMany({
@@ -746,7 +748,7 @@ export const modifyHorarioSingle = async (req: Request, res: Response) => {
                         fecha: true,
                     },
                 });
-                const projectedActiveTurnos = activeTurnos.map(turno => ({
+                const projectedActiveTurnos = activeTurnos.map((turno: any) => ({
                     ID_Usuario: turno.ID_Usuario,
                     fecha: futurosIds.has(turno.id_turno) ? newDateUtc : turno.fecha,
                 }));
@@ -771,7 +773,7 @@ export const modifyHorarioSingle = async (req: Request, res: Response) => {
                 }
 
                 // actualizamos todos los turnos futuros al día calculado (el mismo para todos)
-                const updatedTurnosPromises = futuros.map(ft => (
+                const updatedTurnosPromises = futuros.map((ft: any) => (
                     tx.turno.update({ where: { id_turno: ft.id_turno }, data: { fecha: newDateUtc } })
                 ));
                 const updatedTurnos = await Promise.all(updatedTurnosPromises);
@@ -1121,17 +1123,15 @@ const asignarEntrenadorAClase = async (req: Request, res: Response): Promise<voi
             return;
         }
 
-        // Conectar la clase con el entrenador
-        const claseActualizada = await prisma.clase.update({
-            where: { ID_Clase: idClase },
-            data: {
-                Entrenadores: {
-                    connect: { ID_Usuario: idEntrenador },
-                },
-            },
-            include: {
-                Entrenadores: true, // Para ver los entrenadores asignados tras la conexión
-            },
+        if (entrenador.role !== 'TRAINER' && entrenador.role !== 'ADMIN') {
+            res.status(400).json({ message: 'El usuario seleccionado no es entrenador.' });
+            return;
+        }
+        await prisma.claseEntrenador.create({
+            data: { ID_Clase: idClase, ID_Entrenador: idEntrenador },
+        });
+        const claseActualizada = await prisma.clase.findUnique({
+            where: { ID_Clase: idClase }, include: { Entrenadores: { include: { entrenador: true } } },
         });
 
         res.status(200).json({
@@ -1168,17 +1168,11 @@ const removeEntrenadorFromClase = async (req: Request, res: Response): Promise<v
             return;
         }
 
-        // Desconectar la clase del entrenador en la relación muchos a muchos
-        const claseActualizada = await prisma.clase.update({
-            where: { ID_Clase: idClase },
-            data: {
-                Entrenadores: {
-                    disconnect: { ID_Usuario: idEntrenador },
-                },
-            },
-            include: {
-                Entrenadores: true, // Para ver los entrenadores restantes en la clase
-            },
+        await prisma.claseEntrenador.deleteMany({
+            where: { ID_Clase: idClase, ID_Entrenador: idEntrenador },
+        });
+        const claseActualizada = await prisma.clase.findUnique({
+            where: { ID_Clase: idClase }, include: { Entrenadores: { include: { entrenador: true } } },
         });
 
         res.status(200).json({

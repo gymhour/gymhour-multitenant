@@ -19,9 +19,9 @@
 //   - C7 y D14 deben quedar en CERO (una sesión = un solo registro con datos).
 //   - A1 y A2 NO cambian: los HorarioClase viejos siguen existiendo, vacíos. Es esperado.
 //   - C11 (sobreasignación) NO se corrige sola: la resuelve el admin a mano.
-import { PrismaClient } from "@prisma/client";
+import { createScriptTenantPrisma } from "./scriptClient.js";
 
-const prisma = new PrismaClient();
+const prisma = await createScriptTenantPrisma();
 const JSON_OUT = process.argv.includes("--json");
 const DETALLE = Number(
   (process.argv.find((a) => a.startsWith("--detalle=")) || "--detalle=10").split("=")[1]

@@ -4,7 +4,7 @@ import bcrypt from 'bcrypt';
 import { Request, Response } from "express";
 import prisma from "../models/Prisma.js";
 import { getArgentinaDate, resolveSlots } from "../services/accessRules.service.js";
-import { deleteImage, getImageUrl, uploadImageBuffer } from "../services/cloudinary.service.js";
+import { deleteImage, getImageUrl, getMedicalRecordUrl, uploadImageBuffer } from "../services/cloudinary.service.js";
 import { sendWelcomeEmail } from "../services/email.service.js";
 import { hashPassword } from "../services/password.service.js";
 
@@ -115,7 +115,7 @@ type UsuarioReturn = {
     direc: string | null;
     tel: string | null;
     profesion: string | null;
-    tipo: string | null;
+    role: string;
     fechaCumple: Date | null;
     estado: boolean | null;
     imagenUsuario: string | null;
@@ -147,6 +147,12 @@ const normalizeOptionalText = (value: unknown): string | null => {
     if (value === undefined || value === null) return null;
     const text = String(value).trim();
     return text || null;
+};
+
+const normalizeTenantRole = (value: unknown): 'ADMIN' | 'TRAINER' | 'STUDENT' => {
+    const normalized = String(value ?? '').trim().toUpperCase();
+    if (normalized === 'ADMIN' || normalized === 'TRAINER') return normalized;
+    return 'STUDENT';
 };
 
 const normalizeSearchText = (value: unknown): string => (
@@ -328,7 +334,7 @@ export const createUser = async (req: Request, res: Response): Promise<void> => 
     try {
         const {
             email, password, dni, nombre, apellido,
-            profesion, direc, tel, tipo,
+            profesion, direc, tel, role,
             fechaCumple, ID_Plan: rawPlanId, usaTurnosFijos,
             observacionesSalud, fichaMedicaUrl, motivoAlta
         } = req.body;
@@ -371,7 +377,7 @@ export const createUser = async (req: Request, res: Response): Promise<void> => 
                 profesion: profesion || null,
                 direc: direc || null,
                 tel: tel || null,
-                tipo: tipo || null,
+                role: normalizeTenantRole(role),
                 observacionesSalud: normalizeOptionalText(observacionesSalud),
                 fichaMedicaUrl: normalizeOptionalText(fichaMedicaUrl),
                 fechaCumple: fechaCumple ? new Date(fechaCumple) : null,
@@ -437,7 +443,7 @@ export const getAllUsers = async (req: Request, res: Response): Promise<void> =>
         const {
             page = '1',
             take: takeQuery = '15',
-            tipo,
+            role,
             nombre,
             apellido,
             email,
@@ -454,7 +460,7 @@ export const getAllUsers = async (req: Request, res: Response): Promise<void> =>
         const skip = (pageNumber - 1) * take;
 
         const where: Prisma.UserWhereInput = {};
-        if (tipo) where.tipo = tipo as string;
+        if (role) where.role = String(role).toUpperCase() as any;
         if (String(sinPlan).toLowerCase() === 'true' || sinPlan === '1') {
             where.ID_Plan = null;
         } else if (planId) {
@@ -518,7 +524,7 @@ export const getAllUsers = async (req: Request, res: Response): Promise<void> =>
 
         const userListSelect = {
             ID_Usuario: true, email: true, dni: true, nombre: true, apellido: true,
-            direc: true, tel: true, profesion: true, tipo: true,
+            direc: true, tel: true, profesion: true, role: true,
             fechaCumple: true, estado: true, imagenUsuario: true,
             observacionesSalud: true, fichaMedicaUrl: true,
             fechaRegistro: true,
@@ -569,6 +575,7 @@ export const getAllUsers = async (req: Request, res: Response): Promise<void> =>
 
         const data = (users as (UsuarioReturn & { imagenUsuario: string | null })[]).map(u => ({
             ...u,
+            fichaMedicaUrl: u.fichaMedicaUrl ? getMedicalRecordUrl(u.fichaMedicaUrl) : null,
             avatarUrl: u.imagenUsuario
                 ? getImageUrl(u.imagenUsuario, { secure: true, width: 80, height: 80, crop: 'thumb' })
                 : null
@@ -585,7 +592,7 @@ export const getAllUsers = async (req: Request, res: Response): Promise<void> =>
 
 const getUserStats = async (_req: Request, res: Response): Promise<void> => {
     try {
-        const clienteWhere: Prisma.UserWhereInput = { tipo: 'cliente' };
+        const clienteWhere: Prisma.UserWhereInput = { role: 'STUDENT' };
         const [activos, inactivos, sinPlanAsignado] = await prisma.$transaction([
             prisma.user.count({ where: { ...clienteWhere, estado: true } }),
             prisma.user.count({ where: { ...clienteWhere, estado: false } }),
@@ -608,7 +615,7 @@ const getUserStats = async (_req: Request, res: Response): Promise<void> => {
 export const getAllEntrenadores = async (req: Request, res: Response): Promise<void> => {
     try {
         const entrenadores = await prisma.user.findMany({
-            where: { tipo: "entrenador" },
+            where: { role: "TRAINER" },
             select: {
                 ID_Usuario: true,
                 email: true,
@@ -618,7 +625,7 @@ export const getAllEntrenadores = async (req: Request, res: Response): Promise<v
                 direc: true,
                 tel: true,
                 profesion: true,
-                tipo: true,
+                role: true,
                 fechaCumple: true,
                 estado: true,
                 usaTurnosFijos: true,
@@ -639,10 +646,12 @@ export const getAllEntrenadores = async (req: Request, res: Response): Promise<v
                 },
                 ClasesACargo: {               // <— relación que queremos incluir
                     select: {
-                        ID_Clase: true,
-                        nombre: true,
-                        descripcion: true,        // opcional, si quieres más datos
-                        imagenClase: true
+                        clase: { select: {
+                            ID_Clase: true,
+                            nombre: true,
+                            descripcion: true,
+                            imagenClase: true
+                        } }
                     }
                 }
             }
@@ -658,14 +667,14 @@ export const getAllEntrenadores = async (req: Request, res: Response): Promise<v
             direc: e.direc,
             tel: e.tel,
             profesion: e.profesion,
-            tipo: e.tipo,
+            role: e.role,
             fechaCumple: e.fechaCumple,
             estado: e.estado,
             observacionesSalud: e.observacionesSalud,
-            fichaMedicaUrl: e.fichaMedicaUrl,
+            fichaMedicaUrl: e.fichaMedicaUrl ? getMedicalRecordUrl(e.fichaMedicaUrl) : null,
             fechaRegistro: e.fechaRegistro,
             plan: e.plan,
-            clasesACargo: e.ClasesACargo.map(c => ({
+            clasesACargo: e.ClasesACargo.map(({ clase: c }) => ({
                 ID_Clase: c.ID_Clase,
                 nombre: c.nombre,
                 descripcion: c.descripcion,
@@ -692,8 +701,8 @@ export const getUserById = async (req: Request, res: Response): Promise<void> =>
 
     // Ownership: un cliente sólo puede ver su propio perfil; admin/entrenador, cualquiera.
     const requester = req.user;
-    const isStaff = ['admin', 'entrenador'].includes(String(requester?.tipo || '').toLowerCase());
-    if (!isStaff && requester?.ID_Usuario !== id) {
+    const isStaff = requester?.role === 'ADMIN' || requester?.role === 'TRAINER';
+    if (!isStaff && requester?.id !== id) {
         res.status(403).json({ message: "No tenés permiso para ver este usuario" });
         return;
     }
@@ -710,7 +719,7 @@ export const getUserById = async (req: Request, res: Response): Promise<void> =>
                 profesion: true,
                 direc: true,
                 tel: true,
-                tipo: true,
+                role: true,
                 fechaRegistro: true,
                 fechaBaja: true,
                 fechaCumple: true,
@@ -747,7 +756,11 @@ export const getUserById = async (req: Request, res: Response): Promise<void> =>
             ? getImageUrl(user.imagenUsuario, { secure: true, width: 200, height: 200, crop: 'thumb' })
             : null;
 
-        res.status(200).json({ ...user, avatarUrl });
+        res.status(200).json({
+            ...user,
+            fichaMedicaUrl: user.fichaMedicaUrl ? getMedicalRecordUrl(user.fichaMedicaUrl) : null,
+            avatarUrl,
+        });
     } catch (error: any) {
         respondUnexpected(res, error, "cargar el usuario");
     }
@@ -766,7 +779,7 @@ export const updateUser = async (req: Request, res: Response): Promise<void> => 
         profesion,
         direc,
         tel,
-        tipo,
+        role,
         fechaCumple,
         estado,
         ID_Plan: ID_PlanStr,
@@ -786,7 +799,7 @@ export const updateUser = async (req: Request, res: Response): Promise<void> => 
         if (profesion) data.profesion = profesion;
         if (direc) data.direc = direc;
         if (tel) data.tel = tel;
-        if (tipo) data.tipo = tipo;
+        if (role) data.role = normalizeTenantRole(role);
         if (fechaCumple) data.fechaCumple = new Date(fechaCumple);
         if (estado !== undefined) data.estado = estado;
         if (usaTurnosFijos !== undefined) data.usaTurnosFijos = parseBoolean(usaTurnosFijos);
@@ -805,6 +818,9 @@ export const updateUser = async (req: Request, res: Response): Promise<void> => 
 
         if (password) {
             data.password = await hashPassword(password);
+        }
+        if (password || role) {
+            data.authVersion = { increment: 1 };
         }
 
         // 2) Si hay nuevo avatar, eliminar el anterior y subir el nuevo
@@ -862,7 +878,7 @@ export const updateUser = async (req: Request, res: Response): Promise<void> => 
                 // una plantilla desactivada para ese horario, el admin la está reactivando.
                 for (const ID_HorarioClase of debeTener) {
                     await tx.turnoFijo.upsert({
-                        where: { ID_Usuario_ID_HorarioClase: { ID_Usuario: id, ID_HorarioClase } },
+                        where: { tenantId_ID_Usuario_ID_HorarioClase: { tenantId: req.user!.tenantId, ID_Usuario: id, ID_HorarioClase } },
                         create: { ID_Usuario: id, ID_HorarioClase },
                         update: { activo: true },
                     });
@@ -882,7 +898,10 @@ export const updateUser = async (req: Request, res: Response): Promise<void> => 
             });
         });
 
-        res.status(200).json(updated);
+        res.status(200).json({
+            ...updated,
+            fichaMedicaUrl: updated.fichaMedicaUrl ? getMedicalRecordUrl(updated.fichaMedicaUrl) : null,
+        });
     } catch (error: any) {
         console.error('Error updating user:', error);
         // Manejar violación de unique en email y dni
@@ -921,7 +940,10 @@ export const updateUserHealth = async (req: Request, res: Response): Promise<voi
             }
         });
 
-        res.status(200).json(updated);
+        res.status(200).json({
+            ...updated,
+            fichaMedicaUrl: updated.fichaMedicaUrl ? getMedicalRecordUrl(updated.fichaMedicaUrl) : null,
+        });
     } catch (error: any) {
         if (error.code === "P2025") {
             res.status(404).json({ message: "No encontramos ese usuario." });
@@ -941,7 +963,7 @@ export const deleteUser = async (req: Request, res: Response): Promise<void> => 
             res.status(404).json({ message: 'No encontramos ese usuario.' });
             return;
         }
-        if (user.tipo === 'Admin') {
+        if (user.role === 'ADMIN') {
             res.status(403).json({ message: 'No se puede eliminar un admin' });
             return;
         }
@@ -1073,11 +1095,11 @@ const estadoUser = async (req: Request, res: Response): Promise<void> => {
 export const getAllAdmins = async (req: Request, res: Response): Promise<void> => {
     try {
         const admins = await prisma.user.findMany({
-            where: { tipo: { equals: "admin" } }, // sin mode
+            where: { role: { equals: "ADMIN" } },
             orderBy: { fechaRegistro: "desc" },
             select: {
                 ID_Usuario: true,
-                tipo: true,
+                role: true,
                 estado: true,
             }
         });
@@ -1210,7 +1232,7 @@ export const importUsers = async (req: Request, res: Response): Promise<void> =>
                     direc: u.direc?.trim() || null,
                     profesion: u.profesion?.trim() || null,
                     fechaCumple,
-                    tipo: 'cliente',
+                    role: 'STUDENT' as const,
                     estado: true,
                     ID_Plan,
                     usaTurnosFijos: false,

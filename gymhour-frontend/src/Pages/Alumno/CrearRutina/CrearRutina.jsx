@@ -1,3 +1,4 @@
+import { getCurrentUserId } from '../../../authSession';
 import React, { useState, useEffect, useMemo } from 'react';
 import '../../../App.css';
 import SidebarMenu from '../../../Components/SidebarMenu/SidebarMenu.jsx';
@@ -528,7 +529,7 @@ const CrearRutina = ({ fromAdmin, fromEntrenador, fromAlumno }) => {
         const response = await apiService.getAllUsuarios({
           page: 1,
           take: 20,
-          tipo: 'cliente',
+          role: 'STUDENT',
           estado: true,
           search: term
         });
@@ -617,7 +618,7 @@ const CrearRutina = ({ fromAdmin, fromEntrenador, fromAlumno }) => {
 
   /* Restoring selectedUserId for JSX usage */
   const selectedUserId = useMemo(() => {
-    if (!canAssign) return Number(localStorage.getItem("usuarioId"));
+    if (!canAssign) return Number(getCurrentUserId());
     return selectedInfoUserId ?? assignedInfoUserOptions?.[0]?.value ?? null;
   }, [assignedInfoUserOptions, canAssign, selectedInfoUserId]);
 
@@ -1431,11 +1432,11 @@ const CrearRutina = ({ fromAdmin, fromEntrenador, fromAlumno }) => {
   const buildPayload = () => {
     const usuariosAsignados = canAssign
       ? selectedUserOptions.map(option => Number(option.value)).filter(Boolean)
-      : [Number(localStorage.getItem("usuarioId"))].filter(Boolean);
+      : [Number(getCurrentUserId())].filter(Boolean);
     const gruposAsignados = canAssign
       ? selectedGroupOptions.map(option => Number(option.value)).filter(Boolean)
       : [];
-    const currentUserId = Number(localStorage.getItem("usuarioId"));
+    const currentUserId = Number(getCurrentUserId());
     const userId = usuariosAsignados[0] || currentUserId;
 
     const entrenadorId = canAssign
@@ -1627,11 +1628,11 @@ const CrearRutina = ({ fromAdmin, fromEntrenador, fromAlumno }) => {
 
         const usuariosAsignadosIds = canAssign
           ? selectedUserOptions.map(option => Number(option.value)).filter(Boolean)
-          : [Number(localStorage.getItem("usuarioId"))].filter(Boolean);
+          : [Number(getCurrentUserId())].filter(Boolean);
         const gruposAsignadosIds = canAssign
           ? selectedGroupOptions.map(option => Number(option.value)).filter(Boolean)
           : [];
-        const currentUserId = Number(localStorage.getItem("usuarioId"));
+        const currentUserId = Number(getCurrentUserId());
         const userId = usuariosAsignadosIds[0] || currentUserId;
         const entrenadorId = canAssign ? currentUserId : null;
 

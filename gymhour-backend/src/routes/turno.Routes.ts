@@ -4,7 +4,11 @@ import { authenticateToken, isAdmin, isAdminOrEntrenador } from '../services/aut
 
 const turnoRouter = express.Router();
 
-turnoRouter.get('/usuario/:idUsuario', authenticateToken, turnoMethods.getTurnosByUsuario);
+turnoRouter.get('/me', authenticateToken, (req, res) => {
+  req.params.idUsuario = String(req.user!.id);
+  return turnoMethods.getTurnosByUsuario(req, res);
+});
+turnoRouter.get('/usuario/:idUsuario', authenticateToken, isAdminOrEntrenador, turnoMethods.getTurnosByUsuario);
 turnoRouter.get('/', authenticateToken, isAdminOrEntrenador, turnoMethods.getAllTurnos)
 turnoRouter.post('/', authenticateToken, turnoMethods.createTurno)
 turnoRouter.get('/:id', authenticateToken, turnoMethods.getTurnoById)

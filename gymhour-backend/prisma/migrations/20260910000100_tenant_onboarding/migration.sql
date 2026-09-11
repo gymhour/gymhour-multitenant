@@ -1,0 +1,7 @@
+ALTER TABLE `TenantSettings`
+  ADD COLUMN `onboardingCompleted` BOOLEAN NOT NULL DEFAULT true,
+  ADD COLUMN `logoPublicId` VARCHAR(191) NULL,
+  ADD COLUMN `primaryColor` VARCHAR(7) NOT NULL DEFAULT '#DA4632',
+  ADD COLUMN `contactPhone` VARCHAR(191) NULL,
+  ADD COLUMN `contactEmail` VARCHAR(191) NULL,
+  ADD COLUMN `location` VARCHAR(191) NULL;

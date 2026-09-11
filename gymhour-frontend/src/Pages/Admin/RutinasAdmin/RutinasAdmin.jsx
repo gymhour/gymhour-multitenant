@@ -1,3 +1,4 @@
+import { getCurrentUserId } from '../../../authSession';
 import React, { useEffect, useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { toast } from 'react-toastify';
@@ -184,7 +185,7 @@ const RutinasAdmin = () => {
 
   // duplicar rutina — actualizado para TABATA y urlPlanificacion
   const buildDuplicatePayload = (rutina) => {
-    const currentUserId = Number(localStorage.getItem('usuarioId')) || null;
+    const currentUserId = Number(getCurrentUserId()) || null;
     const alumnoId = rutina?.alumno?.ID_Usuario ?? currentUserId;
 
     if (rutina?.urlPlanificacion) {

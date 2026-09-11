@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useSearchParams, useNavigate } from 'react-router-dom';
+import { useSearchParams, useNavigate, useParams } from 'react-router-dom';
 import CLIENT_SETUP from '../../../setup';
 import CustomInput from '../../../Components/utils/CustomInput/CustomInput';
 import apiService from '../../../services/apiService';
@@ -11,6 +11,7 @@ const ResetPassword = () => {
   const [searchParams] = useSearchParams();
   const token = searchParams.get('token') || '';
   const navigate = useNavigate();
+  const { slug } = useParams();
   const [isLoading, setIsLoading] = useState(false);
 
   // refs para limpiar correctamente
@@ -67,7 +68,7 @@ const ResetPassword = () => {
           clearInterval(intervalRef.current);
           intervalRef.current = null;
           toast.update(toastIdRef.current, { render: 'Redirigiendo...', autoClose: 800, progress: 1 });
-          navigate('/', { replace: true });
+          navigate(slug ? `/g/${slug}/login` : '/', { replace: true });
         }
       }, 1000);
 

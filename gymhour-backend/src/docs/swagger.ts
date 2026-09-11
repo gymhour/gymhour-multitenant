@@ -2,8 +2,8 @@ export const swaggerDocument = {
   "openapi": "3.0.0",
   "info": {
     "title": "API de Gymhour",
-    "version": "1.0.0",
-    "description": "Documentación de la API de Gymhour"
+    "version": "2.0.0",
+    "description": "API SaaS multi-tenant de Gymhour. Las rutas operativas derivan el tenant exclusivamente del JWT o de la credencial de kiosco."
   },
   "servers": [
     {
@@ -16,11 +16,11 @@ export const swaggerDocument = {
     }
   ],
   "paths": {
-    "/auth/register": {
+    "/auth/tenants": {
       "post": {
         "tags": ["Auth"],
-        "summary": "Registrar un nuevo usuario",
-        "description": "Permite registrar un nuevo usuario en el sistema.",
+        "summary": "Registrar un gimnasio y su primer ADMIN",
+        "description": "Crea Tenant, TenantSettings, una credencial de kiosco y el primer ADMIN en una transacción.",
         "requestBody": {
           "required": true,
           "content": {
@@ -28,6 +28,9 @@ export const swaggerDocument = {
               "schema": {
                 "type": "object",
                 "properties": {
+                  "gymName": { "type": "string", "example": "Gym Centro" },
+                  "nombre": { "type": "string", "example": "Ana" },
+                  "apellido": { "type": "string", "example": "Pérez" },
                   "email": {
                     "type": "string",
                     "example": "usuario@ejemplo.com",
@@ -37,21 +40,16 @@ export const swaggerDocument = {
                     "type": "string",
                     "example": "contraseñaSegura123",
                     "description": "La contraseña del usuario."
-                  },
-                  "tipo": {
-                    "type": "string",
-                    "example": "cliente",
-                    "description": "El tipo de usuario, por ejemplo, 'cliente' o 'admin'."
                   }
                 },
-                "required": ["email", "password"]
+                "required": ["gymName", "email", "password"]
               }
             }
           }
         },
         "responses": {
           "201": {
-            "description": "Usuario registrado con éxito.",
+            "description": "Gimnasio registrado con éxito.",
             "content": {
               "application/json": {
                 "schema": {
@@ -79,7 +77,7 @@ export const swaggerDocument = {
       "post": {
         "tags": ["Auth"],
         "summary": "Iniciar sesión",
-        "description": "Permite iniciar sesión a un usuario registrado.",
+        "description": "Autentica con email y contraseña. Emite el JWT directamente o solicita elegir gimnasio cuando las credenciales coinciden en varios tenants.",
         "requestBody": {
           "required": true,
           "content": {
@@ -104,7 +102,7 @@ export const swaggerDocument = {
           }
         },
         "responses": {
-          "201": {
+          "200": {
             "description": "Inicio de sesión exitoso.",
             "content": {
               "application/json": {
@@ -120,18 +118,38 @@ export const swaggerDocument = {
               }
             }
           },
-          "400": {
-            "description": "Datos faltantes en la solicitud."
-          },
-          "404": {
-            "description": "El usuario no fue encontrado."
-          },
           "401": {
-            "description": "Contraseña incorrecta."
+            "description": "Email o contraseña incorrectos."
           },
           "500": {
             "description": "Error interno del servidor."
           }
+        }
+      }
+    },
+    "/auth/login/select-tenant": {
+      "post": {
+        "tags": ["Auth"],
+        "summary": "Completar login eligiendo gimnasio",
+        "description": "Intercambia el token temporal de selección y el tenant elegido por un JWT operativo.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "selectionToken": { "type": "string" },
+                  "tenantId": { "type": "integer" }
+                },
+                "required": ["selectionToken", "tenantId"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "JWT operativo emitido." },
+          "401": { "description": "Selección inválida o vencida." }
         }
       }
     },
@@ -1554,10 +1572,11 @@ export const swaggerDocument = {
             "description": "Teléfono del usuario",
             "example": "123456789"
           },
-          "tipo": {
+          "role": {
             "type": "string",
-            "description": "Tipo de usuario",
-            "example": "cliente"
+            "enum": ["ADMIN", "TRAINER", "STUDENT"],
+            "description": "Rol del usuario dentro de su tenant",
+            "example": "STUDENT"
           },
           "fechaRegistro": {
             "type": "string",

@@ -1,3 +1,5 @@
+import type { TenantRole } from '@prisma/client';
+
 export interface User {
     email: string;
     password: string;
@@ -5,7 +7,9 @@ export interface User {
     apellido: string | null;
     direc: string | null;
     tel: string | null;
-    tipo: string | null;
+    tenantId: number;
+    role: TenantRole;
+    authVersion: number;
     fechaRegistro: Date | null;
     fechaBaja: Date | null;
     ID_Usuario: number;

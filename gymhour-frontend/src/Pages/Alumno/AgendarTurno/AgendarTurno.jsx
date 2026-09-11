@@ -1,3 +1,4 @@
+import { getCurrentUserId } from '../../../authSession';
 import React, { useState, useEffect, useMemo } from 'react';
 import '../../../App.css';
 import './agendarTurno.css';
@@ -244,7 +245,7 @@ const AgendarTurno = () => {
     const fetchInitialData = async () => {
       setLoading(true);
       try {
-        const usuarioId = localStorage.getItem("usuarioId");
+        const usuarioId = getCurrentUserId();
         const [clasesApi, cuotasRes] = await Promise.all([
           apiService.getClases(),
           usuarioId ? apiService.getCuotasUsuario(usuarioId) : Promise.resolve([]),
@@ -533,7 +534,7 @@ const AgendarTurno = () => {
       return;
     }
 
-    const usuarioId = localStorage.getItem("usuarioId");
+    const usuarioId = getCurrentUserId();
     if (!usuarioId) {
       mostrarErrorTurno("Se cerró tu sesión. Iniciá sesión de nuevo para poder reservar el turno.");
       return;

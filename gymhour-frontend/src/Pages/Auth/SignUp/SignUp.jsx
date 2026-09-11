@@ -1,44 +1,69 @@
-// components/SignUp.js
 import React, { useState } from 'react';
-import apiClient from '../../../axiosConfig.js';
+import { Link, useNavigate } from 'react-router-dom';
+import { authClient } from '../../../axiosConfig';
+import { useAuth } from '../../../context/AuthContext';
+import CustomInput from '../../../Components/utils/CustomInput/CustomInput';
+import AuthShell from '../AuthShell/AuthShell';
+import './signup.css';
 
 const SignUp = () => {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const navigate = useNavigate();
+  const { login } = useAuth();
+  const [form, setForm] = useState({ email: '', password: '' });
   const [message, setMessage] = useState('');
+  const [loading, setLoading] = useState(false);
+  const change = event => setForm(current => ({ ...current, [event.target.name]: event.target.value }));
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+  const handleSubmit = async event => {
+    event.preventDefault();
+    setLoading(true); setMessage('');
     try {
-      const response = await apiClient.post('/auth/register', { email, password });
-      setMessage('Registro exitoso. Token: ' + response.data.token);
+      const { data } = await authClient.post('/auth/tenants', form);
+      await login(data.token);
+      if (data.kioskActivationToken) sessionStorage.setItem('newKioskActivationToken', data.kioskActivationToken);
+      navigate('/onboarding', { replace: true });
     } catch (error) {
-      setMessage(error.response?.data?.message || 'Error al registrarse');
-    }
+      setMessage(error.response?.data?.message || 'No se pudo crear el gimnasio.');
+    } finally { setLoading(false); }
   };
 
   return (
-    <div>
-      <h2>Registro</h2>
-      <form onSubmit={handleSubmit}>
-        <input
-          type="email"
-          placeholder="Email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          required
-        />
-        <input
-          type="password"
-          placeholder="Contraseña"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          required
-        />
-        <button type="submit">Registrarse</button>
+    <AuthShell variant="signup">
+      <div className="auth-card__heading signup-heading">
+        <span className="auth-card__kicker">Cuenta para propietarios</span>
+        <h2>Creá tu cuenta</h2>
+        <p>Primero configurá tus datos de acceso. Después personalizaremos tu gimnasio.</p>
+      </div>
+
+      <form className="signup-form" onSubmit={handleSubmit}>
+        <label className="auth-field">
+          <span>Email</span>
+          <CustomInput name="email" type="email" placeholder="tu@email.com" value={form.email}
+            onChange={change} width="100%" autoComplete="email" required />
+        </label>
+
+        <label className="auth-field">
+          <span>Contraseña</span>
+          <CustomInput name="password" type="password" minLength={8} placeholder="Mínimo 8 caracteres"
+            value={form.password} onChange={change} width="100%" autoComplete="new-password" required />
+        </label>
+
+        {message && <div className="signup-error" role="alert">{message}</div>}
+
+        <button className="btn-login signup-submit" type="submit" disabled={loading}>
+          <span>{loading ? 'Creando tu cuenta...' : 'Continuar'}</span>
+          {!loading && <b aria-hidden="true">→</b>}
+        </button>
       </form>
-      {message && <p>{message}</p>}
-    </div>
+
+      <div className="auth-card__footer">
+        <div>
+          <strong>¿Tu gimnasio ya usa Gymhour?</strong>
+          {/* <span>Accedé a tu cuenta y continuá gestionando.</span> */}
+        </div>
+        <Link to="/">Iniciá sesión <b aria-hidden="true">→</b></Link>
+      </div>
+    </AuthShell>
   );
 };
 

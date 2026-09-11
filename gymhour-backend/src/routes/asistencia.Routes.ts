@@ -2,6 +2,7 @@ import express from 'express';
 import { rateLimit } from 'express-rate-limit';
 import { asistenciaMethods } from '../controllers/asistencia.Controller.js';
 import { authServices } from '../services/auth.service.js';
+import { authenticateKiosk } from '../services/kioskAuth.service.js';
 
 const asistenciaRoutes = express.Router();
 
@@ -17,8 +18,9 @@ const registrarLimiter = rateLimit({
   legacyHeaders: false,
 });
 
-// 1. Registrar asistencia/ingreso por DNI (Endpoint público)
-asistenciaRoutes.post('/registrar', registrarLimiter, asistenciaMethods.registrarAsistencia);
+// Staff usa JWT; el kiosco usa una credencial opaca que resuelve el tenant.
+asistenciaRoutes.post('/registrar', authServices.authenticateToken, authServices.isAdminOrEntrenador, asistenciaMethods.registrarAsistencia);
+asistenciaRoutes.post('/kiosk/registrar', registrarLimiter, authenticateKiosk, asistenciaMethods.registrarAsistencia);
 
 // 2. Obtener asistencias del usuario autenticado
 asistenciaRoutes.get(

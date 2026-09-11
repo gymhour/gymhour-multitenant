@@ -349,7 +349,7 @@ const CuotasUsuarios = ({fromAdmin, fromEntrenador}) => {
         const response = await apiService.getAllUsuarios({
           page: 1,
           take: 20,
-          tipo: 'cliente',
+          role: 'STUDENT',
           estado: true,
           search: term
         });

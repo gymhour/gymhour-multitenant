@@ -2,7 +2,7 @@ import { BlockType } from '@prisma/client';
 import { respondError, respondUnexpected } from "../services/apiError.service.js";
 import { Request, Response } from "express";
 import prisma from "../models/Prisma.js";
-import { getImageUrl } from '../services/cloudinary.service.js';
+import { getImageUrl, getMedicalRecordUrl } from '../services/cloudinary.service.js';
 
 const parseIdList = (value: unknown): number[] => {
     if (!Array.isArray(value)) return [];
@@ -23,7 +23,7 @@ const rutinaAsignacionesInclude = {
                     apellido: true,
                     dni: true,
                     email: true,
-                    tipo: true,
+                    role: true,
                     estado: true,
                     observacionesSalud: true,
                     fichaMedicaUrl: true
@@ -48,7 +48,7 @@ const rutinaAsignacionesInclude = {
                                     apellido: true,
                                     dni: true,
                                     email: true,
-                                    tipo: true,
+                                    role: true,
                                     estado: true,
                                     observacionesSalud: true,
                                     fichaMedicaUrl: true
@@ -62,14 +62,19 @@ const rutinaAsignacionesInclude = {
     }
 };
 
+const withSignedMedicalRecord = (user: any) => ({
+    ...user,
+    fichaMedicaUrl: user?.fichaMedicaUrl ? getMedicalRecordUrl(user.fichaMedicaUrl) : null,
+});
+
 const mapAsignacionesRutina = (rutinaFull: any) => ({
-    asignacionesUsuarios: (rutinaFull.asignacionesUsuarios || []).map((a: any) => a.usuario),
+    asignacionesUsuarios: (rutinaFull.asignacionesUsuarios || []).map((a: any) => withSignedMedicalRecord(a.usuario)),
     asignacionesGrupos: (rutinaFull.asignacionesGrupos || []).map((a: any) => ({
         ID_GrupoUsuario: a.grupoUsuario.ID_GrupoUsuario,
         nombre: a.grupoUsuario.nombre,
         descripcion: a.grupoUsuario.descripcion,
         estado: a.grupoUsuario.estado,
-        miembros: (a.grupoUsuario.miembros || []).map((m: any) => m.usuario)
+        miembros: (a.grupoUsuario.miembros || []).map((m: any) => withSignedMedicalRecord(m.usuario))
     }))
 });
 
@@ -115,8 +120,8 @@ export const getAllRutinasWithDetails = async (req: Request, res: Response): Pro
             include: {
                 DiasRutina: true,
                 Semanas: { include: { Dias: true } },
-                User: { select: { ID_Usuario: true, nombre: true, apellido: true, tipo: true, email: true } },
-                Entrenador: { select: { ID_Usuario: true, nombre: true, apellido: true, tipo: true } },
+                User: { select: { ID_Usuario: true, nombre: true, apellido: true, role: true, email: true } },
+                Entrenador: { select: { ID_Usuario: true, nombre: true, apellido: true, role: true } },
                 ...rutinaAsignacionesInclude,
                 Bloques: {
                     include: {
@@ -267,8 +272,8 @@ export const getAllRutinasWithDetails = async (req: Request, res: Response): Pro
 //         const rutinas = await prisma.rutina.findMany({
 //             include: {
 //                 DiasRutina: true,
-//                 User: { select: { nombre: true, apellido: true, tipo: true } },
-//                 Entrenador: { select: { nombre: true, apellido: true, tipo: true } },
+//                 User: { select: { nombre: true, apellido: true, role: true } },
+//                 Entrenador: { select: { nombre: true, apellido: true, role: true } },
 //                 Bloques: {
 //                     include: {
 //                         rutinaDia: true,
@@ -377,8 +382,8 @@ export const getRutinaById = async (req: Request, res: Response): Promise<void> 
             include: {
                 DiasRutina: true,
                 Semanas: { include: { Dias: true } },
-                User: { select: { ID_Usuario: true, nombre: true, apellido: true, tipo: true, email: true } },
-                Entrenador: { select: { ID_Usuario: true, nombre: true, apellido: true, tipo: true } },
+                User: { select: { ID_Usuario: true, nombre: true, apellido: true, role: true, email: true } },
+                Entrenador: { select: { ID_Usuario: true, nombre: true, apellido: true, role: true } },
                 ...rutinaAsignacionesInclude,
                 Bloques: {
                     include: {
@@ -394,6 +399,20 @@ export const getRutinaById = async (req: Request, res: Response): Promise<void> 
         if (!rutina) {
             res.status(404).json({ message: "No encontramos esa rutina." });
             return;
+        }
+
+        if (req.user?.role === 'STUDENT') {
+            const userId = req.user.id;
+            const assignedDirectly = rutina.ID_Usuario === userId
+                || rutina.asignacionesUsuarios.some(a => a.usuario.ID_Usuario === userId);
+            const assignedByGroup = rutina.asignacionesGrupos.some(a =>
+                a.grupoUsuario.estado
+                && a.grupoUsuario.miembros.some(m => m.usuario.ID_Usuario === userId)
+            );
+            if (!assignedDirectly && !assignedByGroup) {
+                res.status(404).json({ message: "No encontramos esa rutina." });
+                return;
+            }
         }
 
         const diasMap: Record<string, any> = {};
@@ -526,8 +545,8 @@ export const getRutinaById = async (req: Request, res: Response): Promise<void> 
 //             where: { ID_Rutina: rutinaId },
 //             include: {
 //                 DiasRutina: true,
-//                 User: { select: { nombre: true, apellido: true, tipo: true } },
-//                 Entrenador: { select: { nombre: true, apellido: true, tipo: true } },
+//                 User: { select: { nombre: true, apellido: true, role: true } },
+//                 Entrenador: { select: { nombre: true, apellido: true, role: true } },
 //                 Bloques: {
 //                     include: {
 //                         rutinaDia: true,
@@ -919,8 +938,8 @@ export const updateRutinaWithBlocks = async (req: Request, res: Response): Promi
             include: {
                 DiasRutina: true,
                 Semanas: { include: { Dias: true } },
-                User: { select: { ID_Usuario: true, nombre: true, apellido: true, tipo: true, email: true } },
-                Entrenador: { select: { ID_Usuario: true, nombre: true, apellido: true, tipo: true } },
+                User: { select: { ID_Usuario: true, nombre: true, apellido: true, role: true, email: true } },
+                Entrenador: { select: { ID_Usuario: true, nombre: true, apellido: true, role: true } },
                 ...rutinaAsignacionesInclude,
                 Bloques: {
                     include: {
@@ -1338,7 +1357,7 @@ export const createRutinaSimple = async (req: Request, res: Response): Promise<v
 
         const usuariosAsignadosIds = parseIdList(usuariosAsignados);
         const gruposAsignadosIds = parseIdList(gruposAsignados);
-        const legacyUsuarioId = Number(ID_Usuario) || usuariosAsignadosIds[0] || Number(req.user?.ID_Usuario);
+        const legacyUsuarioId = Number(ID_Usuario) || usuariosAsignadosIds[0] || Number(req.user?.id);
 
         if (!legacyUsuarioId || !nombre) {
             res.status(400).json({ message: "Escribí el nombre y elegí el usuario." });
@@ -1384,8 +1403,8 @@ export const createRutinaSimple = async (req: Request, res: Response): Promise<v
                 urlPlanificacion: urlPlanificacion?.trim() || null,
             },
             include: {
-                User: { select: { ID_Usuario: true, nombre: true, apellido: true, tipo: true, email: true } },
-                Entrenador: { select: { ID_Usuario: true, nombre: true, apellido: true, tipo: true } },
+                User: { select: { ID_Usuario: true, nombre: true, apellido: true, role: true, email: true } },
+                Entrenador: { select: { ID_Usuario: true, nombre: true, apellido: true, role: true } },
                 ...rutinaAsignacionesInclude
             }
         });
@@ -1403,8 +1422,8 @@ export const createRutinaSimple = async (req: Request, res: Response): Promise<v
         const rutinaConAsignaciones = await prisma.rutina.findUnique({
             where: { ID_Rutina: rutinaId },
             include: {
-                User: { select: { ID_Usuario: true, nombre: true, apellido: true, tipo: true, email: true } },
-                Entrenador: { select: { ID_Usuario: true, nombre: true, apellido: true, tipo: true } },
+                User: { select: { ID_Usuario: true, nombre: true, apellido: true, role: true, email: true } },
+                Entrenador: { select: { ID_Usuario: true, nombre: true, apellido: true, role: true } },
                 ...rutinaAsignacionesInclude
             }
         });
@@ -1456,7 +1475,7 @@ export const createRutinaWithBlocks = async (req: Request, res: Response): Promi
 
         const usuariosAsignadosIds = parseIdList(usuariosAsignados);
         const gruposAsignadosIds = parseIdList(gruposAsignados);
-        const legacyUsuarioId = Number(ID_Usuario) || usuariosAsignadosIds[0] || Number(req.user?.ID_Usuario);
+        const legacyUsuarioId = Number(ID_Usuario) || usuariosAsignadosIds[0] || Number(req.user?.id);
 
         if (!legacyUsuarioId || !nombre) {
             res.status(400).json({ message: "Escribí el nombre y elegí el usuario." });
@@ -1630,7 +1649,7 @@ export const createRutinaWithBlocks = async (req: Request, res: Response): Promi
         for (const dayItem of dayOrder) {
             const bloquesDelDia = dayItem.payload?.bloques || [];
             for (const blo of bloquesDelDia) {
-                // validación simple del tipo (si tenés enum local, mantenlo)
+                // validación simple del role (si tenés enum local, mantenlo)
                 if (!Object.values(BlockType).includes(blo.type as any)) {
                     throw new Error(`Tipo de bloque no válido: ${blo.type}`);
                 }
@@ -1709,8 +1728,8 @@ export const createRutinaWithBlocks = async (req: Request, res: Response): Promi
                 Semanas: {
                     include: { Dias: true }
                 },
-                User: { select: { ID_Usuario: true, nombre: true, apellido: true, tipo: true, email: true } },
-                Entrenador: { select: { ID_Usuario: true, nombre: true, apellido: true, tipo: true } },
+                User: { select: { ID_Usuario: true, nombre: true, apellido: true, role: true, email: true } },
+                Entrenador: { select: { ID_Usuario: true, nombre: true, apellido: true, role: true } },
                 ...rutinaAsignacionesInclude,
                 Bloques: {
                     include: {
@@ -1918,7 +1937,7 @@ export const createRutinaWithBlocks = async (req: Request, res: Response): Promi
 
 //             // Validar tipos y crear bloques secuencialmente (puedes paralelizar si interesa)
 //             for (const blo of bloquesDelDia) {
-//                 // validación simple del tipo
+//                 // validación simple del role
 //                 if (!Object.values(BlockType).includes(blo.type as any)) {
 //                     // opcional: saltar o lanzar error; aquí lanzamos para que frontend sepa
 //                     throw new Error(`Tipo de bloque no válido: ${blo.type}`);
@@ -2111,9 +2130,9 @@ export const getRutinasByUsuario = async (req: Request, res: Response): Promise<
 
     // Ownership: un cliente sólo puede ver sus propias rutinas; admin/entrenador, cualquiera.
     const requester = req.user;
-    const isStaff = ['admin', 'entrenador'].includes(String(requester?.tipo || '').toLowerCase());
-    if (!isStaff && requester?.ID_Usuario !== idUsuario) {
-        res.status(403).json({ message: "No tenés permiso para ver las rutinas de otro usuario" });
+    const isStaff = ['ADMIN', 'TRAINER'].includes(String(requester?.role || '').toUpperCase());
+    if (!isStaff && requester?.id !== idUsuario) {
+        res.status(404).json({ message: "Recurso no encontrado" });
         return;
     }
 
@@ -2138,8 +2157,8 @@ export const getRutinasByUsuario = async (req: Request, res: Response): Promise<
             include: {
                 DiasRutina: true,
                 Semanas: { include: { Dias: true } },
-                User: { select: { ID_Usuario: true, nombre: true, apellido: true, tipo: true, email: true } },
-                Entrenador: { select: { ID_Usuario: true, nombre: true, apellido: true, tipo: true, imagenUsuario: true } },
+                User: { select: { ID_Usuario: true, nombre: true, apellido: true, role: true, email: true } },
+                Entrenador: { select: { ID_Usuario: true, nombre: true, apellido: true, role: true, imagenUsuario: true } },
                 ...rutinaAsignacionesInclude,
                 Bloques: {
                     include: {
@@ -2296,8 +2315,8 @@ export const getRutinasByEntrenador = async (req: Request, res: Response): Promi
             include: {
                 DiasRutina: true,
                 Semanas: { include: { Dias: true } },
-                User: { select: { ID_Usuario: true, nombre: true, apellido: true, tipo: true, email: true } },
-                Entrenador: { select: { ID_Usuario: true, nombre: true, apellido: true, tipo: true } },
+                User: { select: { ID_Usuario: true, nombre: true, apellido: true, role: true, email: true } },
+                Entrenador: { select: { ID_Usuario: true, nombre: true, apellido: true, role: true } },
                 ...rutinaAsignacionesInclude,
                 Bloques: {
                     include: {
@@ -2441,15 +2460,15 @@ export const getRutinasByAdmins = async (req: Request, res: Response): Promise<v
     try {
         const rutinas = await prisma.rutina.findMany({
             where: {
-                User: { is: { tipo: 'admin' } },
+                User: { is: { role: 'ADMIN' } },
                 ID_Entrenador: null,                 // recomendadas: nunca tienen entrenador (las asignadas siempre lo setean)
                 asignacionesGrupos: { none: {} },    // ni grupo asignado
             },
             include: {
                 DiasRutina: true,
                 Semanas: { include: { Dias: true } },
-                User: { select: { ID_Usuario: true, nombre: true, apellido: true, tipo: true, email: true } },
-                Entrenador: { select: { ID_Usuario: true, nombre: true, apellido: true, tipo: true } },
+                User: { select: { ID_Usuario: true, nombre: true, apellido: true, role: true, email: true } },
+                Entrenador: { select: { ID_Usuario: true, nombre: true, apellido: true, role: true } },
                 ...rutinaAsignacionesInclude,
                 Bloques: {
                     include: {
@@ -2581,7 +2600,7 @@ export const getRutinasByAdmins = async (req: Request, res: Response): Promise<v
         });
 
         res.status(200).json({
-            message: "Rutinas creadas por usuarios tipo 'admin'",
+            message: "Rutinas creadas por usuarios role 'ADMIN'",
             total: resultado.length,
             rutinas: resultado
         });
@@ -2606,8 +2625,8 @@ export const getRutinasByDayOfWeek = async (req: Request, res: Response): Promis
             },
             include: {
                 DiasRutina: true,
-                User: { select: { ID_Usuario: true, nombre: true, apellido: true, tipo: true, email: true } },
-                Entrenador: { select: { ID_Usuario: true, nombre: true, apellido: true, tipo: true } },
+                User: { select: { ID_Usuario: true, nombre: true, apellido: true, role: true, email: true } },
+                Entrenador: { select: { ID_Usuario: true, nombre: true, apellido: true, role: true } },
                 ...rutinaAsignacionesInclude,
                 Bloques: {
                     include: {
@@ -2721,8 +2740,8 @@ export const getRutinasAsignadas = async (req: Request, res: Response): Promise<
         if (grupoId && !isNaN(Number(grupoId))) {
             where.asignacionesGrupos = { some: { ID_GrupoUsuario: Number(grupoId) } };
         }
-        if (String(asignadasPorMi) === 'true' && req.user?.ID_Usuario) {
-            where.ID_Entrenador = req.user.ID_Usuario;
+        if (String(asignadasPorMi) === 'true' && req.user?.id) {
+            where.ID_Entrenador = req.user.id;
         }
 
         const [totalItems, rutinas] = await prisma.$transaction([
@@ -2732,8 +2751,8 @@ export const getRutinasAsignadas = async (req: Request, res: Response): Promise<
             include: {
                 DiasRutina: true,
                 Semanas: { include: { Dias: true } },
-                User: { select: { ID_Usuario: true, nombre: true, apellido: true, tipo: true, email: true } },
-                Entrenador: { select: { ID_Usuario: true, nombre: true, apellido: true, tipo: true, imagenUsuario: true } },
+                User: { select: { ID_Usuario: true, nombre: true, apellido: true, role: true, email: true } },
+                Entrenador: { select: { ID_Usuario: true, nombre: true, apellido: true, role: true, imagenUsuario: true } },
                 ...rutinaAsignacionesInclude,
                 Bloques: {
                     include: {

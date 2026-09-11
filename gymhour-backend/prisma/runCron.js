@@ -18,9 +18,9 @@
 //
 // ⚠️  Los recordatorios calculan "hoy" en UTC. En Argentina (UTC-3) eso coincide con el día
 //     local sólo ANTES de las 21:00. Más tarde mandarían los recordatorios del día siguiente.
-import { PrismaClient } from "@prisma/client";
+import { createScriptTenantPrisma } from "./scriptClient.js";
 
-const prisma = new PrismaClient();
+const prisma = await createScriptTenantPrisma();
 const APPLY = process.argv.includes("--apply");
 const TAREA = (process.argv.find((a) => a.startsWith("--tarea=")) || "").split("=")[1];
 

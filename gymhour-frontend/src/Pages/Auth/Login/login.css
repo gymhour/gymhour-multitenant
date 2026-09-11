@@ -108,6 +108,75 @@
   opacity: 1;
 }
 
+.tenant-selection {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  color: var(--text-color);
+}
+
+.tenant-selection h2 {
+  margin: 0 0 6px;
+  font-size: 22px;
+  text-align: center;
+}
+
+.tenant-selection p {
+  margin: 0;
+  color: var(--text-color-distinct);
+  text-align: center;
+}
+
+.tenant-options {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.tenant-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  width: 100%;
+  padding: 14px 16px;
+  color: var(--text-color);
+  background: var(--background-color);
+  border: 1px solid var(--login-input-border);
+  border-radius: 12px;
+  cursor: pointer;
+  text-align: left;
+  transition: border-color 150ms ease, transform 150ms ease;
+}
+
+.tenant-option:hover {
+  border-color: var(--primary-color);
+  transform: translateY(-1px);
+}
+
+.tenant-option:disabled {
+  opacity: 0.7;
+  cursor: wait;
+}
+
+.tenant-option span {
+  font-weight: 600;
+}
+
+.tenant-option small {
+  color: var(--text-color-distinct);
+}
+
+.restart-login {
+  align-self: center;
+  padding: 6px;
+  color: var(--text-color-distinct);
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
 .our-logo-container {
   font-size: 15px;
   color: var(--text-color-distinct);
@@ -166,5 +235,163 @@
 
   .form-container {
     width: 100%;
+  }
+}
+
+/* Experiencia de acceso compartida con el onboarding */
+.login-form-container form,
+.auth-card .tenant-selection {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.auth-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.auth-field > span {
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+
+.auth-card .custom-input {
+  min-height: 50px;
+  color: #fff;
+  background: rgba(255, 255, 255, 0.055);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 12px;
+  padding: 11px 42px 11px 13px;
+  font-size: 15px;
+}
+
+.auth-card .custom-input::placeholder {
+  color: rgba(255, 255, 255, 0.32);
+}
+
+.auth-card .custom-input:focus {
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 4px rgba(218, 70, 50, 0.12);
+}
+
+.auth-card .password-toggle-btn {
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.login-form__help {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: -5px;
+}
+
+.login-form__help a {
+  color: rgba(255, 255, 255, 0.55);
+  font-size: 13px;
+  text-decoration: none;
+}
+
+.login-form__help a:hover {
+  color: #fff;
+}
+
+.auth-card .btn-login {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: 50px;
+  margin-top: 3px;
+  padding: 0 18px;
+  color: #fff;
+  background: var(--primary-color);
+  border: 0;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 150ms ease, transform 150ms ease, box-shadow 150ms ease;
+}
+
+.auth-card .btn-login:hover {
+  background: var(--primary-color-hover);
+  box-shadow: 0 12px 28px rgba(218, 70, 50, 0.24);
+  transform: translateY(-1px);
+}
+
+.auth-card .btn-login:disabled {
+  opacity: 0.65;
+  cursor: wait;
+  transform: none;
+}
+
+.auth-card .btn-login b {
+  position: absolute;
+  right: 18px;
+  font-size: 21px;
+  font-weight: 400;
+}
+
+.auth-card__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  margin-top: 22px;
+  padding-top: 18px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  font-size: 12px;
+}
+
+.auth-card__footer > div {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.auth-card__footer strong {
+  color: rgba(255, 255, 255, 0.82);
+  font-size: 13px;
+}
+
+.auth-card__footer span {
+  color: rgba(255, 255, 255, 0.48);
+}
+
+.auth-card__footer a {
+  flex: 0 0 auto;
+  color: #fff;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.auth-card__footer a:hover {
+  color: var(--primary-color);
+}
+
+.auth-card .tenant-option {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.055);
+  border-color: rgba(255, 255, 255, 0.12);
+}
+
+.auth-card .tenant-option:hover {
+  background: rgba(218, 70, 50, 0.08);
+}
+
+.auth-card .tenant-option small,
+.auth-card .restart-login {
+  color: rgba(255, 255, 255, 0.5);
+}
+
+@media (max-width: 540px) {
+  .auth-card__footer {
+    flex-direction: column;
+    align-items: flex-start;
   }
 }

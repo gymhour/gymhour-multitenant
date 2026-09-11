@@ -1,3 +1,4 @@
+import { getCurrentUserId } from '../../../authSession';
 import React, { useEffect, useState } from 'react';
 import Select from 'react-select';
 import SidebarMenu from '../../../Components/SidebarMenu/SidebarMenu';
@@ -528,7 +529,7 @@ const RutinasAsignadas = () => {
 
   // ====== Duplicar rutina (incluye TABATA fields y urlPlanificacion) ======
   const buildDuplicatePayload = (rutina) => {
-    const entrenadorId = Number(localStorage.getItem('usuarioId')) || null;
+    const entrenadorId = Number(getCurrentUserId()) || null;
     const alumnoId = rutina?.alumno?.ID_Usuario || null;
 
     if (rutina?.urlPlanificacion) {

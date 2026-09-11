@@ -61,10 +61,27 @@
   gap: 20px;
 }
 
+.sidebar-tenant-name {
+  display: block;
+  max-width: 100%;
+  margin-top: 8px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  opacity: .78;
+}
+
 .logo {
   max-width: 96px;
   width: 80px;
   height: auto;
+}
+
+.sidebar-logo .logo.tenant-logo {
+  width: min(150px, 80%);
+  max-width: 150px;
+  height: 72px;
+  object-fit: contain;
 }
 
 .menu-divider {
@@ -164,6 +181,11 @@
 
 .sidebar.collapsed .logo {
   width: 40px;
+}
+
+.sidebar.collapsed .sidebar-logo .logo.tenant-logo {
+  width: 44px;
+  height: 44px;
 }
 
 .sidebar.collapsed .menu-divider {
@@ -272,6 +294,12 @@
     width: auto;
     margin: 0 auto;
     /* centra el logo */
+  }
+
+  .mobile-logo.tenant-logo {
+    width: 120px;
+    height: 40px;
+    object-fit: contain;
   }
 
   .hamburger-btn {

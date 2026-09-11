@@ -15,8 +15,8 @@ export const getDashboardStats = async (req: Request, res: Response): Promise<vo
     try {
         // 1) Cantidad total de clientes activos/inactivos
         const [totalActiveUsers, totalInactiveUsers] = await Promise.all([
-            prismaU.count({ where: { estado: true, tipo: 'cliente' } }),
-            prismaU.count({ where: { estado: false, tipo: 'cliente' } }),
+            prismaU.count({ where: { estado: true, role: 'STUDENT' } }),
+            prismaU.count({ where: { estado: false, role: 'STUDENT' } }),
         ]);
 
         // 2) Definir el mes actual en formato YYYY-MM
@@ -250,7 +250,7 @@ export const sendChurnContactEmail = async (req: Request, res: Response): Promis
                 ID_Usuario: user.ID_Usuario,
                 asunto: asuntoClean,
                 plantilla: typeof plantilla === 'string' && plantilla.trim() ? plantilla.trim() : null,
-                enviadoPor: req.user?.ID_Usuario ?? null,
+                enviadoPor: req.user?.id ?? null,
             },
         });
 

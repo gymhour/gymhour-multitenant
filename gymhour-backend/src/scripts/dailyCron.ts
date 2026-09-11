@@ -13,19 +13,15 @@
 // Para ver el alcance sin escribir ni enviar nada: node prisma/runCron.js --tarea=<nombre>
 import 'dotenv/config'; // ANTES de todo: email.service lee SMTP_* a nivel de módulo
 import prisma from '../models/Prisma.js';
-import { runNightlyTasks } from '../services/nightly.service.js';
-import { runReminderTasks } from '../services/reminders.service.js';
+import { runAllTenantDailyTasks } from '../services/tenantJobs.service.js';
 
 async function main(): Promise<number> {
     const inicio = Date.now();
     console.log('[cron] inicio', new Date().toISOString());
 
     // Cada helper ya aísla sus sub-tareas con try/catch: una falla no frena las demás.
-    const nightly = await runNightlyTasks();
-    const reminders = await runReminderTasks();
-
-    const resultado = { ...nightly, ...reminders };
-    const errores = Object.keys(resultado).filter((k) => k.endsWith('Error'));
+    const resultado = await runAllTenantDailyTasks();
+    const errores = JSON.stringify(resultado).match(/Error/g) ?? [];
 
     console.log('[cron] resultado', JSON.stringify(resultado, null, 2));
     console.log(`[cron] fin en ${Date.now() - inicio}ms`);

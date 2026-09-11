@@ -7,6 +7,14 @@
     "gymhour-backend",
     "gymhour-frontend"
   ],
+  "overrides": {
+    "@types/express": "4.17.25",
+    "@types/express-serve-static-core": "4.19.9"
+  },
+  "devDependencies": {
+    "@types/express": "4.17.25",
+    "@types/express-serve-static-core": "4.19.9"
+  },
   "scripts": {
     "dev:backend": "npm run dev --workspace @gymhour/backend",
     "dev:frontend": "npm start --workspace @gymhour/frontend",
@@ -16,6 +24,8 @@
     "start": "npm run start:backend",
     "start:backend": "npm start --workspace @gymhour/backend",
     "migrate:deploy": "npm run migrate:deploy --workspace @gymhour/backend",
-    "seed": "npm run seed --workspace @gymhour/backend"
+    "seed": "npm run seed --workspace @gymhour/backend",
+    "test:backend": "npm test --workspace @gymhour/backend",
+    "audit:tenant": "npm run audit:tenant --workspace @gymhour/backend"
   }
 }

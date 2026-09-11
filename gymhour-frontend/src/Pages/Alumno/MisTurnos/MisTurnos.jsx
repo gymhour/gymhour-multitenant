@@ -1,3 +1,4 @@
+import { getCurrentUserId } from '../../../authSession';
 import React, { useState, useEffect } from 'react';
 import '../../../App.css';
 import './misTurnos.css';
@@ -26,7 +27,7 @@ const MisTurnos = () => {
     useEffect(() => {
         setLoading(true);
         const fetchData = async () => {
-            const usuarioId = localStorage.getItem("usuarioId");
+            const usuarioId = getCurrentUserId();
             try {
                 const turnosData = await apiService.getTurnosUsuario(usuarioId); 
                 // console.log("Turnos", turnosData);

@@ -5,12 +5,12 @@ import upload from '../services/multer.service.js';
 
 const claseRouter = express.Router();
 
-claseRouter.get('/horario/', claseMethods.getAllClasesAndHorarioClases)
+claseRouter.get('/horario/', authenticateToken, claseMethods.getAllClasesAndHorarioClases)
 claseRouter.post("/:idClase/entrenador/:idEntrenador", authenticateToken, isAdmin, claseMethods.asignarEntrenadorAClase);
 claseRouter.post('/horario/', authenticateToken, isAdmin, upload.single('image'), claseMethods.createClaseWithHorarios)
 claseRouter.get('/horario/:id/turnos-activos', authenticateToken, isAdminOrEntrenador, claseMethods.getTurnosActivosByHorario);
-claseRouter.get('/horario/:id/cupos', claseMethods.getHorarioCupos);
-claseRouter.get('/horario/:id', claseMethods.getClaseById)
+claseRouter.get('/horario/:id/cupos', authenticateToken, claseMethods.getHorarioCupos);
+claseRouter.get('/horario/:id', authenticateToken, claseMethods.getClaseById)
 claseRouter.post('/horario/:id/modify', authenticateToken, isAdminOrEntrenador, claseMethods.modifyHorarioSingle);
 claseRouter.put('/clase/:id', authenticateToken, isAdminOrEntrenador, upload.single('image'), claseMethods.updateClaseFields);
 claseRouter.delete('/horario/:id', authenticateToken, isAdmin, claseMethods.deleteClaseWithHorarios)

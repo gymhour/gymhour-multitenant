@@ -1,5 +1,8 @@
 import apiClient, { authClient } from '../axiosConfig';
 import { ATTENDANCE_REJECT_REASON, ATTENDANCE_STATUS } from '../types/attendanceTypes';
+import { getCurrentUserId } from '../authSession';
+
+const isCurrentUser = id => Number(id) === Number(getCurrentUserId());
 
 const attendanceReasonMap = {
     DENEGADO_NO_EXISTE: ATTENDANCE_REJECT_REASON.STUDENT_NOT_FOUND,
@@ -107,7 +110,7 @@ const getTurnos = async (filters = {}) => {
 
 const getTurnosUsuario = async (usuarioId) => {
     try {
-        const response = await apiClient.get(`/turnos/usuario/${usuarioId}`)
+        const response = await apiClient.get(isCurrentUser(usuarioId) ? '/turnos/me' : `/turnos/usuario/${usuarioId}`)
         return response.data.turnos;
     } catch (error) {
         throw new Error(getApiErrorMessage(error, "No pudimos cargar tus turnos. Revisá tu conexión e intentá de nuevo."));
@@ -176,7 +179,7 @@ const getRutinaById = async (rutinaId) => {
 
 const getUserRutinas = async (id) => {
     try {
-        const response = await apiClient.get(`/rutinas/usuario/${id}`);
+        const response = await apiClient.get(isCurrentUser(id) ? '/rutinas/me' : `/rutinas/usuario/${id}`);
         return response.data
     } catch (error) {
         throw new Error(getApiErrorMessage(error, "No pudimos cargar tus rutinas. Revisá tu conexión e intentá de nuevo."));
@@ -301,7 +304,7 @@ const deleteGrupoUsuario = async (id) => {
     }
 }
 
-/* Entrenadores */
+/* TRAINERes */
 const getEntrenadores = async () => {
     try {
         const response = await apiClient.get('/usuarios/entrenadores');
@@ -327,10 +330,10 @@ const removeEntrenadorFromClase = async (idClase, idEntrenador) => {
     }
 }
 
-const getAllUsuarios = async ({ page = 1, take = 15, tipo, estado, search, nombre, apellido, email, dni, planId, sinPlan } = {}) => {
+const getAllUsuarios = async ({ page = 1, take = 15, role, estado, search, nombre, apellido, email, dni, planId, sinPlan } = {}) => {
     try {
         const params = { page, take };
-        if (tipo) params.tipo = tipo;
+        if (role) params.role = role;
         if (estado !== undefined) params.estado = estado;
         if (search?.trim()) params.search = search.trim();
         if (nombre?.trim()) params.nombre = nombre.trim();
@@ -361,7 +364,7 @@ const getUsuariosStats = async () => {
 
 const getUserById = async (id) => {
     try {
-        const response = await apiClient.get(`/usuarios/${id}`);
+        const response = await apiClient.get(isCurrentUser(id) ? '/usuarios/me' : `/usuarios/${id}`);
         return response.data
     } catch (error) {
         throw new Error(getApiErrorMessage(error, "No pudimos cargar el usuario. Revisá tu conexión e intentá de nuevo."));
@@ -396,9 +399,9 @@ const getUsuariosAdmins = async () => {
 }
 
 // Contraseñas
-const forgotPassword = async (body) => {
+const forgotPassword = async (slug, body) => {
     try {
-        const response = await apiClient.post('/auth/forgot-password', body);
+        const response = await authClient.post(`/auth/tenants/${encodeURIComponent(slug)}/forgot-password`, body);
         return response.data;
     } catch (error) {
         throw new Error(getApiErrorMessage(error, "No pudimos enviar el mail de recuperación. Revisá tu conexión e intentá de nuevo."));
@@ -435,7 +438,7 @@ const getEjerciciosResultados = async () => {
 
 const getEjerciciosResultadosUsuario = async (usuarioId) => {
     try {
-        const response = await apiClient.get(`/ejercicios-resultados/usuario/${usuarioId}`);
+        const response = await apiClient.get(isCurrentUser(usuarioId) ? '/ejercicios-resultados/me' : `/ejercicios-resultados/usuario/${usuarioId}`);
         return response.data.ejercicios;
     } catch (err) {
         throw new Error(getApiErrorMessage(err, "No pudimos cargar tus ejercicios y resultados. Revisá tu conexión e intentá de nuevo."));
@@ -630,7 +633,7 @@ const regenerateTurnosFijosUsuario = async (idUsuario) => {
 
 const getCuotasUsuario = async (id) => {
     try {
-        const response = await apiClient.get(`cuotas/usuario/${id}/cuotas`);
+        const response = await apiClient.get(isCurrentUser(id) ? 'cuotas/me' : `cuotas/usuario/${id}/cuotas`);
         return response;
     } catch (error) {
         throw new Error(getApiErrorMessage(error, "No pudimos cargar tus cuotas. Revisá tu conexión e intentá de nuevo."));
@@ -639,7 +642,7 @@ const getCuotasUsuario = async (id) => {
 
 const getCuotasReminder = async (idUsuario) => {
     try {
-        const response = await apiClient.get(`/cuotas/reminder/${idUsuario}`);
+        const response = await apiClient.get(isCurrentUser(idUsuario) ? '/cuotas/me/reminder' : `/cuotas/reminder/${idUsuario}`);
         return response.data;
     } catch (error) {
         const apiMsg = error?.response?.data?.message;
@@ -694,12 +697,14 @@ const deleteGasto = async (id) => {
 }
 
 // Asistencias
-const registerAttendance = async ({ dni, method = 'DNI' }) => {
+const registerAttendance = async ({ dni, method = 'DNI', kioskToken = null }) => {
     try {
-        const response = await authClient.post('/usuarios/asistencias/registrar', {
+        const client = kioskToken ? authClient : apiClient;
+        const path = kioskToken ? '/usuarios/asistencias/kiosk/registrar' : '/usuarios/asistencias/registrar';
+        const response = await client.post(path, {
             dni,
             metodo: method,
-        });
+        }, kioskToken ? { headers: { 'X-Kiosk-Token': kioskToken } } : undefined);
         return mapCheckInResponse(response.data);
     } catch (error) {
         const apiData = getApiErrorData(error);
@@ -767,6 +772,35 @@ const getMyAttendances = async () => {
     }
 }
 
+const getKioskCredentials = async () => {
+    const response = await apiClient.get('/tenant/kiosks');
+    return response.data.kiosks;
+};
+
+const createKioskCredential = async (label) => {
+    const response = await apiClient.post('/tenant/kiosks', { label });
+    return response.data;
+};
+
+const revokeKioskCredential = async (id) => {
+    await apiClient.delete(`/tenant/kiosks/${id}`);
+};
+
+const rotateKioskCredential = async id => {
+    const response = await apiClient.post(`/tenant/kiosks/${id}/rotate`);
+    return response.data;
+};
+
+const updateTenantSettings = async settings => {
+    const response = await apiClient.patch('/tenant/settings', settings);
+    return response.data.settings;
+};
+
+const updateTenantProfile = async profile => {
+    const response = await apiClient.patch('/tenant/profile', profile);
+    return response.data;
+};
+
 
 // Ejercicios
 const getEjercicios = async () => {
@@ -828,9 +862,9 @@ export async function fetchAllClientsActive(apiService, { take = 100 } = {}) {
 
         // Filtrar solo clientes activos
         data.forEach(u => {
-            const isCliente = String(u?.tipo ?? '').toLowerCase() === 'cliente';
+            const isSTUDENT = String(u?.role ?? '').toUpperCase() === 'STUDENT';
             const isActivo = u?.estado === true;
-            if (isCliente && isActivo) {
+            if (isSTUDENT && isActivo) {
                 byId.set(u.ID_Usuario, u);
             }
         });
@@ -869,7 +903,7 @@ export default {
     createGrupoUsuario,
     updateGrupoUsuario,
     deleteGrupoUsuario,
-    // Entrenadores
+    // TRAINERes
     getEntrenadores,
     addEntrenadorToClase,
     removeEntrenadorFromClase,
@@ -923,6 +957,12 @@ export default {
     registerAttendance,
     getAttendances,
     getMyAttendances,
+    getKioskCredentials,
+    createKioskCredential,
+    revokeKioskCredential,
+    rotateKioskCredential,
+    updateTenantSettings,
+    updateTenantProfile,
     // Ejercicios
     getEjercicios,
     getEjercicioById,

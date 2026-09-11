@@ -5,7 +5,11 @@ import { authenticateToken, isAdminOrEntrenador } from '../services/auth.service
 const rutinaRouter = express.Router();
 // 1) Rutas específicas primero:
 rutinaRouter.get('/entrenador/:idEntrenador', authenticateToken, isAdminOrEntrenador, rutinaMethods.getRutinasByEntrenador);
-rutinaRouter.get('/usuario/:idUsuario', authenticateToken, rutinaMethods.getRutinasByUsuario);
+rutinaRouter.get('/me', authenticateToken, (req, res) => {
+  req.params.idUsuario = String(req.user!.id);
+  return rutinaMethods.getRutinasByUsuario(req, res);
+});
+rutinaRouter.get('/usuario/:idUsuario', authenticateToken, isAdminOrEntrenador, rutinaMethods.getRutinasByUsuario);
 rutinaRouter.get('/dia/:dayOfWeek', authenticateToken, rutinaMethods.getRutinasByDayOfWeek);
 rutinaRouter.get('/admins/', authenticateToken, rutinaMethods.getRutinasByAdmins);
 rutinaRouter.get('/asignadas', authenticateToken, isAdminOrEntrenador, rutinaMethods.getRutinasAsignadas);

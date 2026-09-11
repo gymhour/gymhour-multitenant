@@ -85,7 +85,7 @@ export const registrarAsistencia = async (req: Request, res: Response): Promise<
     const nowArg = getArgentinaDate();
 
     // 1) Buscar el usuario por DNI
-    const user = await prisma.user.findUnique({
+    const user = await prisma.user.findFirst({
       where: { dni: dniLimpio },
       select: {
         ID_Usuario: true,
@@ -93,7 +93,7 @@ export const registrarAsistencia = async (req: Request, res: Response): Promise<
         apellido: true,
         estado: true,
         email: true,
-        tipo: true,
+        role: true,
         dni: true
       }
     });
@@ -452,7 +452,7 @@ export const obtenerHistorialAsistencias = async (req: Request, res: Response): 
  */
 export const obtenerMisAsistencias = async (req: Request, res: Response): Promise<void> => {
   try {
-    const userId = req.user?.ID_Usuario;
+    const userId = req.user?.id;
 
     if (!userId) {
       res.status(401).json({ message: 'Necesitás iniciar sesión para hacer esto.' });

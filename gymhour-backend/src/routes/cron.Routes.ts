@@ -1,6 +1,5 @@
 import express, { Request, Response } from "express";
-import { runNightlyTasks } from "../services/nightly.service.js";
-import { runReminderTasks } from "../services/reminders.service.js";
+import { runAllTenantNightlyTasks, runAllTenantReminderTasks } from '../services/tenantJobs.service.js';
 
 const cronRouter = express.Router();
 
@@ -23,8 +22,8 @@ const requireCronSecret = (req: Request, res: Response): boolean => {
 cronRouter.get("/nightly", async (req: Request, res: Response) => {
   if (!requireCronSecret(req, res)) return;
   try {
-    const result = await runNightlyTasks();
-    res.status(200).json({ ok: true, ...result });
+    const tenants = await runAllTenantNightlyTasks();
+    res.status(200).json({ ok: true, tenants });
   } catch (e: any) {
     console.error("[cron/nightly] error:", e);
     res.status(500).json({ ok: false, error: e?.message ?? String(e) });
@@ -37,8 +36,8 @@ cronRouter.get("/nightly", async (req: Request, res: Response) => {
 cronRouter.get("/reminders", async (req: Request, res: Response) => {
   if (!requireCronSecret(req, res)) return;
   try {
-    const result = await runReminderTasks();
-    res.status(200).json({ ok: true, ...result });
+    const tenants = await runAllTenantReminderTasks();
+    res.status(200).json({ ok: true, tenants });
   } catch (e: any) {
     console.error("[cron/reminders] error:", e);
     res.status(500).json({ ok: false, error: e?.message ?? String(e) });

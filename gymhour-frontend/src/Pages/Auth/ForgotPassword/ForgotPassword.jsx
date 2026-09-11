@@ -1,13 +1,15 @@
 import React, { useState } from 'react';
 import CLIENT_SETUP from '../../../setup';
 import CustomInput from '../../../Components/utils/CustomInput/CustomInput';
-import { Link } from 'react-router-dom';
+import { Link, useParams } from 'react-router-dom';
 import './ForgotPassword.css'
 import apiService from '../../../services/apiService';
 import { toast } from 'react-toastify';
 import LoaderFullScreen from '../../../Components/utils/LoaderFullScreen/LoaderFullScreen';
 
 const ForgotPassword = () => {
+  const { slug: routeSlug } = useParams();
+  const [slug, setSlug] = useState(routeSlug || '');
   const [email, setEmail] = useState('');
   const [isLoading, setIsLoading] = useState(false)
 
@@ -18,7 +20,7 @@ const ForgotPassword = () => {
     setIsLoading(true)
 
     try {
-      await apiService.forgotPassword(body);
+      await apiService.forgotPassword(routeSlug || slug, body);
       setIsLoading(false)
       toast.success('Email enviado correctamente. Por favor, revise su correo.');
     } catch (error) {
@@ -40,6 +42,10 @@ const ForgotPassword = () => {
 
         <div className="reset-form-container">
           <form className='forgot-pass-form' onSubmit={handleSubmit}>
+            {!routeSlug && (
+              <CustomInput type="text" placeholder="Código del gimnasio" value={slug}
+                onChange={(e) => setSlug(e.target.value)} width="100%" required />
+            )}
             <CustomInput
               type="email"
               placeholder="Email"
@@ -53,7 +59,7 @@ const ForgotPassword = () => {
         </div>
 
         <div className='reset-back-login-container'>
-          <Link to="/" className='back-login-link'> Volver a inicio de sesión </Link>
+          <Link to={routeSlug ? `/g/${routeSlug}/login` : '/'} className='back-login-link'> Volver a inicio de sesión </Link>
         </div>
       </div>
     </div>

@@ -1,3 +1,4 @@
+import { getCurrentUserId } from '../../../authSession';
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import '../../../App.css';
@@ -26,12 +27,14 @@ import { toast } from 'react-toastify';
 import PrimaryButton from '../../../Components/utils/PrimaryButton/PrimaryButton';
 import SecondaryButton from '../../../Components/utils/SecondaryButton/SecondaryButton';
 import { ChevronDown, ChevronUp, Download, SlidersHorizontal } from 'lucide-react';
+import { useAuth } from '../../../context/AuthContext';
 
 const POSITIVE = '#22c55e';
 const NEGATIVE = '#e5484d';
 
 const AdminInicio = () => {
   const navigate = useNavigate();
+  const { tenant } = useAuth();
   const [loading, setLoading] = useState(false);
 
   const [kpi, setKpi] = useState({
@@ -94,8 +97,8 @@ const AdminInicio = () => {
   const getUser = async () => {
     setLoading(true);
     try {
-      const response = await apiService.getUserById(localStorage.getItem("usuarioId"));
-      setNombreUsuario(response.tipo === "admin" ? "Administrador" : (response.nombre || ""));
+      const response = await apiService.getUserById(getCurrentUserId());
+      setNombreUsuario(response.role === "ADMIN" ? "ADMIN" : (response.nombre || ""));
     } catch (error) {
       console.error('Error al obtener el usuario:', error);
       toast.error(error?.message || "Error al obtener el usuario");
@@ -196,10 +199,10 @@ const AdminInicio = () => {
       await generateFinancialReportPdf({
         kpi,
         periodoLabel,
-        aclaracionKpis: `KPIs del mes corriente (${currentMonthName}) · Deuda vencida: acumulada · Clientes activos: total actual · Gráficos: ${periodoLabel}`,
+        aclaracionKpis: `KPIs del mes corriente (${currentMonthName}) · Deuda vencida: acumulada · STUDENTs activos: total actual · Gráficos: ${periodoLabel}`,
         charts,
-        logoSrc: CLIENT_SETUP.branding.logoLight || CLIENT_SETUP.branding.logo,
-        primaryColor: CLIENT_SETUP.branding.theme.primaryColor,
+        logoSrc: tenant?.settings?.logoUrl || CLIENT_SETUP.branding.logoLight || CLIENT_SETUP.branding.logo,
+        primaryColor: tenant?.settings?.primaryColor || CLIENT_SETUP.branding.theme.primaryColor,
       });
     } catch (err) {
       console.error('Error al generar el PDF:', err);
@@ -325,12 +328,12 @@ const AdminInicio = () => {
           <button
             type="button"
             className='admin-kpi-card admin-kpi-card-action'
-            onClick={() => navigateToUsuarios({ tipo: 'Cliente', estado: 'Activo' })}
+            onClick={() => navigateToUsuarios({ role: 'STUDENT', estado: 'Activo' })}
             aria-label="Ver clientes activos"
           >
             <div className='admin-kpi-card-header'>
               <Users size={20} className="icon-soft-grey" />
-              <h3>Clientes activos</h3>
+              <h3>STUDENTs activos</h3>
             </div>
             <p className='value'>{kpi.totalActiveUsers}</p>
           </button>
@@ -338,7 +341,7 @@ const AdminInicio = () => {
           <button
             type="button"
             className='admin-kpi-card admin-kpi-card-action'
-            onClick={() => navigateToUsuarios({ tipo: 'Cliente', movimiento: 'ALTA', mes: currentMonthKey })}
+            onClick={() => navigateToUsuarios({ role: 'STUDENT', movimiento: 'ALTA', mes: currentMonthKey })}
             aria-label="Ver altas del mes"
           >
             <div className='admin-kpi-card-header'>
@@ -354,7 +357,7 @@ const AdminInicio = () => {
           <button
             type="button"
             className='admin-kpi-card admin-kpi-card-action'
-            onClick={() => navigateToUsuarios({ tipo: 'Cliente', movimiento: 'BAJA', mes: currentMonthKey })}
+            onClick={() => navigateToUsuarios({ role: 'STUDENT', movimiento: 'BAJA', mes: currentMonthKey })}
             aria-label="Ver bajas del mes"
           >
             <div className='admin-kpi-card-header'>
@@ -367,12 +370,12 @@ const AdminInicio = () => {
           <button
             type="button"
             className='admin-kpi-card admin-kpi-card-action'
-            onClick={() => navigateToUsuarios({ tipo: 'Cliente', estado: 'Inactivo' })}
+            onClick={() => navigateToUsuarios({ role: 'STUDENT', estado: 'Inactivo' })}
             aria-label="Ver clientes inactivos"
           >
             <div className='admin-kpi-card-header'>
               <Users size={20} className="icon-soft-grey" />
-              <h3>Clientes inactivos</h3>
+              <h3>STUDENTs inactivos</h3>
             </div>
             <p className='value'>{kpi.totalInactiveUsers}</p>
           </button>

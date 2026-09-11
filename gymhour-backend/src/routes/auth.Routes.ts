@@ -22,10 +22,13 @@ const forgotPasswordLimiter = rateLimit({
     legacyHeaders: false,
 });
 
-// authRouter.post('/register', authMethods.register) no se usa ya que unicamente crea usuarios el admin.
-authRouter.post('/login', loginLimiter, authMethods.login)
-authRouter.post("/forgot-password", forgotPasswordLimiter, authMethods.forgotPassword);
+authRouter.post('/tenants', loginLimiter, authMethods.registerTenant);
+authRouter.post('/login', loginLimiter, authMethods.loginWithoutTenant);
+authRouter.post('/login/select-tenant', loginLimiter, authMethods.selectLoginTenant);
+authRouter.post('/tenants/:slug/login', loginLimiter, authMethods.login);
+authRouter.post('/tenants/:slug/forgot-password', forgotPasswordLimiter, authMethods.forgotPassword);
 authRouter.post("/reset-password", authMethods.resetPassword);
 authRouter.put("/change-password", authenticateToken, authMethods.changePassword);
+authRouter.get('/me', authenticateToken, authMethods.me);
 
 export default authRouter;

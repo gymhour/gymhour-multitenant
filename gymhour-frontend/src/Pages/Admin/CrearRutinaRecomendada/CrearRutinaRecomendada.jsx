@@ -1,3 +1,4 @@
+import { getCurrentUserId } from '../../../authSession';
 import React, { useState, useEffect, useMemo } from 'react';
 import '../../../App.css';
 import SidebarMenu from '../../../Components/SidebarMenu/SidebarMenu.jsx';
@@ -227,7 +228,7 @@ const CrearRutinaRecomendada = ({ fromAdmin, fromEntrenador }) => {
   }, [isEditing, canAssign, users]);
 
   const selectedUserId = useMemo(() => {
-    if (!canAssign) return Number(localStorage.getItem("usuarioId"));
+    if (!canAssign) return Number(getCurrentUserId());
     const u = users.find(u => u.email === selectedEmail);
     return u?.ID_Usuario ?? null;
   }, [canAssign, users, selectedEmail]);
@@ -547,9 +548,9 @@ const CrearRutinaRecomendada = ({ fromAdmin, fromEntrenador }) => {
   const buildPayload = () => {
     const userId = canAssign
       ? (users.find(u => u.email === selectedEmail)?.ID_Usuario ?? null)
-      : Number(localStorage.getItem("usuarioId"));
+      : Number(getCurrentUserId());
 
-    const entrenadorId = fromEntrenador ? Number(localStorage.getItem("usuarioId")) : null;
+    const entrenadorId = fromEntrenador ? Number(getCurrentUserId()) : null;
 
     const diasObj = {};
 

@@ -68,7 +68,7 @@ const DNICheckInSection = ({ onCheckIn, loading, enableNameSearch = false }) => 
         const response = await apiService.getAllUsuarios({
           page: 1,
           take: MAX_SUGGESTIONS,
-          tipo: 'cliente',
+          role: 'STUDENT',
           estado: true,
           search: termino,
         });

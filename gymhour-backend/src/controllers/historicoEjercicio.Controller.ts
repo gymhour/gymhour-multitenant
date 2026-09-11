@@ -2,6 +2,23 @@ import { Request, Response } from "express";
 import { respondUnexpected } from "../services/apiError.service.js";
 import prisma from "../models/Prisma.js";
 
+const isStaff = (req: Request): boolean => req.user?.role === 'ADMIN' || req.user?.role === 'TRAINER';
+const canAccessMeasurement = async (req: Request, measurementId: number): Promise<boolean> => {
+  const measurement = await prisma.ejercicioMedicion.findUnique({
+    where: { ID_EjercicioMedicion: measurementId },
+    select: { ID_Usuario: true },
+  });
+  return Boolean(measurement && (isStaff(req) || measurement.ID_Usuario === req.user?.id));
+};
+
+const findAccessibleHistory = async (req: Request, id: number) => {
+  const history = await prisma.historicoEjercicio.findUnique({
+    where: { ID_HistoricoEjercicio: id },
+    include: { EjercicioMedicion: true },
+  });
+  return history && (isStaff(req) || history.EjercicioMedicion.ID_Usuario === req.user?.id) ? history : null;
+};
+
 const createHistoricoEjercicio = async (req: Request, res: Response): Promise<void> => {
   try {
     const { ID_EjercicioMedicion, Cantidad, Fecha } = req.body;
@@ -9,6 +26,10 @@ const createHistoricoEjercicio = async (req: Request, res: Response): Promise<vo
     // Validar que se envíen los datos obligatorios
     if (!ID_EjercicioMedicion || !Cantidad) {
       res.status(400).json({ message: "Elegí el ejercicio y escribí la cantidad." });
+      return;
+    }
+    if (!await canAccessMeasurement(req, Number(ID_EjercicioMedicion))) {
+      res.status(404).json({ message: "No encontramos esa medición." });
       return;
     }
 
@@ -39,10 +60,7 @@ const getHistoricoEjercicioById = async (req: Request, res: Response): Promise<v
       res.status(400).json({ message: "No pudimos identificar el registro del ejercicio. Actualizá la página e intentá de nuevo." });
       return;
     }
-    const historico = await prisma.historicoEjercicio.findUnique({
-      where: { ID_HistoricoEjercicio: id },
-      include: { EjercicioMedicion: true }
-    });
+    const historico = await findAccessibleHistory(req, id);
     if (!historico) {
       res.status(404).json({ message: "No encontramos ese registro del ejercicio." });
       return;
@@ -68,6 +86,11 @@ const updateHistoricoEjercicio = async (req: Request, res: Response): Promise<vo
     }
     if (Cantidad === undefined && Fecha === undefined) {
       res.status(400).json({ message: "No hay cambios para guardar." });
+      return;
+    }
+
+    if (!await findAccessibleHistory(req, id)) {
+      res.status(404).json({ message: "No encontramos ese registro del ejercicio." });
       return;
     }
 
@@ -101,6 +124,10 @@ const deleteHistoricoEjercicio = async (req: Request, res: Response): Promise<vo
     const id = Number(req.params.id);
     if (isNaN(id)) {
       res.status(400).json({ message: "No pudimos identificar el registro del ejercicio. Actualizá la página e intentá de nuevo." });
+      return;
+    }
+    if (!await findAccessibleHistory(req, id)) {
+      res.status(404).json({ message: "No encontramos ese registro del ejercicio." });
       return;
     }
     await prisma.historicoEjercicio.delete({

@@ -53,13 +53,13 @@ const normalizeTextFilters = (filters) => ({
   dni: normalizeFilterValue(filters.dni),
 });
 
-const emptyUsuariosFilters = { tipo: '', nombre: '', apellido: '', email: '', estado: '', dni: '', plan: '', movimiento: '', movimientoMes: '' };
+const emptyUsuariosFilters = { role: '', nombre: '', apellido: '', email: '', estado: '', dni: '', plan: '', movimiento: '', movimientoMes: '' };
 
 const normalizeTipoParam = (value) => {
   const normalized = String(value || '').toLowerCase();
-  if (normalized === 'cliente') return 'Cliente';
-  if (normalized === 'entrenador') return 'Entrenador';
-  if (normalized === 'admin') return 'Admin';
+  if (normalized === 'STUDENT') return 'STUDENT';
+  if (normalized === 'TRAINER') return 'TRAINER';
+  if (normalized === 'ADMIN') return 'Admin';
   return '';
 };
 
@@ -79,14 +79,14 @@ const SIN_PLAN_FILTER_VALUE = '__SIN_PLAN__';
 
 const getUsuariosFiltersFromSearch = (searchParams) => ({
   ...emptyUsuariosFilters,
-  tipo: normalizeTipoParam(searchParams.get('tipo')),
+  role: normalizeTipoParam(searchParams.get('role')),
   estado: normalizeEstadoParam(searchParams.get('estado')),
   plan: normalizeFilterValue(searchParams.get('plan')),
   movimiento: normalizeMovimientoParam(searchParams.get('movimiento')),
   movimientoMes: normalizeFilterValue(searchParams.get('mes')),
 });
 
-const UsuariosList = ({ fromAdmin, fromEntrenador }) => {
+const UsuariosList = ({ fromAdmin, fromTRAINER }) => {
   const [searchParams] = useSearchParams();
   const searchParamsString = searchParams.toString();
   const initialFilters = useMemo(
@@ -139,7 +139,7 @@ const UsuariosList = ({ fromAdmin, fromEntrenador }) => {
   const [hasMore, setHasMore] = useState(true);
 
   const defaultAvatar = "https://..."; // tu URL
-  const opcionesTipo = fromAdmin ? ['Cliente', 'Entrenador', 'Admin'] : ['Cliente'];
+  const opcionesTipo = fromAdmin ? ['STUDENT', 'TRAINER', 'Admin'] : ['STUDENT'];
   const opcionesEstado = ['Activo', 'Inactivo'];
   const [planesList, setPlanesList] = useState([]);
 
@@ -156,7 +156,7 @@ const UsuariosList = ({ fromAdmin, fromEntrenador }) => {
     try {
       const params = {};
       const activeFilters = normalizeTextFilters(filtros);
-      if (activeFilters.tipo) params.tipo = activeFilters.tipo.toLowerCase(); // normalizo
+      if (activeFilters.role) params.role = activeFilters.role.toLowerCase(); // normalizo
       if (activeFilters.nombre) params.nombre = activeFilters.nombre;
       if (activeFilters.apellido) params.apellido = activeFilters.apellido;
       if (activeFilters.email) params.email = activeFilters.email;
@@ -179,9 +179,9 @@ const UsuariosList = ({ fromAdmin, fromEntrenador }) => {
 
       const { data } = await apiClient.get('/usuarios', { params });
       const lista = data.data || [];
-      const listaUsuariosClientes = lista.filter(u => u.tipo === "cliente");
+      const listaUsuariosSTUDENTs = lista.filter(u => u.role === "STUDENT");
 
-      setUsuarios(fromAdmin ? lista : listaUsuariosClientes);
+      setUsuarios(fromAdmin ? lista : listaUsuariosSTUDENTs);
       setHasMore(lista.length > 0);
     } catch (err) {
       console.error('Error al obtener los usuarios:', err);
@@ -588,7 +588,7 @@ const UsuariosList = ({ fromAdmin, fromEntrenador }) => {
   return (
     <div className='page-layout'>
       {loading && <LoaderFullScreen />}
-      <SidebarMenu isAdmin={fromAdmin} isEntrenador={fromEntrenador} />
+      <SidebarMenu isAdmin={fromAdmin} isTRAINER={fromTRAINER} />
 
       <div className='content-layout'>
         <div className="usuarios-page-header">
@@ -638,11 +638,11 @@ const UsuariosList = ({ fromAdmin, fromEntrenador }) => {
             onSubmit={aplicarFiltros}
           >
             <div className='usuarios-filtros-form-inputs-ctn'>
-              <label htmlFor="tipo">Tipo:</label>
+              <label htmlFor="role">Tipo:</label>
               <CustomDropdown
-                id="tipo"
-                name="tipo"
-                value={draftFiltros.tipo}            // ← FIX
+                id="role"
+                name="role"
+                value={draftFiltros.role}            // ← FIX
                 onChange={handleChangeDraft}
                 options={opcionesTipo}
                 placeholderOption="— Todos —"
@@ -749,7 +749,7 @@ const UsuariosList = ({ fromAdmin, fromEntrenador }) => {
                   <th>Registro</th>
                   <th>Estado</th>
                   <th>WhatsApp</th>
-                  {(fromAdmin || fromEntrenador) && <th>Acciones</th>}
+                  {(fromAdmin || fromTRAINER) && <th>Acciones</th>}
                 </tr>
               </thead>
               <tbody>
@@ -779,7 +779,7 @@ const UsuariosList = ({ fromAdmin, fromEntrenador }) => {
 
                     <td data-label="DNI">{u.dni || '—'}</td>
 
-                    <td data-label="Tipo" style={{ textTransform: 'capitalize' }}>{u.tipo}</td>
+                    <td data-label="Tipo" style={{ textTransform: 'capitalize' }}>{u.role}</td>
 
                     <td data-label="Plan" style={{ textTransform: 'capitalize' }}>
                       {u.plan?.nombre || '—'}
@@ -818,7 +818,7 @@ const UsuariosList = ({ fromAdmin, fromEntrenador }) => {
                       )}
                     </td>
 
-                    {(fromAdmin || fromEntrenador) && (
+                    {(fromAdmin || fromTRAINER) && (
                       <td data-label="Acciones" className="usuarios-table-actions">
                         {fromAdmin && (
                           <>
@@ -828,7 +828,7 @@ const UsuariosList = ({ fromAdmin, fromEntrenador }) => {
                             />
                           </>
                         )}
-                          {fromAdmin && u.tipo !== 'admin' && (
+                          {fromAdmin && u.role !== 'ADMIN' && (
                             <SecondaryButton
                                 text="Cambiar estado"
                                 onClick={() => openEstadoPopup(u)}
@@ -840,7 +840,7 @@ const UsuariosList = ({ fromAdmin, fromEntrenador }) => {
                             linkTo={`/admin/editar-usuario/${u.ID_Usuario}`}
                           />
                         )}
-                        {fromEntrenador && (
+                        {fromTRAINER && (
                           <SecondaryButton
                             text="Salud"
                             onClick={() => openHealthModal(u)}

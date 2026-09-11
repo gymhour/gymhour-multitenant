@@ -17,9 +17,9 @@
 // Uso:
 //   node prisma/limpiarBajasPendientes.js            -> dry-run, no escribe nada
 //   node prisma/limpiarBajasPendientes.js --apply    -> aplica los cambios
-import { PrismaClient } from "@prisma/client";
+import { createScriptTenantPrisma } from "./scriptClient.js";
 
-const prisma = new PrismaClient();
+const prisma = await createScriptTenantPrisma();
 const APPLY = process.argv.includes("--apply");
 
 // Mismo marco wall-clock que la columna fecha de Turno (getArgentinaDate en accessRules).

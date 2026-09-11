@@ -38,10 +38,12 @@ import { useNavigate, useLocation, Link } from "react-router-dom";
 // Componentes
 import ConfirmationPopup from "../utils/ConfirmationPopUp/ConfirmationPopUp";
 import ThemeToggle from "../utils/ThemeToggle/ThemeToggle";
+import { useAuth } from '../../context/AuthContext';
 
 const SidebarMenu = ({ isAdmin, isEntrenador }) => {
   const navigate = useNavigate();
   const location = useLocation();
+  const { tenant, logout } = useAuth();
   const [isPopupOpen, setIsPopupOpen] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(() => localStorage.getItem('sidebarCollapsed') === 'true');
@@ -77,11 +79,13 @@ const SidebarMenu = ({ isAdmin, isEntrenador }) => {
   const logoSrc = currentTheme === 'light'
     ? (CLIENT_SETUP.branding.logoLight || CLIENT_SETUP.branding.logo)
     : CLIENT_SETUP.branding.logo;
+  const tenantLogoSrc = tenant?.settings?.logoUrl || logoSrc;
+  const tenantLogoAlt = tenant?.name ? `Logo de ${tenant.name}` : CLIENT_SETUP.branding.logoAlt;
 
   const handleLogoutClick = () => setIsPopupOpen(true);
   const handleLogoutConfirm = () => {
     setIsPopupOpen(false);
-    localStorage.removeItem("token");
+    logout();
     navigate("/");
   };
   const handleLogoutCancel = () => setIsPopupOpen(false);
@@ -121,9 +125,10 @@ const SidebarMenu = ({ isAdmin, isEntrenador }) => {
           }
         </button>
         <img
-          src={logoSrc}
-          alt={CLIENT_SETUP.branding.logoAlt}
-          className="mobile-logo"
+          src={tenantLogoSrc}
+          alt={tenantLogoAlt}
+          className={`mobile-logo ${tenant?.settings?.logoUrl ? 'tenant-logo' : ''}`}
+          onError={event => { event.currentTarget.src = logoSrc; event.currentTarget.classList.remove('tenant-logo'); }}
         />
       </header>
 
@@ -156,9 +161,10 @@ const SidebarMenu = ({ isAdmin, isEntrenador }) => {
         {/* Logo cliente */}
         <div className="sidebar-logo">
           <img
-            src={logoSrc}
-            alt={CLIENT_SETUP.branding.logoAlt}
-            className="logo"
+            src={tenantLogoSrc}
+            alt={tenantLogoAlt}
+            className={`logo ${tenant?.settings?.logoUrl ? 'tenant-logo' : ''}`}
+            onError={event => { event.currentTarget.src = logoSrc; event.currentTarget.classList.remove('tenant-logo'); }}
           />
           <div className="menu-divider" />
         </div>
@@ -575,6 +581,11 @@ const SidebarMenu = ({ isAdmin, isEntrenador }) => {
           <div className="profile-section">
             <h3 className="profile-title">PERFIL</h3>
             <ul className="menu-list">
+              {isAdmin && (
+                <Link to="/admin/configuracion" className={`menu-link ${location.pathname === "/admin/configuracion" ? "active" : ""}`}>
+                  <li className="menu-item"><Settings className="icon" /> Configuración del gym</li>
+                </Link>
+              )}
               <Link
                 to={changePasswordPath}
                 className={`menu-link ${location.pathname === changePasswordPath ? "active" : ""

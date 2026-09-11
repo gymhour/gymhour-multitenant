@@ -2,10 +2,22 @@ import { Request, Response } from "express";
 import { respondUnexpected } from "../services/apiError.service.js";
 import prisma from "../models/Prisma.js";
 
+const isStaff = (req: Request): boolean => req.user?.role === 'ADMIN' || req.user?.role === 'TRAINER';
+const canAccessUser = (req: Request, userId: number): boolean => isStaff(req) || req.user?.id === userId;
+
+const findAccessibleMeasurement = async (req: Request, id: number) => {
+  const measurement = await prisma.ejercicioMedicion.findUnique({
+    where: { ID_EjercicioMedicion: id },
+    include: { HistoricoEjercicios: true },
+  });
+  return measurement && canAccessUser(req, measurement.ID_Usuario) ? measurement : null;
+};
+
 // Crear un EjercicioMedicion
 const createEjercicioMedicion = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { ID_Usuario, nombre, tipoMedicion } = req.body;
+    const { nombre, tipoMedicion } = req.body;
+    const ID_Usuario = isStaff(req) ? Number(req.body.ID_Usuario) : req.user?.id;
 
     // Validar datos obligatorios
     if (!ID_Usuario || !nombre || !tipoMedicion) {
@@ -48,10 +60,7 @@ const getAllEjerciciosMedicion = async (req: Request, res: Response): Promise<vo
 const getEjercicioMedicionById = async (req: Request, res: Response): Promise<void> => {
   const id = parseInt(req.params.id);
   try {
-    const ejercicio = await prisma.ejercicioMedicion.findUnique({
-      where: { ID_EjercicioMedicion: id },
-      include: { HistoricoEjercicios: true },
-    });
+    const ejercicio = await findAccessibleMeasurement(req, id);
 
     if (!ejercicio) {
       res.status(404).json({ message: "No encontramos esa medición." });
@@ -70,6 +79,11 @@ const updateEjercicioMedicion = async (req: Request, res: Response): Promise<voi
   const { nombre, tipoMedicion } = req.body;
 
   try {
+    const existing = await findAccessibleMeasurement(req, id);
+    if (!existing) {
+      res.status(404).json({ message: "No encontramos esa medición." });
+      return;
+    }
     if (!nombre && !tipoMedicion) {
       res.status(400).json({ message: "No hay cambios para guardar." });
       return;
@@ -95,6 +109,11 @@ const deleteEjercicioMedicion = async (req: Request, res: Response): Promise<voi
   const id = parseInt(req.params.id);
 
   try {
+    const existing = await findAccessibleMeasurement(req, id);
+    if (!existing) {
+      res.status(404).json({ message: "No encontramos esa medición." });
+      return;
+    }
     await prisma.ejercicioMedicion.delete({
       where: { ID_EjercicioMedicion: id },
     });
@@ -110,6 +129,12 @@ const getMaxCantidadByEjercicioMedicion = async (req: Request, res: Response): P
     const id = parseInt(req.params.id);
     if (isNaN(id)) {
       res.status(400).json({ message: "No pudimos identificar la medición. Actualizá la página e intentá de nuevo." });
+      return;
+    }
+
+    const measurement = await findAccessibleMeasurement(req, id);
+    if (!measurement) {
+      res.status(404).json({ message: "No encontramos esa medición." });
       return;
     }
 
@@ -135,6 +160,10 @@ const getEjerciciosMedicionByUsuario = async (req: Request, res: Response): Prom
     const userId = parseInt(req.params.idUsuario);
     if (isNaN(userId)) {
       res.status(400).json({ message: "No pudimos identificar al usuario. Actualizá la página e intentá de nuevo." });
+      return;
+    }
+    if (!canAccessUser(req, userId)) {
+      res.status(404).json({ message: "Recurso no encontrado" });
       return;
     }
 

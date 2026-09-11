@@ -103,7 +103,7 @@ async function sendInactividad15Dias(): Promise<number> {
   const targetEnd = new Date(target.getTime() + DAY_MS);
 
   const usuarios = await prisma.user.findMany({
-    where: { estado: true, tipo: "cliente" },
+    where: { estado: true, role: "STUDENT" },
     select: {
       email: true,
       nombre: true,

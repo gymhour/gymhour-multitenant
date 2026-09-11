@@ -40,7 +40,7 @@ const MOTIVOS_ALTA = [
   'Otro / Sin motivo',
 ];
 
-const CrearUsuario = ({fromAdmin, fromEntrenador}) => {
+const CrearUsuario = ({fromAdmin, fromTRAINER}) => {
   const initialFormData = {
     email: '',
     password: '',
@@ -50,7 +50,7 @@ const CrearUsuario = ({fromAdmin, fromEntrenador}) => {
     profesion: '',
     direc: '',
     tel: '',
-    tipo: '',
+    role: '',
     fechaCumple: '',
     plan: '',
     motivoAlta: '',
@@ -211,9 +211,9 @@ const CrearUsuario = ({fromAdmin, fromEntrenador}) => {
       const fechaPlano = formData.fechaCumple || '';
       const isoFecha = fechaPlano ? new Date(fechaPlano).toISOString() : '';
 
-      // Valido plan si es Cliente
+      // Valido plan si es STUDENT
       let idPlan = null;
-      if (formData.tipo === 'Cliente') {
+      if (formData.role === 'STUDENT') {
         if (!formData.dni.trim()) {
           toast.error('Ingresá el DNI del alumno');
           setIsLoading(false);
@@ -236,7 +236,7 @@ const CrearUsuario = ({fromAdmin, fromEntrenador}) => {
       payload.append('apellido', formData.apellido.trim());
       payload.append('direc', formData.direc.trim());
       payload.append('tel', formData.tel.trim());
-      payload.append('tipo', formData.tipo ? formData.tipo.toLowerCase() : '');
+      payload.append('role', formData.role ? formData.role.toLowerCase() : '');
       payload.append('fechaCumple', isoFecha);
       payload.append('observacionesSalud', formData.observacionesSalud.trim());
       payload.append('fichaMedicaUrl', formData.fichaMedicaUrl.trim());
@@ -253,7 +253,7 @@ const CrearUsuario = ({fromAdmin, fromEntrenador}) => {
         }
         payload.append('turnosFijos', JSON.stringify(uniqueTurnos));
       }
-      if (formData.tipo === 'Entrenador' && formData.profesion) {
+      if (formData.role === 'TRAINER' && formData.profesion) {
         payload.append('profesion', formData.profesion.trim());
       }
       if (avatarFile) {
@@ -279,12 +279,12 @@ const CrearUsuario = ({fromAdmin, fromEntrenador}) => {
     }
   };
 
-  const tipos = ['Cliente', 'Entrenador', 'Admin'];
+  const tipos = ['STUDENT', 'TRAINER', 'Admin'];
 
   return (
     <div className="page-layout">
       {isLoading && <LoaderFullScreen />}
-      <SidebarMenu isAdmin={fromAdmin} isEntrenador={fromEntrenador} />
+      <SidebarMenu isAdmin={fromAdmin} isTRAINER={fromTRAINER} />
       <div className="content-layout">
         <div className="usuario-form-page">
           <SecondaryButton
@@ -342,21 +342,21 @@ const CrearUsuario = ({fromAdmin, fromEntrenador}) => {
             </div>
 
             <div className="usuario-form-field">
-              <label htmlFor="tipo">Tipo de usuario</label>
+              <label htmlFor="role">Tipo de usuario</label>
               <CustomDropdown
                 options={tipos}
-                value={formData.tipo}
+                value={formData.role}
                 onChange={(val) =>
                   setFormData(f => ({
                     ...f,
-                    tipo: typeof val === 'string' ? val : val.target.value,
+                    role: typeof val === 'string' ? val : val.target.value,
                   }))
                 }
-                name="tipo" id="tipo"
+                name="role" id="role"
               />
             </div>
 
-          {formData.tipo === 'Cliente' && (
+          {formData.role === 'STUDENT' && (
             <div className="usuario-form-field usuario-form-field--full">
               <label htmlFor="plan">Plan</label>
               <CustomDropdown
@@ -464,7 +464,7 @@ const CrearUsuario = ({fromAdmin, fromEntrenador}) => {
             </div>
           )}
 
-          {formData.tipo === 'Entrenador' && (
+          {formData.role === 'TRAINER' && (
             <div className="usuario-form-field">
               <label htmlFor="profesion">Profesión</label>
               <CustomInput

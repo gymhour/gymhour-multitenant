@@ -1,3 +1,4 @@
+import { getCurrentUserId } from '../../../authSession';
 import React, { useState, useEffect, useMemo } from 'react';
 import '../../../App.css';
 import './alumnoInicio.css';
@@ -35,7 +36,7 @@ const AlumnoInicio = () => {
     const fetchAll = async () => {
       setLoading(true);
       try {
-        const usuarioId = localStorage.getItem('usuarioId');
+        const usuarioId = getCurrentUserId();
 
         const [clasesData, turnosData, usuarioData] = await Promise.all([
           apiService.getClases(),

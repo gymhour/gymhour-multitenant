@@ -1,3 +1,4 @@
+import { getCurrentUserId } from '../../../authSession';
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import '../../../App.css';
@@ -64,7 +65,7 @@ const ClasesActividadesAdminDetalle = ({ fromAdmin, fromEntrenador }) => {
   }
 
   // Permito editar al admin o a los entrenadores que dan la clase
-  const usuarioId = Number(localStorage.getItem("usuarioId"));
+  const usuarioId = Number(getCurrentUserId());
   const isEntrenadorClase = claseDetalle.Entrenadores
     .some(ent => ent.ID_Usuario === usuarioId);
   const canEdit = fromAdmin || isEntrenadorClase;

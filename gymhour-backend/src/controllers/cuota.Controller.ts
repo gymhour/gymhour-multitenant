@@ -260,7 +260,7 @@ const buildManualCuotaMonthPeriod = (
   };
 };
 
-// Select compartido por toda la generación masiva: solo alumnos (tipo cliente) activos con plan.
+// Select compartido por toda la generación masiva: solo alumnos (role cliente) activos con plan.
 const USUARIO_PLAN_SELECT = {
   ID_Usuario: true,
   nombre: true,
@@ -1213,7 +1213,7 @@ export const generateMonthlyCuotas = async (req: Request, res: Response): Promis
     }
 
     const usuarios = await prisma.user.findMany({
-      where: { estado: true, tipo: 'cliente', plan: { isNot: null } },
+      where: { estado: true, role: 'STUDENT', plan: { isNot: null } },
       select: USUARIO_PLAN_SELECT,
     });
 
@@ -1305,7 +1305,7 @@ export const prepararCuotasMasivas = async (req: Request, res: Response): Promis
     }
 
     const usuarios = await prisma.user.findMany({
-      where: { estado: true, tipo: 'cliente', plan: { isNot: null } },
+      where: { estado: true, role: 'STUDENT', plan: { isNot: null } },
       select: USUARIO_PLAN_SELECT,
     });
 
@@ -1393,7 +1393,7 @@ export const generarCuotasLote = async (req: Request, res: Response): Promise<vo
     }
 
     const usuarios = await prisma.user.findMany({
-      where: { ID_Usuario: { in: idsNum }, estado: true, tipo: 'cliente', plan: { isNot: null } },
+      where: { ID_Usuario: { in: idsNum }, estado: true, role: 'STUDENT', plan: { isNot: null } },
       select: USUARIO_PLAN_SELECT,
     });
 

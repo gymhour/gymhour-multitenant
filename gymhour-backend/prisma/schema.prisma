@@ -1,5 +1,5 @@
 generator client {
-  provider   = "prisma-client-js"
+  provider = "prisma-client-js"
 }
 
 datasource db {
@@ -7,18 +7,144 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+enum TenantStatus {
+  ACTIVE
+  SUSPENDED
+}
+
+enum TenantRole {
+  ADMIN
+  TRAINER
+  STUDENT
+}
+
+enum PlatformRole {
+  SUPER_ADMIN
+}
+
+enum MediaKind {
+  USER_AVATAR
+  CLASS_IMAGE
+  EXERCISE_MEDIA
+  MEDICAL_RECORD
+  TENANT_LOGO
+}
+
+model Tenant {
+  id        Int                     @id @default(autoincrement())
+  name      String
+  slug      String                  @unique
+  status    TenantStatus            @default(ACTIVE)
+  createdAt DateTime                @default(now())
+  updatedAt DateTime                @updatedAt
+  settings  TenantSettings?
+  kiosks    TenantKioskCredential[]
+  media     MediaAsset[]
+  users     User[]
+  plans     Plan[]
+  fees      Cuota[]
+  expenses  Gasto[]
+  contacts  ContactoAlumno[]
+  movements MovimientoSocio[]
+  bookings  Turno[]
+  fixedBookings TurnoFijo[]
+  schedules HorarioClase[]
+  classes   Clase[]
+  classTrainers ClaseEntrenador[]
+  routines  Rutina[]
+  groups    GrupoUsuario[]
+  groupMembers GrupoUsuarioMiembro[]
+  userRoutineAssignments RutinaAsignacionUsuario[]
+  groupRoutineAssignments RutinaAsignacionGrupo[]
+  routineDays RutinaDia[]
+  weeks     Semana[]
+  blocks    Bloque[]
+  exercises Ejercicio[]
+  blockExercises BloqueEjercicio[]
+  measurements EjercicioMedicion[]
+  exerciseHistory HistoricoEjercicio[]
+  attendances Asistencia[]
+
+  @@index([status, createdAt])
+}
+
+model TenantSettings {
+  id                   Int      @id @default(autoincrement())
+  tenantId             Int      @unique @default(0)
+  timezone             String   @default("America/Argentina/Cordoba")
+  currency             String   @default("ARS")
+  onboardingCompleted  Boolean  @default(true)
+  logoPublicId         String?
+  primaryColor         String   @default("#DA4632") @db.VarChar(7)
+  contactPhone         String?
+  contactEmail         String?
+  location             String?
+  paymentAccountHolder String?
+  paymentAlias         String?
+  paymentCbu           String?
+  paymentTaxId         String?
+  paymentWhatsapp      String?
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+  tenant               Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+}
+
+model TenantKioskCredential {
+  id         Int       @id @default(autoincrement())
+  tenantId   Int       @default(0)
+  label      String    @default("Kiosco principal")
+  tokenHash  String    @unique @db.Char(64)
+  active     Boolean   @default(true)
+  lastUsedAt DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  tenant     Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, active])
+}
+
+model MediaAsset {
+  id                 Int       @id @default(autoincrement())
+  tenantId           Int       @default(0)
+  kind               MediaKind
+  cloudinaryPublicId String    @unique
+  resourceType       String    @default("image")
+  format             String?
+  bytes              Int?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+  tenant             Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, id])
+  @@index([tenantId, kind])
+}
+
+model PlatformUser {
+  id          Int          @id @default(autoincrement())
+  email       String       @unique
+  password    String
+  role        PlatformRole @default(SUPER_ADMIN)
+  active      Boolean      @default(true)
+  authVersion Int          @default(0)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+}
+
 model User {
-  ID_Usuario         Int                 @id @default(autoincrement())
-  dni                String?             @unique
-  email              String              @unique
+  ID_Usuario         Int                       @id @default(autoincrement())
+  dni                String?
+  email              String
   nombre             String?
   apellido           String?
   password           String
   profesion          String?
   direc              String?
   tel                String?
-  tipo               String?
-  fechaRegistro      DateTime?           @default(now())
+  tenantId           Int                       @default(0)
+  role               TenantRole                @default(STUDENT)
+  authVersion        Int                       @default(0)
+  tenant             Tenant                    @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  fechaRegistro      DateTime?                 @default(now())
   fechaBaja          DateTime?
   motivoAlta         String? // por qué se sumó el socio (whitelist MOTIVOS_ALTA); opcional
   fechaCumple        DateTime?
@@ -26,17 +152,17 @@ model User {
   resetToken         String?
   resetTokenExpiry   DateTime?
   imagenUsuario      String?
-  observacionesSalud String?             @db.Text
-  fichaMedicaUrl     String?             @db.Text
-  usaTurnosFijos     Boolean             @default(false)
+  observacionesSalud String?                   @db.Text
+  fichaMedicaUrl     String?                   @db.Text
+  usaTurnosFijos     Boolean                   @default(false)
   ID_Plan            Int?
-  plan               Plan?               @relation("UserPlan", fields: [ID_Plan], references: [ID_Plan])
+  plan               Plan?                     @relation("UserPlan", fields: [tenantId, ID_Plan], references: [tenantId, ID_Plan])
   Turnos             Turno[]
   TurnosFijos        TurnoFijo[]
   EjerciciosMedicion EjercicioMedicion[]
-  ClasesACargo       Clase[]             @relation("EntrenadoresClases")
-  rutinasAsignadas   Rutina[]            @relation("AlumnoRutinas")
-  rutinasCreadas     Rutina[]            @relation("EntrenadorRutinas")
+  ClasesACargo       ClaseEntrenador[]
+  rutinasAsignadas   Rutina[]                  @relation("AlumnoRutinas")
+  rutinasCreadas     Rutina[]                  @relation("EntrenadorRutinas")
   gruposUsuario      GrupoUsuarioMiembro[]
   asignacionesRutina RutinaAsignacionUsuario[]
   Cuotas             Cuota[]
@@ -44,59 +170,72 @@ model User {
   movimientos        MovimientoSocio[]
   contactos          ContactoAlumno[]
 
+  @@unique([tenantId, ID_Usuario])
+  @@unique([tenantId, email])
+  @@unique([tenantId, dni])
+  @@index([tenantId, role, estado])
   @@map("User")
 }
 
 model Plan {
-  ID_Plan            Int     @id @default(autoincrement())
-  nombre             String  @unique
-  desc               String?
-  precio             Float
-  duracion           String  @default("MENSUAL")
-  sesionesPorSemana  Int     @default(0) // DEPRECADO: reemplazado por sesionesTotales (se conserva por compat)
-  sesionesTotales    Int     @default(0) // total de sesiones del período del plan
-  sesionesGracia     Int     @default(0)
-  requiereTurno      Boolean @default(true)
-  usuarios           User[]  @relation("UserPlan")
-  cuotas             Cuota[]
+  tenantId          Int     @default(0)
+  ID_Plan           Int     @id @default(autoincrement())
+  nombre            String
+  desc              String?
+  precio            Float
+  duracion          String  @default("MENSUAL")
+  sesionesPorSemana Int     @default(0) // DEPRECADO: reemplazado por sesionesTotales (se conserva por compat)
+  sesionesTotales   Int     @default(0) // total de sesiones del período del plan
+  sesionesGracia    Int     @default(0)
+  requiereTurno     Boolean @default(true)
+  usuarios          User[]  @relation("UserPlan")
+  cuotas            Cuota[]
+  tenant            Tenant  @relation(fields: [tenantId], references: [id], onDelete: Restrict)
 
+  @@unique([tenantId, ID_Plan])
+  @@unique([tenantId, nombre])
   @@map("Plan")
 }
 
 model Cuota {
-  ID_Cuota                   Int          @id @default(autoincrement())
-  mes                        String // Ejemplo: "2024-11" o "Noviembre 2024"
-  importe                    Float // El importe de la cuota
-  vence                      DateTime // Fecha de vencimiento de la cuota
-  fechaInicio                DateTime?
-  fechaFin                   DateTime?
-  pagada                     Boolean      @default(false) // Indica si la cuota fue pagada
-  formaPago                  String?
-  fechaPago                  DateTime? // Fecha en que se realizó el pago, opcional
-  vencida                    Boolean      @default(false)
+  tenantId                    Int          @default(0)
+  ID_Cuota                    Int          @id @default(autoincrement())
+  mes                         String // Ejemplo: "2024-11" o "Noviembre 2024"
+  importe                     Float // El importe de la cuota
+  vence                       DateTime // Fecha de vencimiento de la cuota
+  fechaInicio                 DateTime?
+  fechaFin                    DateTime?
+  pagada                      Boolean      @default(false) // Indica si la cuota fue pagada
+  formaPago                   String?
+  fechaPago                   DateTime? // Fecha en que se realizó el pago, opcional
+  vencida                     Boolean      @default(false)
   // Cómo se creó la cuota: "MANUAL" (alta individual, proporcional al mes) o
   // "MASIVA" (generación del mes, período completo del plan). Null en las anteriores
   // a este campo, donde el origen no quedó registrado.
-  origen                     String?
-  planNombreSnapshot         String?
-  planDuracionSnapshot       String?
-  planSesionesSemanaSnapshot Int? // DEPRECADO: reemplazado por planSesionesTotalesSnapshot
+  origen                      String?
+  planNombreSnapshot          String?
+  planDuracionSnapshot        String?
+  planSesionesSemanaSnapshot  Int? // DEPRECADO: reemplazado por planSesionesTotalesSnapshot
   planSesionesTotalesSnapshot Int?
-  planSesionesGraciaSnapshot Int?
-  planRequiereTurnoSnapshot  Boolean?
-  ID_Usuario                 Int
-  ID_Plan                    Int?
-  User                       User         @relation(fields: [ID_Usuario], references: [ID_Usuario], onDelete: Cascade)
-  Plan                       Plan?        @relation(fields: [ID_Plan], references: [ID_Plan])
-  Turnos                     Turno[]
-  Asistencias                Asistencia[]
+  planSesionesGraciaSnapshot  Int?
+  planRequiereTurnoSnapshot   Boolean?
+  ID_Usuario                  Int
+  ID_Plan                     Int?
+  User                        User         @relation(fields: [tenantId, ID_Usuario], references: [tenantId, ID_Usuario], onDelete: Cascade)
+  Plan                        Plan?        @relation(fields: [tenantId, ID_Plan], references: [tenantId, ID_Plan])
+  Turnos                      Turno[]
+  Asistencias                 Asistencia[]
+  tenant                      Tenant       @relation(fields: [tenantId], references: [id], onDelete: Restrict)
 
-  @@index([mes])
-  @@index([ID_Usuario, mes])
+  @@unique([tenantId, ID_Cuota])
+  @@index([tenantId, mes])
+  @@index([tenantId, ID_Usuario, mes])
+  @@index([tenantId, pagada, vence])
   @@map("Cuota")
 }
 
 model Gasto {
+  tenantId    Int      @default(0)
   ID_Gasto    Int      @id @default(autoincrement())
   fecha       DateTime
   mes         String // "YYYY-MM" derivado por el backend desde la fecha
@@ -105,43 +244,52 @@ model Gasto {
   descripcion String?  @db.Text
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Restrict)
 
-  @@index([mes])
-  @@index([categoria])
-  @@index([fecha])
+  @@unique([tenantId, ID_Gasto])
+  @@index([tenantId, mes])
+  @@index([tenantId, categoria])
+  @@index([tenantId, fecha])
   @@map("Gasto")
 }
 
 model ContactoAlumno {
+  tenantId   Int      @default(0)
   id         Int      @id @default(autoincrement())
   ID_Usuario Int? // SetNull para conservar el log si se borra el usuario
   asunto     String
   plantilla  String? // 'TE_EXTRANAMOS' (extensible)
   enviadoPor Int? // ID del admin que lo envió
   fecha      DateTime @default(now())
-  User       User?    @relation(fields: [ID_Usuario], references: [ID_Usuario], onDelete: SetNull)
+  User       User?    @relation(fields: [tenantId, ID_Usuario], references: [tenantId, ID_Usuario], onDelete: Restrict)
+  tenant     Tenant   @relation(fields: [tenantId], references: [id], onDelete: Restrict)
 
-  @@index([ID_Usuario, fecha])
+  @@unique([tenantId, id])
+  @@index([tenantId, ID_Usuario, fecha])
   @@map("ContactoAlumno")
 }
 
 model MovimientoSocio {
-  id             Int      @id @default(autoincrement())
-  ID_Usuario     Int? // nullable + SetNull: conserva el histórico aunque se borre el usuario
-  tipo           String // 'ALTA' | 'BAJA'
-  esReactivacion Boolean  @default(false) // true sólo en ALTA por reactivación
-  motivoBaja     String? // sólo en BAJA: razón del churn (whitelist); null en ALTA
+  tenantId           Int      @default(0)
+  id                 Int      @id @default(autoincrement())
+  ID_Usuario         Int? // nullable + SetNull: conserva el histórico aunque se borre el usuario
+  tipo               String // 'ALTA' | 'BAJA'
+  esReactivacion     Boolean  @default(false) // true sólo en ALTA por reactivación
+  motivoBaja         String? // sólo en BAJA: razón del churn (whitelist); null en ALTA
   motivoReactivacion String? // sólo en ALTA por reactivación (whitelist MOTIVOS_ALTA)
-  fecha          DateTime
-  createdAt      DateTime @default(now())
-  User           User?    @relation(fields: [ID_Usuario], references: [ID_Usuario], onDelete: SetNull)
+  fecha              DateTime
+  createdAt          DateTime @default(now())
+  User               User?    @relation(fields: [tenantId, ID_Usuario], references: [tenantId, ID_Usuario], onDelete: Restrict)
+  tenant             Tenant   @relation(fields: [tenantId], references: [id], onDelete: Restrict)
 
-  @@index([fecha])
-  @@index([tipo])
+  @@unique([tenantId, id])
+  @@index([tenantId, fecha])
+  @@index([tenantId, tipo, fecha])
   @@map("MovimientoSocio")
 }
 
 model Turno {
+  tenantId        Int          @default(0)
   id_turno        Int          @id @default(autoincrement())
   fecha           DateTime
   estado          String
@@ -152,55 +300,83 @@ model Turno {
   ID_HorarioClase Int
   ID_Usuario      Int
   ID_Cuota        Int?
-  HorarioClase    HorarioClase @relation(fields: [ID_HorarioClase], references: [ID_HorarioClase], onDelete: Cascade)
-  User            User         @relation(fields: [ID_Usuario], references: [ID_Usuario], onDelete: Cascade)
-  Cuota           Cuota?       @relation(fields: [ID_Cuota], references: [ID_Cuota], onDelete: SetNull)
+  HorarioClase    HorarioClase @relation(fields: [tenantId, ID_HorarioClase], references: [tenantId, ID_HorarioClase], onDelete: Cascade)
+  User            User         @relation(fields: [tenantId, ID_Usuario], references: [tenantId, ID_Usuario], onDelete: Cascade)
+  Cuota           Cuota?       @relation(fields: [tenantId, ID_Cuota], references: [tenantId, ID_Cuota], onDelete: Restrict)
   Asistencias     Asistencia[]
+  tenant          Tenant       @relation(fields: [tenantId], references: [id], onDelete: Restrict)
 
-  @@index([ID_Cuota])
-  @@index([fecha])
-  @@index([ID_HorarioClase, fecha])
-  @@index([ID_Usuario, ID_HorarioClase, fecha])
+  @@unique([tenantId, id_turno])
+  @@index([tenantId, ID_Cuota])
+  @@index([tenantId, fecha])
+  @@index([tenantId, ID_HorarioClase, fecha])
+  @@index([tenantId, ID_Usuario, ID_HorarioClase, fecha])
   @@map("Turno")
 }
 
 model TurnoFijo {
+  tenantId        Int          @default(0)
   ID_TurnoFijo    Int          @id @default(autoincrement())
   ID_Usuario      Int
   ID_HorarioClase Int
   activo          Boolean      @default(true)
   fechaCreacion   DateTime     @default(now())
-  User            User         @relation(fields: [ID_Usuario], references: [ID_Usuario], onDelete: Cascade)
-  HorarioClase    HorarioClase @relation(fields: [ID_HorarioClase], references: [ID_HorarioClase], onDelete: Cascade)
+  User            User         @relation(fields: [tenantId, ID_Usuario], references: [tenantId, ID_Usuario], onDelete: Cascade)
+  HorarioClase    HorarioClase @relation(fields: [tenantId, ID_HorarioClase], references: [tenantId, ID_HorarioClase], onDelete: Cascade)
+  tenant          Tenant       @relation(fields: [tenantId], references: [id], onDelete: Restrict)
 
-  @@unique([ID_Usuario, ID_HorarioClase])
+  @@unique([tenantId, ID_TurnoFijo])
+  @@unique([tenantId, ID_Usuario, ID_HorarioClase])
   @@map("TurnoFijo")
 }
 
 model HorarioClase {
-  ID_HorarioClase Int      @id @default(autoincrement())
+  tenantId        Int         @default(0)
+  ID_HorarioClase Int         @id @default(autoincrement())
   diaSemana       String
   horaIni         DateTime
   horaFin         DateTime
   cupos           Int
   ID_Clase        Int
-  Clase           Clase    @relation(fields: [ID_Clase], references: [ID_Clase], onDelete: Cascade)
+  Clase           Clase       @relation(fields: [tenantId, ID_Clase], references: [tenantId, ID_Clase], onDelete: Cascade)
   Turnos          Turno[]
   TurnosFijos     TurnoFijo[]
-  activo          Boolean  @default(true)
+  activo          Boolean     @default(true)
+  tenant          Tenant      @relation(fields: [tenantId], references: [id], onDelete: Restrict)
 
+  @@unique([tenantId, ID_HorarioClase])
+  @@index([tenantId, ID_Clase, activo])
   @@map("HorarioClase")
 }
 
 model Clase {
-  ID_Clase      Int            @id @default(autoincrement())
+  tenantId      Int               @default(0)
+  ID_Clase      Int               @id @default(autoincrement())
   nombre        String
-  descripcion   String?        @db.Text
+  descripcion   String?           @db.Text
   imagenClase   String? // Campo para coludinary
   HorariosClase HorarioClase[]
-  Entrenadores  User[]         @relation("EntrenadoresClases")
+  Entrenadores  ClaseEntrenador[]
+  tenant        Tenant            @relation(fields: [tenantId], references: [id], onDelete: Restrict)
 
+  @@unique([tenantId, ID_Clase])
+  @@index([tenantId, nombre])
   @@map("Clase")
+}
+
+model ClaseEntrenador {
+  id            Int      @id @default(autoincrement())
+  tenantId      Int      @default(0)
+  ID_Clase      Int
+  ID_Entrenador Int
+  createdAt     DateTime @default(now())
+  clase         Clase    @relation(fields: [tenantId, ID_Clase], references: [tenantId, ID_Clase], onDelete: Cascade)
+  entrenador    User     @relation(fields: [tenantId, ID_Entrenador], references: [tenantId, ID_Usuario], onDelete: Cascade)
+  tenant        Tenant   @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+
+  @@unique([tenantId, id])
+  @@unique([tenantId, ID_Clase, ID_Entrenador])
+  @@index([tenantId, ID_Entrenador])
 }
 
 enum BlockType {
@@ -213,111 +389,138 @@ enum BlockType {
 }
 
 model Rutina {
-  ID_Rutina           Int         @id @default(autoincrement())
-  ID_Usuario          Int
-  User                User        @relation("AlumnoRutinas", fields: [ID_Usuario], references: [ID_Usuario], onDelete: Cascade)
-  ID_Entrenador       Int? // puede ser null si lo crea el alumno
-  Entrenador          User?       @relation("EntrenadorRutinas", fields: [ID_Entrenador], references: [ID_Usuario])
-  nombre              String
-  desc                String?
-  claseRutina         String?
-  grupoMuscularRutina String?
-  urlPlanificacion    String?
-  createdAt           DateTime    @default(now())
-  updatedAt           DateTime    @updatedAt
-  Bloques             Bloque[]
-  DiasRutina          RutinaDia[]
-  Semanas             Semana[] // <-- nuevas semanas
+  tenantId             Int                       @default(0)
+  ID_Rutina            Int                       @id @default(autoincrement())
+  ID_Usuario           Int
+  User                 User                      @relation("AlumnoRutinas", fields: [tenantId, ID_Usuario], references: [tenantId, ID_Usuario], onDelete: Cascade)
+  ID_Entrenador        Int? // puede ser null si lo crea el alumno
+  Entrenador           User?                     @relation("EntrenadorRutinas", fields: [tenantId, ID_Entrenador], references: [tenantId, ID_Usuario])
+  nombre               String
+  desc                 String?
+  claseRutina          String?
+  grupoMuscularRutina  String?
+  urlPlanificacion     String?
+  createdAt            DateTime                  @default(now())
+  updatedAt            DateTime                  @updatedAt
+  Bloques              Bloque[]
+  DiasRutina           RutinaDia[]
+  Semanas              Semana[] // <-- nuevas semanas
   asignacionesUsuarios RutinaAsignacionUsuario[]
   asignacionesGrupos   RutinaAsignacionGrupo[]
+  tenant               Tenant                    @relation(fields: [tenantId], references: [id], onDelete: Restrict)
 
+  @@unique([tenantId, ID_Rutina])
+  @@index([tenantId, ID_Usuario, createdAt])
+  @@index([tenantId, ID_Entrenador, createdAt])
   @@map("Rutina")
 }
 
 model GrupoUsuario {
-  ID_GrupoUsuario Int                    @id @default(autoincrement())
+  tenantId        Int                     @default(0)
+  ID_GrupoUsuario Int                     @id @default(autoincrement())
   nombre          String
   descripcion     String?
-  estado          Boolean                @default(true)
-  createdAt       DateTime               @default(now())
-  updatedAt       DateTime               @updatedAt
+  estado          Boolean                 @default(true)
+  createdAt       DateTime                @default(now())
+  updatedAt       DateTime                @updatedAt
   miembros        GrupoUsuarioMiembro[]
   rutinas         RutinaAsignacionGrupo[]
+  tenant          Tenant                  @relation(fields: [tenantId], references: [id], onDelete: Restrict)
 
+  @@unique([tenantId, ID_GrupoUsuario])
+  @@index([tenantId, estado, createdAt])
   @@map("GrupoUsuario")
 }
 
 model GrupoUsuarioMiembro {
+  tenantId               Int          @default(0)
   ID_GrupoUsuarioMiembro Int          @id @default(autoincrement())
   ID_GrupoUsuario        Int
   ID_Usuario             Int
   createdAt              DateTime     @default(now())
-  grupoUsuario           GrupoUsuario @relation(fields: [ID_GrupoUsuario], references: [ID_GrupoUsuario], onDelete: Cascade)
-  usuario                User         @relation(fields: [ID_Usuario], references: [ID_Usuario], onDelete: Cascade)
+  grupoUsuario           GrupoUsuario @relation(fields: [tenantId, ID_GrupoUsuario], references: [tenantId, ID_GrupoUsuario], onDelete: Cascade)
+  usuario                User         @relation(fields: [tenantId, ID_Usuario], references: [tenantId, ID_Usuario], onDelete: Cascade)
+  tenant                 Tenant       @relation(fields: [tenantId], references: [id], onDelete: Restrict)
 
-  @@unique([ID_GrupoUsuario, ID_Usuario])
-  @@index([ID_Usuario])
+  @@unique([tenantId, ID_GrupoUsuarioMiembro])
+  @@unique([tenantId, ID_GrupoUsuario, ID_Usuario])
+  @@index([tenantId, ID_Usuario])
   @@map("GrupoUsuarioMiembro")
 }
 
 model RutinaAsignacionUsuario {
+  tenantId                   Int      @default(0)
   ID_RutinaAsignacionUsuario Int      @id @default(autoincrement())
-  ID_Rutina                   Int
-  ID_Usuario                  Int
-  createdAt                   DateTime @default(now())
-  rutina                      Rutina   @relation(fields: [ID_Rutina], references: [ID_Rutina], onDelete: Cascade)
-  usuario                     User     @relation(fields: [ID_Usuario], references: [ID_Usuario], onDelete: Cascade)
+  ID_Rutina                  Int
+  ID_Usuario                 Int
+  createdAt                  DateTime @default(now())
+  rutina                     Rutina   @relation(fields: [tenantId, ID_Rutina], references: [tenantId, ID_Rutina], onDelete: Cascade)
+  usuario                    User     @relation(fields: [tenantId, ID_Usuario], references: [tenantId, ID_Usuario], onDelete: Cascade)
+  tenant                     Tenant   @relation(fields: [tenantId], references: [id], onDelete: Restrict)
 
-  @@unique([ID_Rutina, ID_Usuario])
-  @@index([ID_Usuario])
+  @@unique([tenantId, ID_RutinaAsignacionUsuario])
+  @@unique([tenantId, ID_Rutina, ID_Usuario])
+  @@index([tenantId, ID_Usuario])
   @@map("RutinaAsignacionUsuario")
 }
 
 model RutinaAsignacionGrupo {
+  tenantId                 Int          @default(0)
   ID_RutinaAsignacionGrupo Int          @id @default(autoincrement())
   ID_Rutina                Int
   ID_GrupoUsuario          Int
   createdAt                DateTime     @default(now())
-  rutina                   Rutina       @relation(fields: [ID_Rutina], references: [ID_Rutina], onDelete: Cascade)
-  grupoUsuario             GrupoUsuario @relation(fields: [ID_GrupoUsuario], references: [ID_GrupoUsuario], onDelete: Cascade)
+  rutina                   Rutina       @relation(fields: [tenantId, ID_Rutina], references: [tenantId, ID_Rutina], onDelete: Cascade)
+  grupoUsuario             GrupoUsuario @relation(fields: [tenantId, ID_GrupoUsuario], references: [tenantId, ID_GrupoUsuario], onDelete: Cascade)
+  tenant                   Tenant        @relation(fields: [tenantId], references: [id], onDelete: Restrict)
 
-  @@unique([ID_Rutina, ID_GrupoUsuario])
-  @@index([ID_GrupoUsuario])
+  @@unique([tenantId, ID_RutinaAsignacionGrupo])
+  @@unique([tenantId, ID_Rutina, ID_GrupoUsuario])
+  @@index([tenantId, ID_GrupoUsuario])
   @@map("RutinaAsignacionGrupo")
 }
 
 model RutinaDia {
+  tenantId       Int      @default(0)
   id             Int      @id @default(autoincrement())
   dia            String
-  rutina         Rutina   @relation(fields: [rutinaId], references: [ID_Rutina], onDelete: Cascade)
+  rutina         Rutina   @relation(fields: [tenantId, rutinaId], references: [tenantId, ID_Rutina], onDelete: Cascade)
   rutinaId       Int
   Bloques        Bloque[] // nuevo: relación inversa
   nombre         String? // nuevo: nombre del día (ej: "Piernas - Día 1")
   descripcion    String? // nuevo: descripción del día
   // nuevo: relación opcional con una semana (si el día pertenece a una semana)
   rutinaSemanaId Int?
-  rutinaSemana   Semana?  @relation(fields: [rutinaSemanaId], references: [id], onDelete: Cascade)
+  rutinaSemana   Semana?  @relation(fields: [tenantId, rutinaSemanaId], references: [tenantId, id], onDelete: Cascade)
+  tenant         Tenant   @relation(fields: [tenantId], references: [id], onDelete: Restrict)
 
+  @@unique([tenantId, id])
+  @@index([tenantId, rutinaId])
   @@map("RutinaDia")
 }
 
 model Semana {
+  tenantId Int         @default(0)
   id       Int         @id @default(autoincrement())
   nombre   String?
   numero   Int? // opcional: número de semana dentro de la rutina
-  rutina   Rutina      @relation(fields: [rutinaId], references: [ID_Rutina], onDelete: Cascade)
+  rutina   Rutina      @relation(fields: [tenantId, rutinaId], references: [tenantId, ID_Rutina], onDelete: Cascade)
   rutinaId Int
   Dias     RutinaDia[] // días que pertenecen a esta semana
+  tenant   Tenant      @relation(fields: [tenantId], references: [id], onDelete: Restrict)
 
+  @@unique([tenantId, id])
+  @@index([tenantId, rutinaId])
   @@map("Semana")
 }
 
 model Bloque {
+  tenantId                    Int               @default(0)
   ID_Bloque                   Int               @id @default(autoincrement())
   type                        BlockType
   // Relación con la rutina
   ID_Rutina                   Int
-  rutina                      Rutina            @relation(fields: [ID_Rutina], references: [ID_Rutina], onDelete: Cascade)
+  rutina                      Rutina            @relation(fields: [tenantId, ID_Rutina], references: [tenantId, ID_Rutina], onDelete: Cascade)
   // Campos para SETS_REPS
   setsReps                    String? // 3x12 string
   nombreEj                    String? // Nombre del ejercicio (ej: "Bench Press")
@@ -336,13 +539,17 @@ model Bloque {
   bloqueEjercicios            BloqueEjercicio[]
   // Nuevo: relación opcional con RutinaDia
   rutinaDiaId                 Int?
-  rutinaDia                   RutinaDia?        @relation(fields: [rutinaDiaId], references: [id], onDelete: Cascade)
+  rutinaDia                   RutinaDia?        @relation(fields: [tenantId, rutinaDiaId], references: [tenantId, id], onDelete: Cascade)
+  tenant                      Tenant            @relation(fields: [tenantId], references: [id], onDelete: Restrict)
 
+  @@unique([tenantId, ID_Bloque])
+  @@index([tenantId, ID_Rutina])
   @@map("Bloque")
 }
 
 /// Ejercicios maestros reutilizables
 model Ejercicio {
+  tenantId         Int               @default(0)
   ID_Ejercicio     Int               @id @default(autoincrement())
   nombre           String
   descripcion      String?           @db.Text
@@ -353,60 +560,78 @@ model Ejercicio {
   bloqueEjercicios BloqueEjercicio[]
   musculos         String? // nuevo campo: músculos trabajados
   equipamiento     String? // nuevo campo: equipamiento necesario
+  tenant           Tenant            @relation(fields: [tenantId], references: [id], onDelete: Restrict)
 
-  @@index([esGenerico]) // opcional: index para filtrar rápidamente
+  @@unique([tenantId, ID_Ejercicio])
+  @@index([tenantId, esGenerico, nombre])
   @@map("Ejercicio")
 }
 
 model BloqueEjercicio {
+  tenantId           Int       @default(0)
   ID_BloqueEjercicio Int       @id @default(autoincrement()) @map("ID") // mapea al nombre real en DB
-  bloque             Bloque    @relation(fields: [ID_Bloque], references: [ID_Bloque], onDelete: Cascade)
+  bloque             Bloque    @relation(fields: [tenantId, ID_Bloque], references: [tenantId, ID_Bloque], onDelete: Cascade)
   ID_Bloque          Int
-  ejercicio          Ejercicio @relation(fields: [ID_Ejercicio], references: [ID_Ejercicio], onDelete: Cascade)
+  ejercicio          Ejercicio @relation(fields: [tenantId, ID_Ejercicio], references: [tenantId, ID_Ejercicio], onDelete: Cascade)
   ID_Ejercicio       Int
   reps               String?   @db.VarChar(191)
   setRepWeight       String?   @db.VarChar(191)
   orden              Int? // posición opcional dentro del bloque
+  tenant             Tenant    @relation(fields: [tenantId], references: [id], onDelete: Restrict)
 
+  @@unique([tenantId, ID_BloqueEjercicio])
+  @@index([tenantId, ID_Bloque])
+  @@index([tenantId, ID_Ejercicio])
   @@map("BloqueEjercicio") // mapea al nombre físico de la tabla (observá que tu tabla es lowercase)
 }
 
 model EjercicioMedicion {
+  tenantId             Int                  @default(0)
   ID_EjercicioMedicion Int                  @id @default(autoincrement())
   ID_Usuario           Int
-  User                 User                 @relation(fields: [ID_Usuario], references: [ID_Usuario], onDelete: Cascade)
+  User                 User                 @relation(fields: [tenantId, ID_Usuario], references: [tenantId, ID_Usuario], onDelete: Cascade)
   nombre               String
   tipoMedicion         String
   HistoricoEjercicios  HistoricoEjercicio[]
+  tenant               Tenant               @relation(fields: [tenantId], references: [id], onDelete: Restrict)
 
+  @@unique([tenantId, ID_EjercicioMedicion])
+  @@index([tenantId, ID_Usuario])
   @@map("EjercicioMedicion")
 }
 
 model HistoricoEjercicio {
+  tenantId              Int               @default(0)
   ID_HistoricoEjercicio Int               @id @default(autoincrement())
   Fecha                 DateTime          @default(now())
   Cantidad              Int
   ID_EjercicioMedicion  Int
-  EjercicioMedicion     EjercicioMedicion @relation(fields: [ID_EjercicioMedicion], references: [ID_EjercicioMedicion], onDelete: Cascade)
+  EjercicioMedicion     EjercicioMedicion @relation(fields: [tenantId, ID_EjercicioMedicion], references: [tenantId, ID_EjercicioMedicion], onDelete: Cascade)
+  tenant                 Tenant            @relation(fields: [tenantId], references: [id], onDelete: Restrict)
 
+  @@unique([tenantId, ID_HistoricoEjercicio])
+  @@index([tenantId, ID_EjercicioMedicion, Fecha])
   @@map("HistoricoEjercicio")
 }
 
 model Asistencia {
-  ID_Asistencia      Int      @id @default(autoincrement())
-  fechaIngreso       DateTime @default(now())
-  metodo             String   // "DNI" o "QR"
-  permitido          Boolean  // true si se permitió el paso, false si no
-  resultado          String   // "PERMITIDO", "DENEGADO_CUOTA", "DENEGADO_INACTIVO", "DENEGADO_NO_EXISTE"
-  motivo             String?  // Descripción amigable
-  ID_Usuario         Int?     // Opcional por si ingresa un DNI inexistente
-  ID_Turno           Int?
-  ID_Cuota           Int?
-  User               User?    @relation(fields: [ID_Usuario], references: [ID_Usuario], onDelete: Cascade)
-  Turno              Turno?   @relation(fields: [ID_Turno], references: [id_turno], onDelete: SetNull)
-  Cuota              Cuota?   @relation(fields: [ID_Cuota], references: [ID_Cuota], onDelete: SetNull)
+  tenantId      Int      @default(0)
+  ID_Asistencia Int      @id @default(autoincrement())
+  fechaIngreso  DateTime @default(now())
+  metodo        String // "DNI" o "QR"
+  permitido     Boolean // true si se permitió el paso, false si no
+  resultado     String // "PERMITIDO", "DENEGADO_CUOTA", "DENEGADO_INACTIVO", "DENEGADO_NO_EXISTE"
+  motivo        String? // Descripción amigable
+  ID_Usuario    Int? // Opcional por si ingresa un DNI inexistente
+  ID_Turno      Int?
+  ID_Cuota      Int?
+  User          User?    @relation(fields: [tenantId, ID_Usuario], references: [tenantId, ID_Usuario], onDelete: Cascade)
+  Turno         Turno?   @relation(fields: [tenantId, ID_Turno], references: [tenantId, id_turno], onDelete: Restrict)
+  Cuota         Cuota?   @relation(fields: [tenantId, ID_Cuota], references: [tenantId, ID_Cuota], onDelete: Restrict)
+  tenant        Tenant   @relation(fields: [tenantId], references: [id], onDelete: Restrict)
 
-  @@index([ID_Usuario, fechaIngreso])
-  @@index([permitido, fechaIngreso])
+  @@unique([tenantId, ID_Asistencia])
+  @@index([tenantId, ID_Usuario, fechaIngreso])
+  @@index([tenantId, permitido, fechaIngreso])
   @@map("Asistencia")
 }

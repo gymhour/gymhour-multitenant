@@ -13,8 +13,12 @@ userRouter.get('/entrenadores', authServices.authenticateToken, userMethods.getA
 userRouter.get('/admins', authServices.authenticateToken, authServices.isAdmin, userMethods.getAllAdmins)
 userRouter.post('/', authServices.authenticateToken, authServices.isAdmin, upload.single('avatar'), userMethods.createUser)
 userRouter.post('/import', authServices.authenticateToken, authServices.isAdmin, userMethods.importUsers)
+userRouter.get('/me', authServices.authenticateToken, (req, res) => {
+    req.params.id = String(req.user!.id);
+    return userMethods.getUserById(req, res);
+})
 userRouter.put('/:id/salud', authServices.authenticateToken, authServices.isAdminOrEntrenador, userMethods.updateUserHealth)
-userRouter.get('/:id', authServices.authenticateToken, authServices.isSelfOrStaff, userMethods.getUserById)
+userRouter.get('/:id', authServices.authenticateToken, authServices.isAdminOrEntrenador, userMethods.getUserById)
 userRouter.put('/:id', authServices.authenticateToken, authServices.isAdmin, upload.single('avatar'), userMethods.updateUser)
 userRouter.delete('/:id', authServices.authenticateToken, authServices.isAdmin, userMethods.deleteUser)
 

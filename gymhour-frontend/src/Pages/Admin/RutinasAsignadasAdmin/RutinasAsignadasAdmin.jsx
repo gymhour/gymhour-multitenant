@@ -1,3 +1,4 @@
+import { getCurrentUserId } from '../../../authSession';
 import React, { useEffect, useState, useMemo } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import Select from 'react-select';
@@ -439,7 +440,7 @@ const RutinasAsignadas = () => {
         const response = await apiService.getAllUsuarios({
           page: 1,
           take: 20,
-          tipo: 'cliente',
+          role: 'STUDENT',
           estado: true,
           search: term
         });
@@ -578,7 +579,7 @@ const RutinasAsignadas = () => {
 
   // ====== Duplicar rutina (incluye campos TABATA y urlPlanificacion) ======
   const buildDuplicatePayload = (rutina) => {
-    const entrenadorId = Number(localStorage.getItem('usuarioId')) || null;
+    const entrenadorId = Number(getCurrentUserId()) || null;
     const alumnoId = rutina?.alumno?.ID_Usuario || null;
 
     if (rutina?.urlPlanificacion) {

@@ -2,7 +2,6 @@
 // y módulos como auth.service leen process.env a nivel de módulo (fail-closed de JWT_SECRET).
 import 'dotenv/config';
 import cors from "cors";
-import dotenv from 'dotenv';
 import express from 'express';
 import type { RequestHandler } from "express";
 import { rateLimit } from "express-rate-limit";
@@ -28,8 +27,8 @@ import planRoutes from './routes/plan.Routes.js';
 import rutinaRoutes from './routes/rutina.Routes.js';
 import turnoRoutes from './routes/turno.Routes.js';
 import userRouter from './routes/user.Routes.js';
+import tenantRouter from './routes/tenant.Routes.js';
 
-dotenv.config();
 // :=)
 const app = express();
 const helmetMiddleware = helmet as unknown as (options?: Readonly<HelmetOptions>) => RequestHandler;
@@ -62,9 +61,6 @@ const limiter = rateLimit({
 
 app.use(limiter);
 
-const PORT = Number(process.env.PORT) || 3000;
-const HOST = '0.0.0.0';
-
 // Reconstruir __dirname
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -72,7 +68,7 @@ const __dirname = dirname(__filename);
 // 1) Sirve estáticos desde /public
 app.use(express.static(join(__dirname, '..', 'public')));
 
-// 2) Swagger UI cargando el esquema en memoria (100% compatible con Vercel)
+// 2) Swagger UI cargando el esquema en memoria
 const swaggerOptions = {
     customCssUrl: 'https://cdnjs.cloudflare.com/ajax/libs/swagger-ui/4.18.3/swagger-ui.min.css',
     customJs: [
@@ -97,6 +93,7 @@ app.use('/usuarios', userRouter);
 app.use('/usuarios/asistencias', asistenciaRoutes);
 app.use('/admin', adminRoutes);
 app.use('/auth', authRoutes);
+app.use('/tenant', tenantRouter);
 app.use('/clase', claseRoutes);
 app.use('/turnos', turnoRoutes);
 app.use('/rutinas', rutinaRoutes);
@@ -111,10 +108,6 @@ app.use('/cron', cronRoutes);
 
 app.use('*', (req, res) => {
     res.status(404).send('Ruta no encontrada');
-});
-
-app.listen(PORT, HOST, () => {
-    console.log(`API corriendo en http://${HOST}:${PORT}/`);
 });
 
 export default app;

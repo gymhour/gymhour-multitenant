@@ -25,7 +25,7 @@ const sortHorarios = (horarios) =>
     return formatHora(a.horaIni).localeCompare(formatHora(b.horaIni));
   });
 
-const EditarUsuario = ({fromAdmin, fromEntrenador}) => {
+const EditarUsuario = ({fromAdmin, fromTRAINER}) => {
   const { id } = useParams();
 
   const initialFormData = {
@@ -36,7 +36,7 @@ const EditarUsuario = ({fromAdmin, fromEntrenador}) => {
     profesion: '',
     direc: '',
     tel: '',
-    tipo: 'Cliente',
+    role: 'STUDENT',
     fechaCumple: '',
     plan: '',
     estado: true,
@@ -52,7 +52,7 @@ const EditarUsuario = ({fromAdmin, fromEntrenador}) => {
   const [clases, setClases] = useState([]);
   const [turnosFijos, setTurnosFijos] = useState([]);
 
-  const tipos = ['Cliente', 'Entrenador', 'Admin'];
+  const tipos = ['STUDENT', 'TRAINER', 'Admin'];
   const opcionesEstado = ['Si', 'No'];
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
@@ -174,9 +174,9 @@ const EditarUsuario = ({fromAdmin, fromEntrenador}) => {
           ? new Date(user.fechaCumple).toISOString().slice(0, 10)
           : '';
 
-        const tipoLower = (user?.tipo || '').toLowerCase();
+        const tipoLower = (user?.role || '').toLowerCase();
         const tipoCapitalizado =
-          tipoLower ? tipoLower.charAt(0).toUpperCase() + tipoLower.slice(1) : 'Cliente';
+          tipoLower ? tipoLower.charAt(0).toUpperCase() + tipoLower.slice(1) : 'STUDENT';
 
         // Nombre de plan si existe (API puede devolver { plan: { nombre, ID_Plan } } o solo ID)
         const planNombre =
@@ -192,11 +192,11 @@ const EditarUsuario = ({fromAdmin, fromEntrenador}) => {
           profesion: user?.profesion || '',
           direc: user?.direc || '',
           tel: user?.tel || '',
-          tipo: tipoCapitalizado,
+          role: tipoCapitalizado,
           fechaCumple: fechaISO,
           estado: !!user?.estado,
           usaTurnosFijos: !!user?.usaTurnosFijos,
-          plan: tipoLower === 'cliente' ? planNombre : '',
+          plan: tipoLower === 'STUDENT' ? planNombre : '',
           observacionesSalud: user?.observacionesSalud || '',
           fichaMedicaUrl: user?.fichaMedicaUrl || ''
         });
@@ -226,8 +226,8 @@ const EditarUsuario = ({fromAdmin, fromEntrenador}) => {
   };
 
   const handleTipoChange = (val) => {
-    const tipo = typeof val === 'string' ? val : val.target.value;
-    setFormData(f => ({ ...f, tipo }));
+    const role = typeof val === 'string' ? val : val.target.value;
+    setFormData(f => ({ ...f, role }));
   };
 
   const handleEstadoChange = (val) => {
@@ -258,7 +258,7 @@ const EditarUsuario = ({fromAdmin, fromEntrenador}) => {
         : '';
 
       const selectedPlan = planOptions.find(p => p.label === formData.plan);
-      if (formData.tipo === 'Cliente' && !formData.dni.trim()) {
+      if (formData.role === 'STUDENT' && !formData.dni.trim()) {
         toast.error('Ingresá el DNI del alumno');
         setIsLoading(false);
         return;
@@ -271,17 +271,17 @@ const EditarUsuario = ({fromAdmin, fromEntrenador}) => {
       payload.append('apellido', formData.apellido);
       payload.append('direc', formData.direc);
       payload.append('tel', formData.tel);
-      payload.append('tipo', formData.tipo.toLowerCase());
+      payload.append('role', formData.role.toLowerCase());
       payload.append('fechaCumple', isoFecha);
       payload.append('observacionesSalud', formData.observacionesSalud.trim());
       payload.append('fichaMedicaUrl', formData.fichaMedicaUrl.trim());
 
-      if (formData.tipo === 'Cliente' && selectedPlan) {
+      if (formData.role === 'STUDENT' && selectedPlan) {
         payload.append('ID_Plan', selectedPlan.value);
       }
 
       payload.append('usaTurnosFijos', String(formData.usaTurnosFijos));
-      if (formData.tipo === 'Cliente') {
+      if (formData.role === 'STUDENT') {
         const uniqueTurnos = turnosFijos.map(t => t.horarioId).filter(Boolean);
         if (formData.usaTurnosFijos && uniqueTurnos.length === 0) {
           toast.error('Seleccioná al menos un turno fijo');
@@ -291,7 +291,7 @@ const EditarUsuario = ({fromAdmin, fromEntrenador}) => {
         payload.append('turnosFijos', JSON.stringify(formData.usaTurnosFijos ? uniqueTurnos : []));
       }
 
-      if (formData.tipo === 'Entrenador' && formData.profesion) {
+      if (formData.role === 'TRAINER' && formData.profesion) {
         payload.append('profesion', formData.profesion);
       }
 
@@ -319,7 +319,7 @@ const EditarUsuario = ({fromAdmin, fromEntrenador}) => {
   return (
       <div className="page-layout">
         {isLoading && <LoaderFullScreen />}
-        <SidebarMenu isAdmin={fromAdmin} isEntrenador={fromEntrenador} />
+        <SidebarMenu isAdmin={fromAdmin} isTRAINER={fromTRAINER} />
         <div className="content-layout">
           <SecondaryButton
             text="Volver atrás"
@@ -386,17 +386,17 @@ const EditarUsuario = ({fromAdmin, fromEntrenador}) => {
             </div>
 
             <div className="usuario-form-field">
-              <label htmlFor="tipo">Tipo de usuario</label>
+              <label htmlFor="role">Tipo de usuario</label>
               <CustomDropdown
                 options={tipos}
-                value={formData.tipo}
+                value={formData.role}
                 onChange={handleTipoChange}
-                name="tipo"
-                id="tipo"
+                name="role"
+                id="role"
               />
             </div>
 
-            {formData.tipo === 'Cliente' && (
+            {formData.role === 'STUDENT' && (
               <div className="usuario-form-field usuario-form-field--full">
                 <label htmlFor="plan">Plan</label>
                 <CustomDropdown
@@ -497,7 +497,7 @@ const EditarUsuario = ({fromAdmin, fromEntrenador}) => {
               </div>
             )}
 
-            {formData.tipo === 'Entrenador' && (
+            {formData.role === 'TRAINER' && (
               <div className="usuario-form-field">
                 <label htmlFor="profesion">Profesión</label>
                 <CustomInput

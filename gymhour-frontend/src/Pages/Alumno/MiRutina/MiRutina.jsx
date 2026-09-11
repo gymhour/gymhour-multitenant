@@ -1,3 +1,4 @@
+import { getCurrentUserId } from '../../../authSession';
 import React, { useEffect, useMemo, useState } from 'react';
 import '../../../App.css';
 import './MiRutina.css';
@@ -335,7 +336,7 @@ const MiRutina = () => {
   const [openState, setOpenState] = useState({});
 
   useEffect(() => {
-    const userId = localStorage.getItem('usuarioId');
+    const userId = getCurrentUserId();
 
     const loadAll = async () => {
       try {

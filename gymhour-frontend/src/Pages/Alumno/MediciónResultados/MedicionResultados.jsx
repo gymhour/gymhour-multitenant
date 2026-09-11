@@ -1,3 +1,4 @@
+import { getCurrentUserId } from '../../../authSession';
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import '../../../App.css';
@@ -23,7 +24,7 @@ const MedicionResultados = () => {
   useEffect(() => {
     const fetchEjercicios = async () => {
       try {
-        const usuarioId = localStorage.getItem("usuarioId");
+        const usuarioId = getCurrentUserId();
         const data = await apiService.getEjerciciosResultadosUsuario(usuarioId);
         setEjercicios(data);
       } catch (err) {
