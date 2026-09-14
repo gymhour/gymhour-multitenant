@@ -984,7 +984,7 @@ const CuotasUsuarios = ({fromAdmin, fromEntrenador}) => {
 
       <div className="content-layout">
         <div className="header-actions cuotas-usuarios" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <h2>Cuotas de Usuarios</h2>
+          <h2>Cuotas</h2>
           <div className='generate-cuotas-btns'>
             <SecondaryButton text="Cuota manual" onClick={() => setShowModal(true)} />
             <PrimaryButton text="Generar cuotas de este mes" onClick={() => setShowBulkModal(true)} />

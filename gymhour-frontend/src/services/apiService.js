@@ -557,6 +557,11 @@ const getAiRoutineDraft = async messageId => {
     catch (error) { throw new Error(getApiErrorMessage(error, 'No pudimos cargar el borrador de rutina.')); }
 };
 
+const createAiRoutineDraft = async messageId => {
+    try { return (await apiClient.post(`/ai/drafts/${messageId}/create`)).data; }
+    catch (error) { throw new Error(getApiErrorMessage(error, 'No pudimos crear y asignar la rutina.')); }
+};
+
 const streamAiMessage = async ({ conversationId, content, signal, onEvent }) => {
     const response = await fetch(`${CLIENT_SETUP.apiUrl}/ai/conversations/${conversationId}/messages`, {
         method: 'POST',
@@ -1018,6 +1023,7 @@ export default {
     getAiConversation,
     deleteAiConversation,
     getAiRoutineDraft,
+    createAiRoutineDraft,
     streamAiMessage,
     // Planes
     getPlanes,

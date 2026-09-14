@@ -1840,7 +1840,7 @@ const CrearRutina = ({ fromAdmin, fromEntrenador, fromAlumno }) => {
             <div className="ai-draft-notice">
               <Sparkles size={18} />
               <div>
-                <strong>Borrador generado con IA</strong>
+                <p>Borrador generado con IA</p>
                 <span>Revisá días, cargas y restricciones antes de asignarlo.{aiNewExerciseCount ? ` Hay ${aiNewExerciseCount} ejercicio(s) nuevo(s) para validar.` : ''}</span>
               </div>
             </div>

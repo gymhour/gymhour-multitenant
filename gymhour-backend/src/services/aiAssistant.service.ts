@@ -7,6 +7,7 @@ import { MONTHLY_USER_PROMPT_LIMIT } from './aiLimits.js';
 const MODEL = process.env.OPENAI_MODEL || 'gpt-5.6-terra';
 const CONTEXT_MESSAGE_LIMIT = Math.max(4, Number(process.env.AI_CONTEXT_MESSAGE_LIMIT) || 20);
 const MAX_OUTPUT_TOKENS = Math.max(500, Number(process.env.AI_MAX_OUTPUT_TOKENS) || 3000);
+const MAX_TOOL_ROUNDS = Math.max(4, Number(process.env.AI_MAX_TOOL_ROUNDS) || 8);
 
 const openai = process.env.OPENAI_API_KEY ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY }) : null;
 
@@ -69,7 +70,14 @@ export async function getRoutineDraft(messageId: number, userId: number) {
   });
   const metadata = message?.metadata as any;
   if (!message || !metadata?.draft) throw new AiServiceError(404, 'Borrador no encontrado.');
-  return { id: message.id, draft: metadata.draft, summary: metadata.summary, createdAt: message.createdAt };
+  return {
+    id: message.id,
+    draft: metadata.draft,
+    summary: metadata.summary,
+    routineId: Number(metadata.routineId) || null,
+    consumedAt: metadata.consumedAt || null,
+    createdAt: message.createdAt,
+  };
 }
 
 export async function markRoutineDraftUsed(messageId: number, userId: number, routineId: number) {
@@ -85,11 +93,14 @@ export async function markRoutineDraftUsed(messageId: number, userId: number, ro
 const instructionsFor = (role: TenantRole, tenantName: string) => `
 Sos el asistente de gestión de ${tenantName}. Respondé en español rioplatense, claro y breve.
 Usá herramientas para cualquier afirmación sobre datos del gimnasio; indicá siempre período o fecha de actualización.
-No inventes cifras, alumnos ni resultados. Si una búsqueda es ambigua, pedí que el usuario elija un alumno por nombre e ID.
+No inventes cifras, socios ni resultados. Para buscar una persona usá search_students con el nombre completo recibido antes de pedir otra variante. Si hay más de una coincidencia, pedí que el usuario elija por nombre e ID.
 No des diagnósticos médicos. Para rutinas, tratá observaciones de salud como restricciones y exigí revisión profesional.
-Antes de construir una rutina identificá al alumno y confirmá objetivo, días disponibles y restricciones relevantes.
+Antes de construir una rutina identificá al socio y confirmá objetivo, días disponibles y restricciones relevantes.
 Priorizá ejercicios del catálogo; los nuevos deben quedar marcados para revisión en el borrador.
-El borrador no asigna ni guarda una rutina: explicá que debe revisarse en el editor.
+Si una búsqueda general de ejercicios no devuelve resultados, probá con nombres concretos o consultá el catálogo con query vacío antes de concluir que no hay coincidencias.
+Solo afirmes que preparaste o armaste un borrador si build_routine_draft devolvió un draft correctamente. Una rutina escrita únicamente como texto no es un borrador editable.
+Cuando build_routine_draft tenga éxito, explicá que el botón “Revisar” abre una vista rápida desde la cual puede crear la rutina o seguir editándola. No digas que debe buscar el borrador en otra pantalla.
+El borrador no se guarda ni asigna automáticamente: requiere que el usuario abra “Revisar” y confirme “Crear”.
 Rol actual: ${role}.
 ${role === 'TRAINER' ? 'No reveles ingresos, gastos, ganancia, cobranza ni deuda agregada del gimnasio. Sí podés informar el estado de cuota de alumnos concretos.' : ''}
 ${role === 'STUDENT' ? 'Ayudá únicamente con orientación general de entrenamiento y uso de la plataforma. No reveles datos del gimnasio, de otros usuarios ni información financiera. No afirmes conocer datos personales o rutinas que no estén escritos en esta conversación.' : ''}
@@ -138,7 +149,7 @@ export async function streamAssistantReply({
     let routineMetadata: any = null;
 
     while (true) {
-      const allowTools = toolRounds < 3;
+      const allowTools = toolRounds < MAX_TOOL_ROUNDS;
       const stream: any = await openai!.responses.create({
         model: MODEL,
         instructions: instructionsFor(role, tenantName),

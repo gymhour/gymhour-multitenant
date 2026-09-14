@@ -235,10 +235,12 @@
 }
 
 .turnos-admin-header h2 {
+    margin: 0;
     color: var(--text-color);
     font-weight: 500;
     font-size: 28px;
     letter-spacing: -0.5px;
+    line-height: 1.15;
 }
 
 .turnos-filters {

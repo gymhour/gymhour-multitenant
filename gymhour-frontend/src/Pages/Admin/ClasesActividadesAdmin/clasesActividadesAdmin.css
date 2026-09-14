@@ -15,6 +15,7 @@
 }
 
 .clases-actividades-admin-page .create-clase-title h2 {
+    margin: 0;
     color: var(--text-color);
     font-size: 28px;
     font-weight: 500;

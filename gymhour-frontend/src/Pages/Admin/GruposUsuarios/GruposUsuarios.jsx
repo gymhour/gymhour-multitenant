@@ -241,7 +241,7 @@ const GruposUsuarios = () => {
       <SidebarMenu isAdmin={true} isEntrenador={false} />
       <main className="content-layout grupos-usuarios-page">
         <header className="grupos-page-header">
-          <h1>Grupos de usuarios</h1>
+          <h1>Grupos de socios</h1>
           <button type="button" className="primary-button grupos-new-button" onClick={openCreateGrupo}>
             Nuevo grupo
             <Plus size={16} />
@@ -258,7 +258,7 @@ const GruposUsuarios = () => {
             {grupos.length === 0 ? (
               <EmptyState
                 title="Todavía no hay grupos"
-                description="Creá un grupo para organizar usuarios y asignarles rutinas en conjunto."
+                description="Creá un grupo para organizar socios y asignarles rutinas en conjunto."
                 actionLabel="Crear primer grupo"
                 onAction={openCreateGrupo}
               />

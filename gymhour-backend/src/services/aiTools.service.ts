@@ -4,9 +4,76 @@ import { getChurnRiskReport } from './churnRisk.service.js';
 import { getAiInsights } from './aiInsights.service.js';
 
 const nullableString = { type: ['string', 'null'] };
+const VARCHAR_LIMIT = 191;
+
+const fitString = (value: unknown, maxLength = VARCHAR_LIMIT): string =>
+  Array.from(String(value ?? '').trim()).slice(0, maxLength).join('');
+
+/**
+ * Keeps AI-generated labels inside the legacy MySQL VARCHAR columns.
+ * Free-form descriptions are stored as TEXT and intentionally remain intact.
+ */
+export const fitAiRoutineDraftToStorage = (source: any) => {
+  const draft = structuredClone(source || {});
+  draft.nombre = fitString(draft.nombre);
+  draft.claseRutina = fitString(draft.claseRutina);
+  draft.grupoMuscularRutina = fitString(draft.grupoMuscularRutina);
+
+  const fitDays = (days: any) => {
+    if (!days || typeof days !== 'object') return;
+    for (const day of Object.values(days) as any[]) {
+      day.nombre = fitString(day?.nombre);
+      for (const block of day?.bloques || []) {
+        for (const field of ['setsReps', 'nombreEj', 'weight', 'tiempoTrabajoDescansoTabata', 'tipoEscalera']) {
+          if (block[field] != null) block[field] = fitString(block[field]);
+        }
+        for (const item of block?.bloqueEjercicios || []) {
+          if (item.reps != null) item.reps = fitString(item.reps);
+          if (item.setRepWeight != null) item.setRepWeight = fitString(item.setRepWeight);
+          if (item.nuevoEjercicio?.nombre != null) item.nuevoEjercicio.nombre = fitString(item.nuevoEjercicio.nombre);
+          if (item.nuevoEjercicio?.mediaUrl != null) item.nuevoEjercicio.mediaUrl = fitString(item.nuevoEjercicio.mediaUrl);
+        }
+      }
+    }
+  };
+
+  fitDays(draft.dias);
+  if (draft.semanas && typeof draft.semanas === 'object') {
+    for (const week of Object.values(draft.semanas) as any[]) {
+      week.nombre = fitString(week?.nombre);
+      fitDays(week?.dias);
+    }
+  }
+  return draft;
+};
 const currentMonth = () => {
   const now = new Date();
   return `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, '0')}`;
+};
+
+export const buildStudentSearchFilter = (value: unknown) => {
+  const terms = String(value || '').trim().split(/\s+/).filter(Boolean).slice(0, 6);
+  if (!terms.length) return {};
+  return {
+    AND: terms.map(term => ({
+      OR: [
+        { nombre: { contains: term } },
+        { apellido: { contains: term } },
+        { dni: { contains: term } },
+      ],
+    })),
+  };
+};
+
+type FeeSummary = { mes: string; pagada: boolean; vencida: boolean; vence: Date; fechaPago?: Date | null };
+
+export const summarizeFeeStatus = (fees: FeeSummary[], now = new Date()) => {
+  const month = `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, '0')}`;
+  const current = fees.find(fee => fee.mes === month);
+  const overdueCount = fees.filter(fee => !fee.pagada && (fee.vencida || fee.vence < now)).length;
+  if (!current) return { mes: month, estado: overdueCount ? 'SIN_CUOTA_DEL_MES_CON_DEUDA' : 'SIN_CUOTA_DEL_MES', cuotasVencidas: overdueCount };
+  const estado = current.pagada ? 'PAGADA' : (current.vencida || current.vence < now) ? 'VENCIDA' : 'PENDIENTE';
+  return { mes: current.mes, estado, vence: current.vence, fechaPago: current.fechaPago ?? null, cuotasVencidas: overdueCount };
 };
 
 const routineDraftTool = {
@@ -16,7 +83,7 @@ const routineDraftTool = {
     type: 'object', additionalProperties: false,
     properties: {
       studentId: { type: 'integer' },
-      name: { type: 'string' },
+      name: { type: 'string', maxLength: 191 },
       description: { type: 'string' },
       goal: { type: 'string' },
       days: {
@@ -24,7 +91,7 @@ const routineDraftTool = {
         items: {
           type: 'object', additionalProperties: false,
           properties: {
-            name: { type: 'string' }, description: { type: 'string' },
+            name: { type: 'string', maxLength: 191 }, description: { type: 'string' },
             blocks: {
               type: 'array', minItems: 1, maxItems: 8,
               items: {
@@ -37,7 +104,11 @@ const routineDraftTool = {
                     type: 'array', minItems: 1, maxItems: 12,
                     items: {
                       type: 'object', additionalProperties: false,
-                      properties: { name: { type: 'string' }, reps: { type: 'string' }, weight: nullableString },
+                      properties: {
+                        name: { type: 'string', maxLength: 191 },
+                        reps: { type: 'string', maxLength: 191 },
+                        weight: { type: ['string', 'null'], maxLength: 191 },
+                      },
                       required: ['name', 'reps', 'weight'],
                     },
                   },
@@ -62,7 +133,7 @@ const commonTools: any[] = [
   },
   {
     type: 'function', name: 'search_students', strict: true,
-    description: 'Busca alumnos del gimnasio por nombre, apellido o DNI y devuelve un resumen limitado.',
+    description: 'Busca socios por nombre completo (en cualquier orden), nombre parcial, apellido o DNI. Con query vacío lista socios. Devuelve estado del socio y de su cuota del mes.',
     parameters: {
       type: 'object', additionalProperties: false,
       properties: { query: { type: 'string' }, overdueOnly: { type: 'boolean' }, limit: { type: 'integer', minimum: 1, maximum: 20 } },
@@ -71,7 +142,7 @@ const commonTools: any[] = [
   },
   {
     type: 'function', name: 'get_student_context', strict: true,
-    description: 'Obtiene contexto de un alumno identificado para seguimiento o personalización de rutina. Excluye ficha médica y contacto.',
+    description: 'Obtiene contexto de un socio identificado, incluido el estado detallado de sus cuotas recientes, para seguimiento o personalización de rutina. Excluye ficha médica y contacto.',
     parameters: {
       type: 'object', additionalProperties: false,
       properties: { studentId: { type: 'integer' }, includeHealthSummary: { type: 'boolean' } },
@@ -140,23 +211,21 @@ export async function executeAiTool(name: string, args: any, role: TenantRole): 
         : {};
       const users = await prisma.user.findMany({
         where: {
-          role: 'STUDENT', estado: true, ...overdueFilter,
-          ...(query ? { OR: [{ nombre: { contains: query } }, { apellido: { contains: query } }, { dni: { contains: query } }] } : {}),
+          role: 'STUDENT', ...overdueFilter,
+          ...buildStudentSearchFilter(query),
         },
         take: Math.min(20, Math.max(1, Number(args.limit) || 10)),
         select: {
-          ID_Usuario: true, nombre: true, apellido: true, dni: true,
+          ID_Usuario: true, nombre: true, apellido: true, dni: true, estado: true,
           plan: { select: { nombre: true } },
-          Cuotas: {
-            where: { pagada: false, OR: [{ vencida: true }, { vence: { lt: new Date() } }] },
-            select: { ID_Cuota: true },
-          },
+          Cuotas: { orderBy: { vence: 'desc' }, take: 24, select: { mes: true, pagada: true, vencida: true, vence: true, fechaPago: true } },
           Asistencias: { where: { permitido: true }, orderBy: { fechaIngreso: 'desc' }, take: 1, select: { fechaIngreso: true } },
         },
       });
       return users.map(user => ({
         id: user.ID_Usuario, nombre: [user.nombre, user.apellido].filter(Boolean).join(' '), dni: user.dni,
-        plan: user.plan?.nombre ?? null, cuotasVencidas: user.Cuotas.length,
+        estadoSocio: user.estado ? 'ACTIVO' : 'INACTIVO', plan: user.plan?.nombre ?? null,
+        estadoCuota: summarizeFeeStatus(user.Cuotas),
         ultimaAsistencia: user.Asistencias[0]?.fechaIngreso ?? null,
       }));
     }
@@ -167,7 +236,7 @@ export async function executeAiTool(name: string, args: any, role: TenantRole): 
           ID_Usuario: true, nombre: true, apellido: true, estado: true,
           observacionesSalud: Boolean(args.includeHealthSummary),
           plan: { select: { nombre: true, sesionesTotales: true } },
-          Cuotas: { where: { pagada: false }, orderBy: { vence: 'asc' }, take: 5, select: { vence: true, vencida: true, pagada: true } },
+          Cuotas: { orderBy: { vence: 'desc' }, take: 12, select: { mes: true, vence: true, vencida: true, pagada: true, fechaPago: true } },
           Asistencias: { where: { permitido: true }, orderBy: { fechaIngreso: 'desc' }, take: 10, select: { fechaIngreso: true } },
           asignacionesRutina: { orderBy: { createdAt: 'desc' }, take: 3, select: { rutina: { select: { ID_Rutina: true, nombre: true, updatedAt: true } } } },
         },
@@ -176,7 +245,11 @@ export async function executeAiTool(name: string, args: any, role: TenantRole): 
       return {
         id: student.ID_Usuario, nombre: [student.nombre, student.apellido].filter(Boolean).join(' '),
         estado: student.estado, plan: student.plan, restriccionesSalud: student.observacionesSalud || null,
-        cuotas: student.Cuotas, asistenciasRecientes: student.Asistencias,
+        estadoCuota: summarizeFeeStatus(student.Cuotas), cuotasRecientes: student.Cuotas.map(cuota => ({
+          ...cuota,
+          estado: cuota.pagada ? 'PAGADA' : (cuota.vencida || cuota.vence < new Date()) ? 'VENCIDA' : 'PENDIENTE',
+        })),
+        asistenciasRecientes: student.Asistencias,
         rutinasRecientes: student.asignacionesRutina.map(item => item.rutina),
       };
     }
@@ -199,8 +272,13 @@ export async function executeAiTool(name: string, args: any, role: TenantRole): 
     }
     case 'search_exercises': {
       const query = String(args.query || '').trim();
+      const terms = query.split(/[,;|\n]+|\s+(?:o|y)\s+/i).map(term => term.trim()).filter(Boolean).slice(0, 12);
       return prisma.ejercicio.findMany({
-        where: query ? { OR: [{ nombre: { contains: query } }, { musculos: { contains: query } }, { equipamiento: { contains: query } }] } : {},
+        where: terms.length ? { OR: terms.flatMap(term => [
+          { nombre: { contains: term } },
+          { musculos: { contains: term } },
+          { equipamiento: { contains: term } },
+        ]) } : {},
         take: Math.min(30, Math.max(1, Number(args.limit) || 15)),
         select: { ID_Ejercicio: true, nombre: true, descripcion: true, musculos: true, equipamiento: true },
         orderBy: { nombre: 'asc' },
@@ -249,6 +327,7 @@ export async function executeAiTool(name: string, args: any, role: TenantRole): 
               if (!found) newExercises.push(String(exercise.name).trim());
               return {
                 ejercicioId: found?.ID_Ejercicio ?? null,
+                nombre: String(exercise.name).trim(),
                 nuevoEjercicio: found ? null : { nombre: String(exercise.name).trim(), descripcion: '', mediaUrl: null },
                 reps: String(exercise.reps || ''), setRepWeight: exercise.weight ?? null, orden: index + 1,
               };

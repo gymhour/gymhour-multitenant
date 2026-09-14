@@ -458,7 +458,7 @@ model Rutina {
   ID_Entrenador        Int? // puede ser null si lo crea el alumno
   Entrenador           User?                     @relation("EntrenadorRutinas", fields: [tenantId, ID_Entrenador], references: [tenantId, ID_Usuario])
   nombre               String
-  desc                 String?
+  desc                 String?                   @db.Text
   claseRutina          String?
   grupoMuscularRutina  String?
   urlPlanificacion     String?
@@ -550,7 +550,7 @@ model RutinaDia {
   rutinaId       Int
   Bloques        Bloque[] // nuevo: relación inversa
   nombre         String? // nuevo: nombre del día (ej: "Piernas - Día 1")
-  descripcion    String? // nuevo: descripción del día
+  descripcion    String?  @db.Text // nuevo: descripción del día
   // nuevo: relación opcional con una semana (si el día pertenece a una semana)
   rutinaSemanaId Int?
   rutinaSemana   Semana?  @relation(fields: [tenantId, rutinaSemanaId], references: [tenantId, id], onDelete: Cascade)
@@ -593,7 +593,7 @@ model Bloque {
   // Campos temporales para EMOM/AMRAP/TABATA
   durationMin                 Int? // Duración en minutos
   cantSeries                  Int?
-  descTabata                  String?
+  descTabata                  String?           @db.Text
   tiempoTrabajoDescansoTabata String?
   // Campo para LADDER
   tipoEscalera                String? // Tipo de escalera

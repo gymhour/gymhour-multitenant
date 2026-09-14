@@ -3,7 +3,8 @@ import { respondError, respondUnexpected } from "../services/apiError.service.js
 import { Request, Response } from "express";
 import prisma from "../models/Prisma.js";
 import { getImageUrl, getMedicalRecordUrl } from '../services/cloudinary.service.js';
-import { getRoutineDraft, markRoutineDraftUsed } from '../services/aiAssistant.service.js';
+import { AiServiceError, getRoutineDraft, markRoutineDraftUsed } from '../services/aiAssistant.service.js';
+import { fitAiRoutineDraftToStorage } from '../services/aiTools.service.js';
 
 const parseIdList = (value: unknown): number[] => {
     if (!Array.isArray(value)) return [];
@@ -1849,11 +1850,62 @@ export const createRutinaWithBlocks = async (req: Request, res: Response): Promi
                 console.error('No se pudo marcar el borrador de IA como utilizado:', draftError);
             }
         }
-        res.status(201).json({ message: "Rutina creada exitosamente", rutina: rutinaResp });
+        res.status(201).json({
+            message: "Rutina creada exitosamente",
+            rutina: rutinaResp,
+            ...(aiDraftMessageId !== undefined ? { created: true } : {})
+        });
         return;
     } catch (error: any) {
         respondUnexpected(res, error, "crear la rutina");
         return;
+    }
+};
+
+export const createRutinaFromAiDraft = async (req: Request, res: Response): Promise<void> => {
+    try {
+        const messageId = Number(req.params.messageId);
+        const userId = Number(req.user?.id);
+        if (!Number.isInteger(messageId) || messageId < 1 || !userId) {
+            respondError(res, 400, 'El borrador de IA no es válido.');
+            return;
+        }
+
+        const savedDraft = await getRoutineDraft(messageId, userId);
+        if (savedDraft.routineId) {
+            res.status(200).json({
+                message: 'La rutina ya había sido creada y asignada.',
+                routineId: savedDraft.routineId,
+                created: false,
+            });
+            return;
+        }
+
+        const studentId = Number(savedDraft.draft?.ID_Usuario);
+        const student = await prisma.user.findFirst({
+            where: { ID_Usuario: studentId, role: 'STUDENT', estado: true },
+            select: { ID_Usuario: true },
+        });
+        if (!student) {
+            respondError(res, 409, 'El socio del borrador ya no existe o está inactivo. Revisá la rutina antes de asignarla.');
+            return;
+        }
+
+        req.body = {
+            ...fitAiRoutineDraftToStorage(savedDraft.draft),
+            ID_Usuario: student.ID_Usuario,
+            usuariosAsignados: [student.ID_Usuario],
+            gruposAsignados: [],
+            ID_Entrenador: userId,
+            aiDraftMessageId: messageId,
+        };
+        await createRutinaWithBlocks(req, res);
+    } catch (error) {
+        if (error instanceof AiServiceError) {
+            respondError(res, error.status, error.message);
+            return;
+        }
+        respondUnexpected(res, error, 'crear la rutina desde el asistente');
     }
 };
 // export const createRutinaWithBlocks = async (req: Request, res: Response): Promise<void> => {
@@ -2921,6 +2973,7 @@ export const rutinaMethods = {
     getRutinaById,
     createRutinaSimple,
     createRutinaWithBlocks,
+    createRutinaFromAiDraft,
     updateRutinaWithBlocks,
     deleteRutinaWithBlocks,
     getRutinasByDayOfWeek,
