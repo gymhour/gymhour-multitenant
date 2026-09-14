@@ -1,0 +1,1 @@
+export const MONTHLY_USER_PROMPT_LIMIT = 100;

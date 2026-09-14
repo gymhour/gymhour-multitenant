@@ -88,14 +88,30 @@ export const updateSettings = async (req: Request, res: Response): Promise<void>
 
 export const completeOnboarding = async (req: Request, res: Response): Promise<void> => {
   const tenantId = req.tenant!.id;
+  const userId = req.user!.id;
+  const firstName = String(req.body?.firstName ?? '').trim();
+  const lastName = String(req.body?.lastName ?? '').trim();
   const name = String(req.body?.name ?? '').trim();
   const primaryColor = String(req.body?.primaryColor ?? '').trim().toUpperCase();
   const contactPhone = String(req.body?.contactPhone ?? '').trim();
   const contactEmail = String(req.body?.contactEmail ?? '').trim().toLowerCase() || null;
   const location = String(req.body?.location ?? '').trim() || null;
+  const paymentAccountHolder = String(req.body?.paymentAccountHolder ?? '').trim();
+  const paymentAlias = String(req.body?.paymentAlias ?? '').trim() || null;
+  const paymentCbu = String(req.body?.paymentCbu ?? '').replace(/\s+/g, '') || null;
+  const paymentTaxId = String(req.body?.paymentTaxId ?? '').trim() || null;
+  const paymentWhatsapp = String(req.body?.paymentWhatsapp ?? '').replace(/[^\d]/g, '') || null;
 
-  if (name.length < 3 || !/^#[0-9A-F]{6}$/.test(primaryColor) || contactPhone.length < 6) {
-    res.status(400).json({ message: 'Completá el nombre, un color válido y un número de contacto.' });
+  if (firstName.length < 2 || lastName.length < 2 || name.length < 3 || contactPhone.length < 6) {
+    res.status(400).json({ message: 'Completá tu nombre, apellido, el nombre del gimnasio y un número de celular válido.' });
+    return;
+  }
+  if (!/^#[0-9A-F]{6}$/.test(primaryColor)) {
+    res.status(400).json({ message: 'Elegí un color principal válido.' });
+    return;
+  }
+  if (!paymentAccountHolder || (!paymentAlias && !paymentCbu)) {
+    res.status(400).json({ message: 'Completá el titular y al menos un alias o CBU/CVU para recibir transferencias.' });
     return;
   }
   if (contactEmail && !/^\S+@\S+\.\S+$/.test(contactEmail)) {
@@ -121,7 +137,14 @@ export const completeOnboarding = async (req: Request, res: Response): Promise<v
       systemPrisma.tenant.update({ where: { id: tenantId }, data: { name, slug } }),
       systemPrisma.tenantSettings.update({
         where: { tenantId },
-        data: { primaryColor, contactPhone, contactEmail, location, logoPublicId: uploadedPublicId, onboardingCompleted: true },
+        data: {
+          primaryColor, contactPhone, contactEmail, location, paymentAccountHolder, paymentAlias,
+          paymentCbu, paymentTaxId, paymentWhatsapp, logoPublicId: uploadedPublicId, onboardingCompleted: true,
+        },
+      }),
+      systemPrisma.user.update({
+        where: { ID_Usuario: userId },
+        data: { nombre: firstName, apellido: lastName, tel: contactPhone },
       }),
     ]);
     if (current.logoPublicId && current.logoPublicId !== uploadedPublicId) {

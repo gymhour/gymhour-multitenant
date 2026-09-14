@@ -140,7 +140,7 @@ const Login = () => {
         ) : <>
         <div className="auth-card__heading">
           {!tenantSelection && <span className="auth-card__kicker">Acceso a tu cuenta</span>}
-          <h2>{tenantSelection ? 'Elegí tu gimnasio' : 'Bienvenido de nuevo'}</h2>
+          <h2>{tenantSelection ? 'Elegí tu gimnasio' : 'Iniciar sesión'}</h2>
           <p>{tenantSelection
             ? 'Tus credenciales coinciden en más de un gimnasio.'
             : tenantBranding
@@ -184,8 +184,7 @@ const Login = () => {
               </div>
 
               <button className='btn-login' type="submit" disabled={isLoading}>
-                <span>{isLoading ? 'Ingresando...' : 'Ingresar a Gymhour'}</span>
-                {!isLoading && <b aria-hidden="true">→</b>}
+                <span>{isLoading ? 'Ingresando...' : 'Ingresar'}</span>
               </button>
             </form>
           )}
@@ -194,10 +193,9 @@ const Login = () => {
         {!tenantSelection && !tenantBranding && (
           <div className="auth-card__footer">
             <div>
-              <strong>¿Sos dueño de un gimnasio?</strong>
-              {/* <span>Creá tu espacio de gestión en pocos minutos.</span> */}
+              <strong>¿Primera vez acá?</strong>
             </div>
-            <Link to="/sign-up">Registrar mi gimnasio <b aria-hidden="true">→</b></Link>
+            <Link to="/sign-up">Crear cuenta</Link>
           </div>
         )}
         </>}

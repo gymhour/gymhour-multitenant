@@ -13,6 +13,7 @@ import swaggerUi from 'swagger-ui-express';
 import { fileURLToPath } from 'url';
 import { swaggerDocument } from './docs/swagger.js';
 import adminRoutes from './routes/admin.Routes.js';
+import aiRoutes from './routes/ai.Routes.js';
 import asistenciaRoutes from './routes/asistencia.Routes.js';
 import authRoutes from './routes/auth.Routes.js';
 import claseRoutes from './routes/clase.Routes.js';
@@ -92,6 +93,7 @@ app.get('/health', (_req, res) => {
 app.use('/usuarios', userRouter);
 app.use('/usuarios/asistencias', asistenciaRoutes);
 app.use('/admin', adminRoutes);
+app.use('/ai', aiRoutes);
 app.use('/auth', authRoutes);
 app.use('/tenant', tenantRouter);
 app.use('/clase', claseRoutes);

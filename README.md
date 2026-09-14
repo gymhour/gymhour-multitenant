@@ -135,3 +135,17 @@ Cada servicio usa el mismo repositorio con una carpeta raíz distinta.
 - Watch Path: `/gymhour-frontend/**`
 
 La base MySQL se despliega como otro servicio del mismo proyecto. `DATABASE_URL` pertenece exclusivamente a la API y las variables se configuran por servicio.
+
+## Asistente IA
+
+El asistente usa OpenAI exclusivamente desde el backend. Configurá `OPENAI_API_KEY` y, opcionalmente,
+`OPENAI_MODEL` (por defecto `gpt-5.6-terra`). Cada gimnasio permanece deshabilitado después de la
+migración hasta que Gymhour lo active explícitamente:
+
+```bash
+cd gymhour-backend
+npm run ai:tenant -- --tenant=<slug> --enable --monthly-token-limit=2000000
+```
+
+Para deshabilitarlo, reemplazá `--enable` por `--disable`. Los historiales pertenecen a su autor,
+se eliminan tras 90 días sin actividad y las llamadas a Responses API usan `store: false`.

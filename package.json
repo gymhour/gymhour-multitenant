@@ -24,6 +24,7 @@
     "start": "npm run start:backend",
     "start:backend": "npm start --workspace @gymhour/backend",
     "migrate:deploy": "npm run migrate:deploy --workspace @gymhour/backend",
+    "prisma:migrate": "npm run prisma:migrate --workspace @gymhour/backend",
     "seed": "npm run seed --workspace @gymhour/backend",
     "test:backend": "npm test --workspace @gymhour/backend",
     "audit:tenant": "npm run audit:tenant --workspace @gymhour/backend"

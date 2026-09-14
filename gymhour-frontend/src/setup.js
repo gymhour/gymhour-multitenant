@@ -8,8 +8,8 @@
 
 // Logo blanco para fondos oscuros, variante negra para fondos claros y
 // versión cuadrada (marca sobre el color primario) para favicon/PWA.
-import logoDark from './assets/gymhour/gymhour-texto-blanco.png';
-import logoLight from './assets/gymhour/gymhour-texto-negro.png';
+import logoDark from './assets/gymhour/logo_gymhour_text_right.png';
+import logoLight from './assets/gymhour/logo_gymhour_black_text_right.png';
 import favicon from './assets/client/gymhour_favicon.png';
 import loginBackground from './assets/login/login_background.png';
 

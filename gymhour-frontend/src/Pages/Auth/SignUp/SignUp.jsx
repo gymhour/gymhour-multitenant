@@ -52,16 +52,14 @@ const SignUp = () => {
 
         <button className="btn-login signup-submit" type="submit" disabled={loading}>
           <span>{loading ? 'Creando tu cuenta...' : 'Continuar'}</span>
-          {!loading && <b aria-hidden="true">→</b>}
         </button>
       </form>
 
       <div className="auth-card__footer">
         <div>
-          <strong>¿Tu gimnasio ya usa Gymhour?</strong>
-          {/* <span>Accedé a tu cuenta y continuá gestionando.</span> */}
+          <strong>¿Ya tenés cuenta?</strong>
         </div>
-        <Link to="/">Iniciá sesión <b aria-hidden="true">→</b></Link>
+        <Link to="/">Iniciar sesión</Link>
       </div>
     </AuthShell>
   );

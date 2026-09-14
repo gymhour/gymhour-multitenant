@@ -16,7 +16,7 @@ describe('Prisma tenant scope', () => {
     },
   );
 
-  it('inyecta tenantId en creates y escrituras anidadas', () => {
+  it('inyecta tenantId sólo en el create raíz y deja que Prisma lo herede en anidados', () => {
     const scoped = scopeTenantArgs('Rutina', 'create', {
       data: {
         nombre: 'Fuerza',
@@ -24,8 +24,32 @@ describe('Prisma tenant scope', () => {
       },
     }, 12);
     expect(scoped.data.tenantId).toBe(12);
-    expect(scoped.data.Bloques.create[0].tenantId).toBe(12);
-    expect(scoped.data.Bloques.create[0].bloqueEjercicios.create[0].tenantId).toBe(12);
+    expect(scoped.data.Bloques.create[0]).not.toHaveProperty('tenantId');
+    expect(scoped.data.Bloques.create[0]).not.toHaveProperty('tenant');
+    expect(scoped.data.Bloques.create[0].bloqueEjercicios.create[0]).not.toHaveProperty('tenantId');
+    expect(scoped.data.Bloques.create[0].bloqueEjercicios.create[0]).not.toHaveProperty('tenant');
+  });
+
+  it('rechaza conexiones anidadas a otro tenant', () => {
+    expect(() => scopeTenantArgs('User', 'create', {
+      data: { movimientos: { create: { tipo: 'ALTA', tenant: { connect: { id: 99 } } } } },
+    }, 1)).toThrow('CROSS_TENANT_WRITE_REJECTED');
+  });
+
+  it('no agrega campos incompatibles con los create anidados de User', () => {
+    const scoped = scopeTenantArgs('User', 'create', {
+      data: {
+        email: 'socio@gym.test',
+        password: 'hash',
+        movimientos: { create: { tipo: 'ALTA', fecha: new Date() } },
+        TurnosFijos: { create: [{ ID_HorarioClase: 4 }] },
+      },
+    }, 2);
+
+    expect(scoped.data.tenantId).toBe(2);
+    expect(scoped.data.movimientos.create).not.toHaveProperty('tenantId');
+    expect(scoped.data.movimientos.create).not.toHaveProperty('tenant');
+    expect(scoped.data.TurnosFijos.create[0]).toEqual({ ID_HorarioClase: 4 });
   });
 
   it('rechaza tenantId del frontend cuando no coincide', () => {

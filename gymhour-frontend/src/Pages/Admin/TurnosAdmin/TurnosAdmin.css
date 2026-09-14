@@ -87,7 +87,7 @@
     background-color: var(--primary-color);
     color: #fff;
     font-size: 14px;
-    font-weight: 600;
+    font-weight: 500;
     cursor: pointer;
     transition: background-color .18s ease, border-color .18s ease, transform .18s ease;
 }

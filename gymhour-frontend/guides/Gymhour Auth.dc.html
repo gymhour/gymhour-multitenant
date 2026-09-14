@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="design_doc_mode" content="canvas">
+<style>
+  body { margin:0; background:#E6E6E3; font-family:"Helvetica Neue",Helvetica,"Neue Haas Grotesk Display","Arial Nova",Arial,sans-serif; -webkit-font-smoothing:antialiased; }
+  a { color:#111111; text-decoration:none; }
+  a:hover { color:#555555; }
+  input, textarea, button { font-family:inherit; }
+  input::placeholder, textarea::placeholder { color:var(--ink3); }
+</style>
+</helmet>
+
+<section style="padding:64px 72px 120px; display:flex; flex-direction:column; gap:40px">
+  <div style="display:flex; flex-direction:column; gap:8px">
+    <div style="font-size:11px; letter-spacing:0.18em; text-transform:uppercase; color:#8A8A85">Turno 1 · Login, registro y onboarding</div>
+  </div>
+
+  <div style="display:flex; flex-wrap:wrap; gap:72px; align-items:flex-start">
+
+    <div id="1b" style="{{ varsB }}">
+      <div style="display:flex; align-items:baseline; gap:14px; margin-bottom:6px">
+        <span style="display:inline-flex; align-items:center; justify-content:center; min-width:30px; height:22px; padding:0 8px; background:#111111; color:#FFFFFF; font-size:11px; letter-spacing:0.1em; border-radius:2px">1b</span>
+        <span style="font-size:20px; color:#111111; letter-spacing:-0.01em">Panel</span>
+        <span style="font-size:13px; color:#8A8A85">Tarjeta ancha partida, tipografía grande, rail de pasos</span>
+      </div>
+      <div style="display:flex; gap:6px; margin-bottom:22px">
+        <button onClick="{{ setLightB }}" style="padding:7px 14px; font-size:11px; letter-spacing:0.1em; text-transform:uppercase; border:1px solid rgba(0,0,0,0.15); background:var(--tglLight); color:var(--tglLightInk); border-radius:2px; cursor:pointer">Claro</button>
+        <button onClick="{{ setDarkB }}" style="padding:7px 14px; font-size:11px; letter-spacing:0.1em; text-transform:uppercase; border:1px solid rgba(0,0,0,0.15); background:var(--tglDark); color:var(--tglDarkInk); border-radius:2px; cursor:pointer">Oscuro</button>
+      </div>
+
+      <div style="display:flex; flex-wrap:wrap; gap:28px">
+
+        <div data-screen-label="1b Login" style="position:relative; width:1180px; height:760px; overflow:hidden; background:#101010">
+          <img src="assets/login-background.png" alt="" style="position:absolute; inset:0; width:100%; height:100%; object-fit:cover; filter:var(--pfilter)">
+          <div style="position:absolute; inset:0; background:var(--veil)"></div>
+          <div style="position:absolute; inset:0; display:flex; align-items:center; justify-content:center; padding:56px">
+            <div style="display:grid; grid-template-columns:1fr 1fr; width:920px; background:var(--card); border:1px solid var(--line); border-radius:20px; overflow:hidden; box-shadow:var(--shadow); backdrop-filter:blur(18px)">
+              <div style="padding:52px 46px; display:flex; flex-direction:column; justify-content:space-between; border-right:1px solid var(--line); background:var(--panel)">
+                <img src="assets/logo-text-right-black.png" alt="Gymhour" style="height:26px; align-self:flex-start; filter:var(--logoinv)">
+                <div>
+                  <div style="font-size:42px; line-height:1.05; letter-spacing:-0.035em; color:var(--ink)">Tu gimnasio,<br>ordenado.</div>
+                  <div style="margin-top:18px; font-size:14px; line-height:1.6; color:var(--ink2); max-width:300px">Turnos, rutinas, cuotas y asistencias en un solo lugar.</div>
+                </div>
+                <div style="font-size:11px; letter-spacing:0.16em; text-transform:uppercase; color:var(--ink3)">Software para gimnasios</div>
+              </div>
+              <div style="padding:52px 46px">
+                <div style="font-size:11px; letter-spacing:0.18em; text-transform:uppercase; color:var(--ink3); margin-bottom:28px">Iniciar sesión</div>
+                <div style="display:flex; flex-direction:column; gap:18px">
+                  <div style="display:flex; flex-direction:column; gap:9px">
+                    <label style="font-size:12px; color:var(--ink2)">Email</label>
+                    <input type="email" placeholder="nombre@mail.com" style="width:100%; box-sizing:border-box; padding:15px 16px; font-size:15px; color:var(--ink); background:var(--field); border:1px solid var(--line); border-radius:12px; outline:none">
+                  </div>
+                  <div style="display:flex; flex-direction:column; gap:9px">
+                    <label style="font-size:12px; color:var(--ink2)">Contraseña</label>
+                    <input type="password" placeholder="••••••••" style="width:100%; box-sizing:border-box; padding:15px 16px; font-size:15px; color:var(--ink); background:var(--field); border:1px solid var(--line); border-radius:12px; outline:none">
+                  </div>
+                  <div style="display:flex; justify-content:flex-end">
+                    <a href="#1b" style="font-size:12px; color:var(--ink2)">Olvidé mi contraseña</a>
+                  </div>
+                  <button style="width:100%; padding:17px; font-size:14px; color:var(--btnInk); background:var(--btn); border:none; border-radius:999px; cursor:pointer">Ingresar</button>
+                </div>
+                <div style="margin-top:34px; font-size:13px; color:var(--ink2)">¿Primera vez acá? <a href="#1b" style="color:var(--ink)">Crear cuenta</a></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div data-screen-label="1b Registro" style="position:relative; width:1180px; height:760px; overflow:hidden; background:#101010">
+          <img src="assets/login-background.png" alt="" style="position:absolute; inset:0; width:100%; height:100%; object-fit:cover; filter:var(--pfilter)">
+          <div style="position:absolute; inset:0; background:var(--veil)"></div>
+          <div style="position:absolute; inset:0; display:flex; align-items:center; justify-content:center; padding:56px">
+            <div style="display:grid; grid-template-columns:1fr 1fr; width:920px; background:var(--card); border:1px solid var(--line); border-radius:20px; overflow:hidden; box-shadow:var(--shadow); backdrop-filter:blur(18px)">
+              <div style="padding:52px 46px; display:flex; flex-direction:column; justify-content:space-between; border-right:1px solid var(--line); background:var(--panel)">
+                <img src="assets/logo-text-right-black.png" alt="Gymhour" style="height:26px; align-self:flex-start; filter:var(--logoinv)">
+                <div>
+                  <div style="font-size:42px; line-height:1.05; letter-spacing:-0.035em; color:var(--ink)">Empezá<br>en dos minutos.</div>
+                  <div style="margin-top:18px; font-size:14px; line-height:1.6; color:var(--ink2); max-width:300px">Creás la cuenta con tu email y después cargás los datos del gimnasio.</div>
+                </div>
+                <div style="font-size:11px; letter-spacing:0.16em; text-transform:uppercase; color:var(--ink3)">Software para gimnasios</div>
+              </div>
+              <div style="padding:52px 46px">
+                <div style="font-size:11px; letter-spacing:0.18em; text-transform:uppercase; color:var(--ink3); margin-bottom:28px">Crear cuenta</div>
+                <div style="display:flex; flex-direction:column; gap:18px">
+                  <div style="display:flex; flex-direction:column; gap:9px">
+                    <label style="font-size:12px; color:var(--ink2)">Email</label>
+                    <input type="email" placeholder="nombre@mail.com" style="width:100%; box-sizing:border-box; padding:15px 16px; font-size:15px; color:var(--ink); background:var(--field); border:1px solid var(--line); border-radius:12px; outline:none">
+                  </div>
+                  <div style="display:flex; flex-direction:column; gap:9px">
+                    <label style="font-size:12px; color:var(--ink2)">Contraseña</label>
+                    <input type="password" placeholder="Mínimo 8 caracteres" style="width:100%; box-sizing:border-box; padding:15px 16px; font-size:15px; color:var(--ink); background:var(--field); border:1px solid var(--line); border-radius:12px; outline:none">
+                  </div>
+                  <div style="display:flex; flex-direction:column; gap:9px">
+                    <label style="font-size:12px; color:var(--ink2)">Confirmar contraseña</label>
+                    <input type="password" placeholder="Repetí la contraseña" style="width:100%; box-sizing:border-box; padding:15px 16px; font-size:15px; color:var(--ink); background:var(--field); border:1px solid var(--line); border-radius:12px; outline:none">
+                  </div>
+                  <label style="display:flex; gap:10px; align-items:flex-start; font-size:13px; line-height:1.5; color:var(--ink2); cursor:pointer">
+                    <input type="checkbox" style="width:16px; height:16px; margin:1px 0 0; accent-color:var(--btn)">
+                    <span>Acepto los <a href="#1b" style="color:var(--ink)">términos y condiciones</a> y la política de privacidad.</span>
+                  </label>
+                  <button style="margin-top:6px; width:100%; padding:17px; font-size:14px; color:var(--btnInk); background:var(--btn); border:none; border-radius:999px; cursor:pointer">Crear cuenta</button>
+                </div>
+                <div style="margin-top:34px; font-size:13px; color:var(--ink2)">¿Ya tenés cuenta? <a href="#1b" style="color:var(--ink)">Iniciar sesión</a></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div data-screen-label="1b Gimnasio" style="position:relative; width:1180px; height:760px; overflow:hidden; background:#101010">
+          <img src="assets/login-background.png" alt="" style="position:absolute; inset:0; width:100%; height:100%; object-fit:cover; filter:var(--pfilter)">
+          <div style="position:absolute; inset:0; background:var(--veil)"></div>
+          <div style="position:absolute; inset:0; display:flex; align-items:center; justify-content:center; padding:56px">
+            <div style="display:grid; grid-template-columns:320px 1fr; width:980px; background:var(--card); border:1px solid var(--line); border-radius:20px; overflow:hidden; box-shadow:var(--shadow); backdrop-filter:blur(18px)">
+              <div style="padding:46px 40px; display:flex; flex-direction:column; gap:44px; border-right:1px solid var(--line); background:var(--panel)">
+                <img src="assets/logo-text-right-black.png" alt="Gymhour" style="height:24px; align-self:flex-start; filter:var(--logoinv)">
+                <div style="display:flex; flex-direction:column; gap:22px">
+                  <div style="display:flex; gap:14px; align-items:baseline">
+                    <span style="font-size:12px; color:var(--ink3)">01</span>
+                    <span style="font-size:15px; color:var(--ink3)">Cuenta</span>
+                  </div>
+                  <div style="display:flex; gap:14px; align-items:baseline">
+                    <span style="font-size:12px; color:var(--ink)">02</span>
+                    <span style="font-size:15px; color:var(--ink)">Gimnasio</span>
+                  </div>
+                  <div style="display:flex; gap:14px; align-items:baseline">
+                    <span style="font-size:12px; color:var(--ink3)">03</span>
+                    <span style="font-size:15px; color:var(--ink3)">Contacto</span>
+                  </div>
+                </div>
+                <div style="margin-top:auto; font-size:12px; line-height:1.6; color:var(--ink3)">Podés editar todo esto después desde Configuración.</div>
+              </div>
+              <div style="padding:46px 44px">
+                <div style="font-size:32px; line-height:1.1; letter-spacing:-0.03em; color:var(--ink); margin-bottom:8px">Datos del gimnasio</div>
+                <div style="font-size:14px; color:var(--ink2); margin-bottom:32px">Así lo ven tus socios dentro de la app.</div>
+                <div style="display:grid; grid-template-columns:1fr 1fr; gap:18px">
+                  <div style="grid-column:1 / -1; display:flex; flex-direction:column; gap:9px">
+                    <label style="font-size:12px; color:var(--ink2)">Nombre del gimnasio</label>
+                    <input placeholder="Estudio Norte" style="width:100%; box-sizing:border-box; padding:15px 16px; font-size:15px; color:var(--ink); background:var(--field); border:1px solid var(--line); border-radius:12px; outline:none">
+                  </div>
+                  <div style="grid-column:1 / -1; display:flex; flex-direction:column; gap:9px">
+                    <label style="font-size:12px; color:var(--ink2)">Logo</label>
+                    <div style="display:flex; align-items:center; gap:16px; padding:16px; border:1px dashed var(--line); border-radius:14px; background:var(--field)">
+                      <div style="width:52px; height:52px; flex:none; border:1px solid var(--line); border-radius:12px; background:var(--card)"></div>
+                      <div style="flex:1; display:flex; flex-direction:column; gap:3px">
+                        <span style="font-size:14px; color:var(--ink)">Arrastrá el archivo o elegilo</span>
+                        <span style="font-size:12px; color:var(--ink3)">PNG o SVG, fondo transparente, mínimo 512 px</span>
+                      </div>
+                      <button style="padding:11px 20px; font-size:13px; color:var(--ink); background:transparent; border:1px solid var(--line); border-radius:999px; cursor:pointer">Elegir</button>
+                    </div>
+                  </div>
+                  <div style="grid-column:1 / -1; display:flex; flex-direction:column; gap:9px">
+                    <label style="font-size:12px; color:var(--ink2)">Dirección</label>
+                    <input placeholder="Av. Colón 1234" style="width:100%; box-sizing:border-box; padding:15px 16px; font-size:15px; color:var(--ink); background:var(--field); border:1px solid var(--line); border-radius:12px; outline:none">
+                  </div>
+                  <div style="display:flex; flex-direction:column; gap:9px">
+                    <label style="font-size:12px; color:var(--ink2)">Ciudad</label>
+                    <input placeholder="Córdoba" style="width:100%; box-sizing:border-box; padding:15px 16px; font-size:15px; color:var(--ink); background:var(--field); border:1px solid var(--line); border-radius:12px; outline:none">
+                  </div>
+                  <div style="display:flex; flex-direction:column; gap:9px">
+                    <label style="font-size:12px; color:var(--ink2)">Provincia</label>
+                    <input placeholder="Córdoba" style="width:100%; box-sizing:border-box; padding:15px 16px; font-size:15px; color:var(--ink); background:var(--field); border:1px solid var(--line); border-radius:12px; outline:none">
+                  </div>
+                </div>
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-top:40px">
+                  <a href="#1b" style="font-size:13px; color:var(--ink2)">Completar después</a>
+                  <button style="padding:16px 40px; font-size:14px; color:var(--btnInk); background:var(--btn); border:none; border-radius:999px; cursor:pointer">Siguiente</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div data-screen-label="1b Contacto" style="position:relative; width:1180px; height:760px; overflow:hidden; background:#101010">
+          <img src="assets/login-background.png" alt="" style="position:absolute; inset:0; width:100%; height:100%; object-fit:cover; filter:var(--pfilter)">
+          <div style="position:absolute; inset:0; background:var(--veil)"></div>
+          <div style="position:absolute; inset:0; display:flex; align-items:center; justify-content:center; padding:56px">
+            <div style="display:grid; grid-template-columns:320px 1fr; width:980px; background:var(--card); border:1px solid var(--line); border-radius:20px; overflow:hidden; box-shadow:var(--shadow); backdrop-filter:blur(18px)">
+              <div style="padding:46px 40px; display:flex; flex-direction:column; gap:44px; border-right:1px solid var(--line); background:var(--panel)">
+                <img src="assets/logo-text-right-black.png" alt="Gymhour" style="height:24px; align-self:flex-start; filter:var(--logoinv)">
+                <div style="display:flex; flex-direction:column; gap:22px">
+                  <div style="display:flex; gap:14px; align-items:baseline">
+                    <span style="font-size:12px; color:var(--ink3)">01</span>
+                    <span style="font-size:15px; color:var(--ink3)">Cuenta</span>
+                  </div>
+                  <div style="display:flex; gap:14px; align-items:baseline">
+                    <span style="font-size:12px; color:var(--ink3)">02</span>
+                    <span style="font-size:15px; color:var(--ink3)">Gimnasio</span>
+                  </div>
+                  <div style="display:flex; gap:14px; align-items:baseline">
+                    <span style="font-size:12px; color:var(--ink)">03</span>
+                    <span style="font-size:15px; color:var(--ink)">Contacto</span>
+                  </div>
+                </div>
+                <div style="margin-top:auto; font-size:12px; line-height:1.6; color:var(--ink3)">Usamos estos datos solo para avisos de la plataforma.</div>
+              </div>
+              <div style="padding:46px 44px">
+                <div style="font-size:32px; line-height:1.1; letter-spacing:-0.03em; color:var(--ink); margin-bottom:8px">Datos de contacto</div>
+                <div style="font-size:14px; color:var(--ink2); margin-bottom:32px">Quién es el responsable de la cuenta.</div>
+                <div style="display:grid; grid-template-columns:1fr 1fr; gap:18px">
+                  <div style="display:flex; flex-direction:column; gap:9px">
+                    <label style="font-size:12px; color:var(--ink2)">Nombre</label>
+                    <input placeholder="Lucía" style="width:100%; box-sizing:border-box; padding:15px 16px; font-size:15px; color:var(--ink); background:var(--field); border:1px solid var(--line); border-radius:12px; outline:none">
+                  </div>
+                  <div style="display:flex; flex-direction:column; gap:9px">
+                    <label style="font-size:12px; color:var(--ink2)">Apellido</label>
+                    <input placeholder="Fernández" style="width:100%; box-sizing:border-box; padding:15px 16px; font-size:15px; color:var(--ink); background:var(--field); border:1px solid var(--line); border-radius:12px; outline:none">
+                  </div>
+                  <div style="grid-column:1 / -1; display:flex; flex-direction:column; gap:9px">
+                    <label style="font-size:12px; color:var(--ink2)">Número de celular</label>
+                    <input placeholder="+54 9 351 000 0000" style="width:100%; box-sizing:border-box; padding:15px 16px; font-size:15px; color:var(--ink); background:var(--field); border:1px solid var(--line); border-radius:12px; outline:none">
+                  </div>
+                  <div style="grid-column:1 / -1; display:flex; flex-direction:column; gap:9px">
+                    <div style="display:flex; justify-content:space-between; align-items:baseline">
+                      <label style="font-size:12px; color:var(--ink2)">Mail secundario</label>
+                      <span style="font-size:12px; color:var(--ink3)">Opcional</span>
+                    </div>
+                    <input placeholder="administracion@migimnasio.com" style="width:100%; box-sizing:border-box; padding:15px 16px; font-size:15px; color:var(--ink); background:var(--field); border:1px solid var(--line); border-radius:12px; outline:none">
+                  </div>
+                </div>
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-top:40px">
+                  <a href="#1b" style="font-size:13px; color:var(--ink2)">Atrás</a>
+                  <button style="padding:16px 40px; font-size:14px; color:var(--btnInk); background:var(--btn); border:none; border-radius:999px; cursor:pointer">Terminar</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div data-screen-label="1b Listo" style="position:relative; width:1180px; height:760px; overflow:hidden; background:#101010">
+          <img src="assets/login-background.png" alt="" style="position:absolute; inset:0; width:100%; height:100%; object-fit:cover; filter:var(--pfilter)">
+          <div style="position:absolute; inset:0; background:var(--veil)"></div>
+          <div style="position:absolute; inset:0; display:flex; align-items:center; justify-content:center; padding:56px">
+            <div style="width:560px; background:var(--card); border:1px solid var(--line); border-radius:20px; padding:56px 50px; box-shadow:var(--shadow); backdrop-filter:blur(18px); text-align:center">
+              <img src="assets/isotipo.png" alt="" style="height:44px; filter:var(--markinv)">
+              <div style="margin-top:28px; font-size:34px; line-height:1.1; letter-spacing:-0.03em; color:var(--ink)">Listo, Lucía.</div>
+              <div style="margin-top:14px; font-size:15px; line-height:1.6; color:var(--ink2)">Tu gimnasio quedó configurado. Ya podés cargar socios, turnos y cuotas.</div>
+              <button style="margin-top:34px; width:100%; padding:17px; font-size:14px; color:var(--btnInk); background:var(--btn); border:none; border-radius:999px; cursor:pointer">Ir al panel</button>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+  </div>
+</section>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;temaFicha&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;light&quot;,&quot;dark&quot;],&quot;default&quot;:&quot;light&quot;,&quot;tsType&quot;:&quot;'light'|'dark'&quot;,&quot;section&quot;:&quot;Temas&quot;},&quot;temaPanel&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;light&quot;,&quot;dark&quot;],&quot;default&quot;:&quot;dark&quot;,&quot;tsType&quot;:&quot;'light'|'dark'&quot;,&quot;section&quot;:&quot;Temas&quot;}}">
+const THEMES = {
+  light: {
+    '--ink': '#101010', '--ink2': '#55554F', '--ink3': '#6B6B65',
+    '--card': '#FFFFFF', '--panel': '#F7F7F5', '--line': 'rgba(16,16,16,0.10)',
+    '--field': '#FAFAF8', '--btn': '#111111', '--btnInk': '#FFFFFF',
+    '--veil': 'rgba(246,246,243,0.86)', '--pfilter': 'grayscale(1) brightness(2.9) contrast(0.8)',
+    '--shadow': '0 24px 70px rgba(16,16,16,0.10)', '--logoinv': 'none', '--markinv': 'invert(1)',
+    '--tglLight': '#111111', '--tglLightInk': '#FFFFFF', '--tglDark': 'transparent', '--tglDarkInk': '#111111'
+  },
+  dark: {
+    '--ink': '#F6F6F3', '--ink2': '#B4B4AE', '--ink3': '#9C9C95',
+    '--card': 'rgba(18,18,17,0.74)', '--panel': 'rgba(255,255,255,0.03)', '--line': 'rgba(255,255,255,0.14)',
+    '--field': 'rgba(255,255,255,0.05)', '--btn': '#F6F6F3', '--btnInk': '#101010',
+    '--veil': 'rgba(10,10,10,0.45)', '--pfilter': 'grayscale(1) brightness(1.25)',
+    '--shadow': '0 30px 80px rgba(0,0,0,0.55)', '--logoinv': 'invert(1)', '--markinv': 'none',
+    '--tglLight': 'transparent', '--tglLightInk': '#111111', '--tglDark': '#111111', '--tglDarkInk': '#FFFFFF'
+  }
+};
+
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { a: props.temaFicha || 'light', b: props.temaPanel || 'dark' };
+  }
+  renderVals() {
+    return {
+      varsA: THEMES[this.state.a],
+      varsB: THEMES[this.state.b],
+      setLightA: () => this.setState({ a: 'light' }),
+      setDarkA: () => this.setState({ a: 'dark' }),
+      setLightB: () => this.setState({ b: 'light' }),
+      setDarkB: () => this.setState({ b: 'dark' })
+    };
+  }
+}
+
+</script>
+</body>
+</html>

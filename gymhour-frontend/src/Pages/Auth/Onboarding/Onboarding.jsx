@@ -1,16 +1,23 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Check, ImagePlus, MapPin, Phone } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Check, CreditCard, ImagePlus, MapPin, Phone } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import apiClient from '../../../axiosConfig';
 import CLIENT_SETUP from '../../../setup';
 import { useAuth } from '../../../context/AuthContext';
 import './onboarding.css';
 
+const INITIAL_FORM = {
+  firstName: '', lastName: '', contactPhone: '', location: '', contactEmail: '', name: '',
+  primaryColor: '#DA4632', paymentAccountHolder: '', paymentAlias: '', paymentCbu: '',
+  paymentTaxId: '', paymentWhatsapp: '',
+};
+
 const Onboarding = () => {
   const navigate = useNavigate();
   const fileInput = useRef(null);
   const { user, refresh } = useAuth();
-  const [form, setForm] = useState({ name: '', primaryColor: '#DA4632', contactPhone: '', contactEmail: '', location: '' });
+  const [step, setStep] = useState(2);
+  const [form, setForm] = useState(INITIAL_FORM);
   const [logo, setLogo] = useState(null);
   const [preview, setPreview] = useState('');
   const [error, setError] = useState('');
@@ -28,9 +35,24 @@ const Onboarding = () => {
     setLogo(file); setPreview(URL.createObjectURL(file)); setError('');
   };
 
+  const continueToGym = event => {
+    event.preventDefault();
+    setError('');
+    if (form.firstName.trim().length < 2 || form.lastName.trim().length < 2) {
+      setError('Completá tu nombre y apellido.'); return;
+    }
+    if (form.name.trim().length < 3) { setError('Ingresá el nombre de tu gimnasio.'); return; }
+    if (form.contactPhone.trim().length < 6) { setError('Ingresá un número de celular válido.'); return; }
+    setStep(3);
+  };
+
   const submit = async event => {
     event.preventDefault(); setError('');
     if (!logo) { setError('Subí el logo de tu gimnasio.'); return; }
+    if (!form.paymentAccountHolder.trim()) { setError('Ingresá el titular de la cuenta.'); return; }
+    if (!form.paymentAlias.trim() && !form.paymentCbu.trim()) {
+      setError('Ingresá al menos un alias o CBU/CVU para recibir transferencias.'); return;
+    }
     setLoading(true);
     try {
       const body = new FormData();
@@ -45,59 +67,86 @@ const Onboarding = () => {
   };
 
   return (
-    <main className="onboarding-page">
-      <header className="onboarding-header">
-        <img src={CLIENT_SETUP.branding.logo} alt={CLIENT_SETUP.branding.logoAlt} />
-        <span>Configuración inicial</span>
-      </header>
+    <main className="onboarding-page" style={{ '--onboarding-background': `url(${CLIENT_SETUP.branding.loginBackground})` }}>
       <div className="onboarding-layout">
         <section className="onboarding-intro">
-          <span className="onboarding-step">Paso 2 de 2</span>
-          <h1>Configurá tu gimnasio</h1>
-          <p>Agregá la información básica de tu espacio. Podrás modificarla más adelante.</p>
-        </section>
-        <section className="onboarding-card">
-          <div className="onboarding-card__title">
-            <div><span>Perfil del gimnasio</span><small>{user?.email}</small></div>
-            <span className="onboarding-card__status">Cuenta creada <Check size={13} /></span>
+          <img src={CLIENT_SETUP.branding.logo} alt={CLIENT_SETUP.branding.logoAlt} />
+          <div className="onboarding-steps" aria-label="Progreso de configuración">
+            <div className="is-complete"><span>01</span><strong>Cuenta</strong><Check size={14} /></div>
+            <div className={step === 2 ? 'is-active' : 'is-complete'}><span>02</span><strong>Contacto</strong>{step > 2 && <Check size={14} />}</div>
+            <div className={step === 3 ? 'is-active' : ''}><span>03</span><strong>Gimnasio</strong></div>
           </div>
-          <form onSubmit={submit}>
-            <div className="onboarding-section">
-              <div className="onboarding-section__heading"><strong>Identidad</strong><span>Información visible para tus socios</span></div>
-              <div className="logo-row">
-              <button className="logo-picker" type="button" onClick={() => fileInput.current?.click()}>
-                {preview ? <img src={preview} alt="Vista previa del logo" /> : <ImagePlus size={23} />}
-              </button>
-              <input ref={fileInput} className="onboarding-file" type="file" accept="image/png,image/jpeg,image/webp" onChange={selectLogo} />
-                <div><button type="button" onClick={() => fileInput.current?.click()}>{preview ? 'Cambiar logo' : 'Elegir archivo'}</button><span>PNG, JPG o WebP · Máximo 5 MB</span></div>
+          <p>Podés editar toda esta información después desde Configuración.</p>
+        </section>
+
+        <section className="onboarding-card">
+          {step === 2 ? (
+            <>
+              <div className="onboarding-card__title">
+                <div><span>Datos de contacto</span><small>Contanos quién administra la cuenta y cómo encontrar el gimnasio.</small></div>
+                <span className="onboarding-card__status">Cuenta creada <Check size={13} /></span>
               </div>
-              <div className="onboarding-fields onboarding-fields--identity">
-                <label className="onboarding-field"><span>Nombre del gimnasio</span><input name="name" value={form.name} onChange={change} placeholder="Ej. Distrito Fitness" minLength="3" required /></label>
-                <label className="color-field"><span>Color principal</span><span className="color-control"><input type="color" name="primaryColor" value={form.primaryColor} onChange={change} /><b>{form.primaryColor.toUpperCase()}</b></span></label>
+              <form onSubmit={continueToGym}>
+                <div className="onboarding-section">
+                  <div className="onboarding-section__heading"><strong>Responsable de la cuenta</strong><span>{user?.email}</span></div>
+                  <div className="onboarding-fields">
+                    <label className="onboarding-field"><span>Nombre</span><input name="firstName" value={form.firstName} onChange={change} placeholder="Lucía" minLength="2" required /></label>
+                    <label className="onboarding-field"><span>Apellido</span><input name="lastName" value={form.lastName} onChange={change} placeholder="Fernández" minLength="2" required /></label>
+                    <label className="onboarding-field onboarding-field--full"><span>Número de celular</span><span className="input-with-icon"><Phone size={15} /><input name="contactPhone" value={form.contactPhone} onChange={change} placeholder="+54 9 351 000 0000" type="tel" minLength="6" required /></span></label>
+                  </div>
+                </div>
+                <div className="onboarding-section">
+                  <div className="onboarding-section__heading"><strong>Tu gimnasio</strong><span>Información principal</span></div>
+                  <div className="onboarding-fields">
+                    <label className="onboarding-field onboarding-field--full"><span>Nombre del gimnasio</span><input name="name" value={form.name} onChange={change} placeholder="Ej. Distrito Fitness" minLength="3" required /></label>
+                    <label className="onboarding-field"><span>Ubicación <small>Opcional</small></span><span className="input-with-icon"><MapPin size={15} /><input name="location" value={form.location} onChange={change} placeholder="Dirección, ciudad o provincia" /></span></label>
+                    <label className="onboarding-field"><span>Mail secundario <small>Opcional</small></span><input name="contactEmail" value={form.contactEmail} onChange={change} placeholder="administracion@tugym.com" type="email" /></label>
+                  </div>
+                </div>
+                {error && <div className="onboarding-error" role="alert">{error}</div>}
+                <div className="onboarding-actions onboarding-actions--end">
+                  <button className="onboarding-submit" type="submit"><span>Continuar</span><ArrowRight size={17} /></button>
+                </div>
+              </form>
+            </>
+          ) : (
+            <>
+              <div className="onboarding-card__title">
+                <div><span>Configurá tu gimnasio</span><small>Definí su identidad y cómo recibir pagos de tus alumnos.</small></div>
+                <span className="onboarding-card__status">Paso final</span>
               </div>
-            </div>
-            <div className="onboarding-section">
-              <div className="onboarding-section__heading"><strong>Contacto</strong><span>Cómo pueden encontrar tu gimnasio</span></div>
-              <div className="onboarding-fields">
-              <label className="onboarding-field">
-                <span>Número de celular</span>
-                <span className="input-with-icon"><Phone size={15} /><input name="contactPhone" value={form.contactPhone} onChange={change} placeholder="351 555 0000" type="tel" required /></span>
-              </label>
-              <label className="onboarding-field">
-                <span>Email de contacto <small>Opcional</small></span>
-                <input name="contactEmail" value={form.contactEmail} onChange={change} placeholder="contacto@tugym.com" type="email" />
-              </label>
-              <label className="onboarding-field onboarding-field--full">
-                <span>Ubicación <small>Opcional</small></span>
-                <span className="input-with-icon"><MapPin size={15} /><input name="location" value={form.location} onChange={change} placeholder="Dirección, ciudad o provincia" /></span>
-              </label>
-              </div>
-            </div>
-            {error && <div className="onboarding-error" role="alert">{error}</div>}
-            <button className="onboarding-submit" type="submit" disabled={loading} style={{ '--gym-color': form.primaryColor }}>
-              <span>{loading ? 'Guardando...' : 'Finalizar configuración'}</span>{!loading && <Check size={17} />}
-            </button>
-          </form>
+              <form onSubmit={submit}>
+                <div className="onboarding-section">
+                  <div className="onboarding-section__heading"><strong>Identidad visual</strong><span>Visible para tus socios</span></div>
+                  <div className="logo-row">
+                    <button className="logo-picker" type="button" onClick={() => fileInput.current?.click()}>
+                      {preview ? <img src={preview} alt="Vista previa del logo" /> : <ImagePlus size={23} />}
+                    </button>
+                    <input ref={fileInput} className="onboarding-file" type="file" accept="image/png,image/jpeg,image/webp" onChange={selectLogo} hidden />
+                    <div className="logo-row__copy"><strong>{preview ? 'Logo seleccionado' : 'Logo del gimnasio'}</strong><span>PNG, JPG o WebP · Máximo 5 MB</span></div>
+                    <button className="logo-row__action" type="button" onClick={() => fileInput.current?.click()}>{preview ? 'Cambiar' : 'Elegir archivo'}</button>
+                  </div>
+                  <label className="color-field"><span>Color principal</span><span className="color-control"><input type="color" name="primaryColor" value={form.primaryColor} onChange={change} /><b>{form.primaryColor.toUpperCase()}</b></span></label>
+                </div>
+                <div className="onboarding-section">
+                  <div className="onboarding-section__heading"><strong>Datos de pago</strong><span>Para transferencias</span></div>
+                  <div className="payment-note"><CreditCard size={18} /><p><strong>¿Para qué usamos estos datos?</strong><span>Se los mostraremos a tus alumnos para que sepan dónde transferirte sus cuotas.</span></p></div>
+                  <div className="onboarding-fields">
+                    <label className="onboarding-field onboarding-field--full"><span>Titular de la cuenta</span><input name="paymentAccountHolder" value={form.paymentAccountHolder} onChange={change} placeholder="Nombre y apellido o razón social" required /></label>
+                    <label className="onboarding-field"><span>Alias</span><input name="paymentAlias" value={form.paymentAlias} onChange={change} placeholder="MI.GIMNASIO" /></label>
+                    <label className="onboarding-field"><span>CBU o CVU</span><input name="paymentCbu" value={form.paymentCbu} onChange={change} placeholder="22 dígitos" inputMode="numeric" /></label>
+                    <label className="onboarding-field"><span>CUIL o CUIT <small>Opcional</small></span><input name="paymentTaxId" value={form.paymentTaxId} onChange={change} placeholder="20-12345678-9" /></label>
+                    <label className="onboarding-field"><span>WhatsApp para comprobantes <small>Opcional</small></span><input name="paymentWhatsapp" value={form.paymentWhatsapp} onChange={change} placeholder="5493510000000" type="tel" /></label>
+                  </div>
+                </div>
+                {error && <div className="onboarding-error" role="alert">{error}</div>}
+                <div className="onboarding-actions">
+                  <button className="onboarding-back" type="button" onClick={() => { setError(''); setStep(2); }} disabled={loading}><ArrowLeft size={16} />Atrás</button>
+                  <button className="onboarding-submit" type="submit" disabled={loading}><span>{loading ? 'Guardando...' : 'Finalizar configuración'}</span>{!loading && <Check size={17} />}</button>
+                </div>
+              </form>
+            </>
+          )}
         </section>
       </div>
     </main>

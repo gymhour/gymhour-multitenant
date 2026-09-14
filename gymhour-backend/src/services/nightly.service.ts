@@ -57,6 +57,13 @@ export async function sendBirthdayEmails(): Promise<number> {
   return sent;
 }
 
+// El historial de IA se conserva 90 días desde la última actividad.
+export async function cleanupAiConversations(): Promise<number> {
+  const cutoff = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000);
+  const { count } = await prisma.aiConversation.deleteMany({ where: { updatedAt: { lt: cutoff } } });
+  return count;
+}
+
 // Ejecuta las 3 tareas nocturnas. Cada una con su try/catch para que una falla no frene las demás.
 export async function runNightlyTasks(): Promise<Record<string, unknown>> {
   const result: Record<string, unknown> = {};
@@ -77,6 +84,12 @@ export async function runNightlyTasks(): Promise<Record<string, unknown>> {
   } catch (e: any) {
     result.cumpleError = e?.message ?? String(e);
     console.error("[nightly] sendBirthdayEmails", e);
+  }
+  try {
+    result.conversacionesIaEliminadas = await cleanupAiConversations();
+  } catch (e: any) {
+    result.conversacionesIaError = e?.message ?? String(e);
+    console.error('[nightly] cleanupAiConversations', e);
   }
   return result;
 }

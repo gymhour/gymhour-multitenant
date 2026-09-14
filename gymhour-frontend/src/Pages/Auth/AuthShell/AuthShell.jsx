@@ -1,19 +1,16 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { CalendarDays, ChartNoAxesCombined, UsersRound } from 'lucide-react';
 import CLIENT_SETUP from '../../../setup';
 import './authShell.css';
 
 const COPY = {
   login: {
-    eyebrow: 'El centro de control de tu gimnasio',
-    title: <>Más orden.<br /><span>Más gimnasio.</span></>,
-    description: 'Gestioná socios, turnos, cuotas y rutinas desde un solo lugar. Todo tu equipo conectado, estés donde estés.',
+    title: <>Tu gimnasio,<br />ordenado.</>,
+    description: 'Turnos, rutinas, cuotas y asistencias en un solo lugar.',
   },
   signup: {
-    eyebrow: 'Tu gimnasio empieza acá',
-    title: <>Hacé crecer<br /><span>tu comunidad.</span></>,
-    description: 'Abrí el espacio digital de tu gimnasio en minutos. Después vas a poder invitar a tu equipo y sumar a tus socios.',
+    title: <>Empezá<br />en dos minutos.</>,
+    description: 'Creás la cuenta con tu email y después cargás los datos del gimnasio.',
   },
 };
 
@@ -41,28 +38,16 @@ const AuthShell = ({ variant = 'login', children, tenantBranding = null, tenantM
         '--background-hover-color': `${color}26`,
       }}>
       <div className="auth-shell__inner">
-        <header className="auth-shell__header">
-          <Link className="auth-shell__brand" to={tenantBranding ? `/${tenantBranding.slug}/login` : '/'} aria-label={`${name}, inicio`}>
-            <img className={branded ? 'auth-shell__tenant-logo' : ''} src={logo} alt={`Logo de ${name}`} />
-            <span>{branded ? name : 'Portal de gestión'}</span>
-          </Link>
-          {!branded && <nav className="auth-shell__nav" aria-label="Acceso a Gymhour">
-            <Link className={variant === 'login' ? 'is-active' : ''} to="/">Iniciar sesión</Link>
-            <Link className={variant === 'signup' ? 'is-active' : ''} to="/sign-up">Crear gimnasio</Link>
-          </nav>}
-        </header>
-
         <div className="auth-shell__grid">
           <section className="auth-story" aria-label="Gymhour">
-            <div className="auth-story__eyebrow"><i /> {branded ? `Portal de ${name}` : content.eyebrow}</div>
-            <h1>{branded ? <>Tu entrenamiento.<br /><span>Tu comunidad.</span></> : content.title}</h1>
-            <p>{branded ? `Ingresá a tu cuenta de ${name} para reservar clases, consultar tus rutinas y seguir tu progreso.` : content.description}</p>
-
-            <div className="auth-story__features">
-              <div><CalendarDays aria-hidden="true" /><span>Turnos inteligentes</span></div>
-              <div><ChartNoAxesCombined aria-hidden="true" /><span>Tu gestión en tiempo real</span></div>
-              <div><UsersRound aria-hidden="true" /><span>Equipo y socios conectados</span></div>
+            <Link className="auth-story__brand" to={tenantBranding ? `/${tenantBranding.slug}/login` : '/'} aria-label={`${name}, inicio`}>
+              <img className={branded ? 'auth-shell__tenant-logo' : ''} src={logo} alt={`Logo de ${name}`} />
+            </Link>
+            <div className="auth-story__content">
+              <h1>{branded ? <>Tu entrenamiento.<br />Tu comunidad.</> : content.title}</h1>
+              <p>{branded ? `Ingresá a tu cuenta de ${name} para reservar clases, consultar tus rutinas y seguir tu progreso.` : content.description}</p>
             </div>
+            <div className="auth-story__caption">{branded ? `Portal de ${name}` : 'Software para gimnasios'}</div>
           </section>
 
           <section className="auth-card">

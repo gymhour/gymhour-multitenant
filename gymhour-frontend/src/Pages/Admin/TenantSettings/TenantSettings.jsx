@@ -1,23 +1,16 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Building2, Camera, Copy, CreditCard, ExternalLink, MapPin, MonitorSmartphone, Phone, Save } from 'lucide-react';
+import { Building2, Camera, Copy, CreditCard, ExternalLink, Mail, MapPin, Phone, Save, ShieldCheck } from 'lucide-react';
 import { toast } from 'react-toastify';
 import SidebarMenu from '../../../Components/SidebarMenu/SidebarMenu';
 import { useAuth } from '../../../context/AuthContext';
 import apiService from '../../../services/apiService';
 import './TenantSettings.css';
 
-const activationUrl = token => `${window.location.origin}/ingreso?mode=kiosk#token=${encodeURIComponent(token)}`;
 const gymLoginUrl = slug => `${window.location.origin}/${slug}/login`;
-const tabs = [
-  { id: 'profile', label: 'Identidad y contacto', icon: Building2 },
-  { id: 'payments', label: 'Cobros', icon: CreditCard },
-  { id: 'kiosks', label: 'Kioscos', icon: MonitorSmartphone },
-];
 
 const TenantSettings = () => {
-  const { tenant, refresh } = useAuth();
+  const { tenant, user, refresh } = useAuth();
   const fileInput = useRef(null);
-  const [activeTab, setActiveTab] = useState('profile');
   const [saving, setSaving] = useState(false);
   const [logo, setLogo] = useState(null);
   const [logoPreview, setLogoPreview] = useState(tenant?.settings?.logoUrl || '');
@@ -31,16 +24,7 @@ const TenantSettings = () => {
     paymentCbu: tenant?.settings?.paymentCbu || '', paymentTaxId: tenant?.settings?.paymentTaxId || '',
     paymentWhatsapp: tenant?.settings?.paymentWhatsapp || '',
   });
-  const [kiosks, setKiosks] = useState([]);
-  const [label, setLabel] = useState('Recepción');
-  const [secret, setSecret] = useState(() => sessionStorage.getItem('newKioskActivationToken'));
 
-  const loadKiosks = async () => {
-    try { setKiosks(await apiService.getKioskCredentials()); }
-    catch (error) { toast.error(error.message || 'No pudimos cargar los kioscos.'); }
-  };
-
-  useEffect(() => { sessionStorage.removeItem('newKioskActivationToken'); loadKiosks(); }, []);
   useEffect(() => () => { if (logo && logoPreview) URL.revokeObjectURL(logoPreview); }, [logo, logoPreview]);
 
   const selectLogo = event => {
@@ -53,36 +37,22 @@ const TenantSettings = () => {
     setLogo(file); setLogoPreview(URL.createObjectURL(file));
   };
 
-  const saveProfile = async event => {
+  const saveSettings = async event => {
     event.preventDefault(); setSaving(true);
     try {
       const body = new FormData();
       Object.entries(profile).forEach(([key, value]) => body.append(key, value));
       if (logo) body.append('logo', logo);
       const result = await apiService.updateTenantProfile(body);
+      await apiService.updateTenantSettings(payments);
       await refresh();
-      setLogoPreview(result.settings?.logoUrl || '');
+      setLogoPreview(result.settings?.logoUrl || logoPreview);
       setLogo(null);
-      toast.success('Perfil del gimnasio actualizado.');
-    } catch (error) { toast.error(error.message || 'No pudimos actualizar el perfil.'); }
+      toast.success('Configuración actualizada.');
+    } catch (error) { toast.error(error.message || 'No pudimos guardar la configuración.'); }
     finally { setSaving(false); }
   };
 
-  const savePayments = async event => {
-    event.preventDefault(); setSaving(true);
-    try { await apiService.updateTenantSettings(payments); await refresh(); toast.success('Datos de cobro actualizados.'); }
-    catch (error) { toast.error(error.message || 'No pudimos guardar los datos de cobro.'); }
-    finally { setSaving(false); }
-  };
-
-  const createKiosk = async event => {
-    event.preventDefault();
-    try { const result = await apiService.createKioskCredential(label); setSecret(result.activationToken); await loadKiosks(); }
-    catch (error) { toast.error(error.message || 'No pudimos crear la credencial.'); }
-  };
-  const revoke = async id => { try { await apiService.revokeKioskCredential(id); await loadKiosks(); } catch (error) { toast.error(error.message); } };
-  const rotate = async id => { try { const result = await apiService.rotateKioskCredential(id); setSecret(result.activationToken); await loadKiosks(); } catch (error) { toast.error(error.message); } };
-  const copyKioskUrl = async () => { await navigator.clipboard.writeText(activationUrl(secret)); toast.success('URL copiada.'); };
   const copyLoginUrl = async () => {
     await navigator.clipboard.writeText(gymLoginUrl(tenant.slug));
     toast.success('Enlace de acceso copiado.');
@@ -92,56 +62,65 @@ const TenantSettings = () => {
     <div className="tenant-settings-page">
       <SidebarMenu isAdmin />
       <main className="tenant-settings-content">
-        <header className="settings-heading"><div><span>Perfil del gimnasio</span><h1>Configuración</h1><p>Administrá la identidad y preferencias de {tenant?.name}.</p></div><code>{tenant?.slug}</code></header>
-        <nav className="settings-tabs" aria-label="Secciones de configuración">
-          {tabs.map(({ id, label: tabLabel, icon: Icon }) => <button key={id} className={activeTab === id ? 'active' : ''} onClick={() => setActiveTab(id)}><Icon size={15} />{tabLabel}</button>)}
-        </nav>
+        <header className="settings-heading">
+          <div><h1>Configuración</h1><p>Gestioná la información principal de {tenant?.name} desde un solo lugar.</p></div>
+        </header>
 
-        {activeTab === 'profile' && <form className="settings-panel" onSubmit={saveProfile}>
-          <div className="settings-section-heading"><div><h2>Identidad del gimnasio</h2><p>Se muestra en el menú y en documentos del sistema.</p></div></div>
-          <div className="settings-logo-row">
-            <div className="settings-logo-preview">{logoPreview ? <img src={logoPreview} alt={`Logo de ${profile.name}`} /> : <Building2 size={26} />}</div>
-            <div><strong>Logo del gimnasio</strong><small>PNG, JPG o WebP · Máximo 5 MB</small></div>
-            <button className="settings-logo-action" type="button" onClick={() => fileInput.current?.click()}><Camera size={14} /> Cambiar logo</button>
-            <input ref={fileInput} className="settings-logo-input" type="file" accept="image/png,image/jpeg,image/webp" onChange={selectLogo} />
-          </div>
-          <div className="settings-grid settings-grid--brand">
-            <label><span>Nombre del gimnasio</span><input value={profile.name} onChange={e => setProfile({ ...profile, name: e.target.value })} required minLength="3" /></label>
-            <label><span>Color principal</span><span className="settings-color"><input type="color" value={profile.primaryColor} onChange={e => setProfile({ ...profile, primaryColor: e.target.value })} /><b>{profile.primaryColor.toUpperCase()}</b></span></label>
-          </div>
-          <div className="settings-login-url">
-            <div><strong>Enlace de acceso para tus alumnos</strong><code>{gymLoginUrl(tenant?.slug)}</code></div>
-            <button type="button" onClick={copyLoginUrl}><Copy size={14} /> Copiar</button>
-            <a href={gymLoginUrl(tenant?.slug)} target="_blank" rel="noreferrer"><ExternalLink size={14} /> Abrir</a>
-          </div>
-          <div className="settings-separator" />
-          <div className="settings-section-heading"><div><h2>Datos de contacto</h2><p>Información pública y administrativa del gimnasio.</p></div></div>
-          <div className="settings-grid">
-            <label><span>Celular</span><span className="settings-icon-input"><Phone size={14} /><input value={profile.contactPhone} onChange={e => setProfile({ ...profile, contactPhone: e.target.value })} required /></span></label>
-            <label><span>Email de contacto <small>Opcional</small></span><input type="email" value={profile.contactEmail} onChange={e => setProfile({ ...profile, contactEmail: e.target.value })} /></label>
-            <label className="settings-full"><span>Ubicación <small>Opcional</small></span><span className="settings-icon-input"><MapPin size={14} /><input value={profile.location} onChange={e => setProfile({ ...profile, location: e.target.value })} /></span></label>
-          </div>
-          <div className="settings-actions"><span>Los cambios se aplicarán a toda la cuenta.</span><button className="settings-save" disabled={saving}><Save size={15} />{saving ? 'Guardando...' : 'Guardar cambios'}</button></div>
-        </form>}
+        <form className="settings-surface" onSubmit={saveSettings}>
+          <section className="settings-section">
+            <div className="settings-section-index">01</div>
+            <div className="settings-section-body">
+              <div className="settings-section-heading"><div><h2>Cuenta</h2><p>El mail que utilizás para ingresar como administrador.</p></div><ShieldCheck size={19} /></div>
+              <label className="settings-field settings-field--full"><span>Mail de acceso</span><span className="settings-icon-input settings-readonly"><Mail size={15} /><input value={user?.email || ''} readOnly aria-readonly="true" /></span><small>Para cambiar este mail, contactate con soporte.</small></label>
+            </div>
+          </section>
 
-        {activeTab === 'payments' && <form className="settings-panel" onSubmit={savePayments}>
-          <div className="settings-section-heading"><div><h2>Datos de cobro</h2><p>Información que tus socios utilizan para realizar transferencias.</p></div></div>
-          <div className="settings-grid">
-            {[
-              ['paymentAccountHolder', 'Titular de la cuenta'], ['paymentAlias', 'Alias'], ['paymentCbu', 'CBU'],
-              ['paymentTaxId', 'CUIL / CUIT'], ['paymentWhatsapp', 'WhatsApp para comprobantes'],
-            ].map(([field, fieldLabel]) => <label key={field}><span>{fieldLabel}</span><input value={payments[field]} onChange={e => setPayments({ ...payments, [field]: e.target.value })} /></label>)}
-          </div>
-          <div className="settings-actions"><span>Todos los campos son opcionales.</span><button className="settings-save" disabled={saving}><Save size={15} />{saving ? 'Guardando...' : 'Guardar cambios'}</button></div>
-        </form>}
+          <section className="settings-section">
+            <div className="settings-section-index">02</div>
+            <div className="settings-section-body">
+              <div className="settings-section-heading"><div><h2>Datos de contacto</h2><p>Información administrativa y formas de encontrar tu gimnasio.</p></div></div>
+              <div className="settings-grid">
+                <label className="settings-field"><span>Número de celular</span><span className="settings-icon-input"><Phone size={15} /><input value={profile.contactPhone} onChange={e => setProfile({ ...profile, contactPhone: e.target.value })} required /></span></label>
+                <label className="settings-field"><span>Mail secundario <small>Opcional</small></span><input type="email" value={profile.contactEmail} onChange={e => setProfile({ ...profile, contactEmail: e.target.value })} placeholder="administracion@tugym.com" /></label>
+                <label className="settings-field settings-field--full"><span>Ubicación del gimnasio <small>Opcional</small></span><span className="settings-icon-input"><MapPin size={15} /><input value={profile.location} onChange={e => setProfile({ ...profile, location: e.target.value })} placeholder="Dirección, ciudad o provincia" /></span></label>
+              </div>
+            </div>
+          </section>
 
-        {activeTab === 'kiosks' && <section className="settings-panel">
-          <div className="settings-section-heading"><div><h2>Dispositivos de ingreso</h2><p>Creá una credencial para cada recepción o punto de acceso.</p></div></div>
-          <form className="kiosk-form" onSubmit={createKiosk}><input value={label} onChange={e => setLabel(e.target.value)} placeholder="Ej. Recepción principal" /><button>Crear credencial</button></form>
-          {secret && <div className="kiosk-secret"><code>{activationUrl(secret)}</code><button onClick={copyKioskUrl}>Copiar URL</button></div>}
-          <ul className="kiosk-list">{kiosks.map(kiosk => <li key={kiosk.id}><span><i className={kiosk.active ? 'active' : ''} />{kiosk.label}<small>{kiosk.active ? 'Activa' : 'Revocada'}</small></span>{kiosk.active && <div><button onClick={() => rotate(kiosk.id)}>Rotar</button><button onClick={() => revoke(kiosk.id)}>Revocar</button></div>}</li>)}</ul>
-          {!kiosks.length && <div className="settings-empty"><MonitorSmartphone size={22} /><span>Todavía no hay dispositivos configurados.</span></div>}
-        </section>}
+          <section className="settings-section">
+            <div className="settings-section-index">03</div>
+            <div className="settings-section-body">
+              <div className="settings-section-heading"><div><h2>Datos del gimnasio</h2><p>Identidad que verán tu equipo y tus alumnos.</p></div><Building2 size={19} /></div>
+              <div className="settings-logo-row">
+                <div className="settings-logo-preview">{logoPreview ? <img src={logoPreview} alt={`Logo de ${profile.name}`} /> : <Building2 size={26} />}</div>
+                <div><strong>Logo del gimnasio</strong><small>PNG, JPG o WebP · Máximo 5 MB</small></div>
+                <button className="settings-logo-action" type="button" onClick={() => fileInput.current?.click()}><Camera size={14} /> {logo ? 'Cambiar archivo' : 'Cambiar logo'}</button>
+                <input ref={fileInput} className="settings-logo-input" type="file" accept="image/png,image/jpeg,image/webp" onChange={selectLogo} hidden />
+              </div>
+              <div className="settings-grid settings-grid--brand">
+                <label className="settings-field"><span>Nombre del gimnasio</span><input value={profile.name} onChange={e => setProfile({ ...profile, name: e.target.value })} required minLength="3" /></label>
+                <label className="settings-field"><span>Color principal</span><span className="settings-color"><input type="color" value={profile.primaryColor} onChange={e => setProfile({ ...profile, primaryColor: e.target.value })} /><b>{profile.primaryColor.toUpperCase()}</b></span></label>
+              </div>
+              <div className="settings-login-url">
+                <div><strong>Enlace de acceso para tus alumnos</strong><code>{gymLoginUrl(tenant?.slug)}</code></div>
+                <button type="button" onClick={copyLoginUrl}><Copy size={14} /> Copiar</button>
+                <a href={gymLoginUrl(tenant?.slug)} target="_blank" rel="noreferrer"><ExternalLink size={14} /> Abrir</a>
+              </div>
+
+              <div className="settings-subsection-heading"><CreditCard size={17} /><div><h3>Datos de cobro</h3><p>Estos datos les indican a tus alumnos dónde transferir sus cuotas.</p></div></div>
+              <div className="settings-grid">
+                {[
+                  ['paymentAccountHolder', 'Titular de la cuenta', 'Nombre y apellido o razón social'],
+                  ['paymentAlias', 'Alias', 'MI.GIMNASIO'], ['paymentCbu', 'CBU o CVU', '22 dígitos'],
+                  ['paymentTaxId', 'CUIL / CUIT', '20-12345678-9'],
+                  ['paymentWhatsapp', 'WhatsApp para comprobantes', '5493510000000'],
+                ].map(([field, label, placeholder]) => <label className={`settings-field ${field === 'paymentWhatsapp' ? 'settings-field--full' : ''}`} key={field}><span>{label} <small>Opcional</small></span><input value={payments[field]} placeholder={placeholder} onChange={e => setPayments({ ...payments, [field]: e.target.value })} /></label>)}
+              </div>
+            </div>
+          </section>
+
+          <footer className="settings-actions"><span>Los cambios se aplicarán a toda la cuenta.</span><button className="settings-save" disabled={saving}><Save size={16} />{saving ? 'Guardando...' : 'Guardar configuración'}</button></footer>
+        </form>
       </main>
     </div>
   );

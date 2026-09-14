@@ -1,5 +1,23 @@
 @import url(../../../variables.css);
 
+.ai-draft-notice {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    width: 90%;
+    max-width: 1000px;
+    margin: 0 auto 14px;
+    padding: 12px 14px;
+    border: 1px solid var(--primary-color);
+    border-radius: 10px;
+    background: var(--background-hover-color);
+    color: var(--text-color);
+}
+
+.ai-draft-notice svg { flex: none; color: var(--primary-color); }
+.ai-draft-notice div { display: flex; flex-direction: column; gap: 3px; }
+.ai-draft-notice span { color: var(--text-color-distinct); font-size: 13px; }
+
 .crear-rutina-layout {
     display: flex;
     align-items: flex-start;

@@ -242,6 +242,7 @@ const AdminInicio = () => {
           </button>
         </div>
 
+
         {/* ===================== FINANZAS ===================== */}
         <h3 className="dashboard-section-title">Finanzas <span className="month-label">({currentMonthName})</span></h3>
         <div className='admin-kpi-grid'>

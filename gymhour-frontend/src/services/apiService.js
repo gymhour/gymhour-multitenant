@@ -1,6 +1,7 @@
 import apiClient, { authClient } from '../axiosConfig';
 import { ATTENDANCE_REJECT_REASON, ATTENDANCE_STATUS } from '../types/attendanceTypes';
 import { getCurrentUserId } from '../authSession';
+import CLIENT_SETUP from '../setup';
 
 const isCurrentUser = id => Number(id) === Number(getCurrentUserId());
 
@@ -525,6 +526,73 @@ const sendChurnContactEmail = async ({ ID_Usuario, asunto, mensaje, plantilla })
     }
 }
 
+// Asistente IA
+const getAiHome = async () => {
+    try { return (await apiClient.get('/ai/home')).data; }
+    catch (error) { throw new Error(getApiErrorMessage(error, 'No pudimos cargar el inicio inteligente.')); }
+};
+
+const getAiConversations = async ({ page = 1, take = 20 } = {}) => {
+    try { return (await apiClient.get('/ai/conversations', { params: { page, take } })).data; }
+    catch (error) { throw new Error(getApiErrorMessage(error, 'No pudimos cargar tus conversaciones.')); }
+};
+
+const createAiConversation = async () => {
+    try { return (await apiClient.post('/ai/conversations')).data; }
+    catch (error) { throw new Error(getApiErrorMessage(error, 'No pudimos crear la conversación.')); }
+};
+
+const getAiConversation = async id => {
+    try { return (await apiClient.get(`/ai/conversations/${id}`)).data; }
+    catch (error) { throw new Error(getApiErrorMessage(error, 'No pudimos cargar la conversación.')); }
+};
+
+const deleteAiConversation = async id => {
+    try { await apiClient.delete(`/ai/conversations/${id}`); }
+    catch (error) { throw new Error(getApiErrorMessage(error, 'No pudimos eliminar la conversación.')); }
+};
+
+const getAiRoutineDraft = async messageId => {
+    try { return (await apiClient.get(`/ai/drafts/${messageId}`)).data; }
+    catch (error) { throw new Error(getApiErrorMessage(error, 'No pudimos cargar el borrador de rutina.')); }
+};
+
+const streamAiMessage = async ({ conversationId, content, signal, onEvent }) => {
+    const response = await fetch(`${CLIENT_SETUP.apiUrl}/ai/conversations/${conversationId}/messages`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${localStorage.getItem('token') || ''}` },
+        body: JSON.stringify({ content }), signal,
+    });
+    if (!response.ok || !response.body) {
+        let message = 'No pudimos consultar la IA.';
+        try { message = (await response.json())?.message || message; } catch { /* respuesta sin JSON */ }
+        throw new Error(message);
+    }
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+    const dispatch = frame => {
+        let event = 'message';
+        let data = null;
+        frame.split('\n').forEach(line => {
+            if (line.startsWith('event:')) event = line.slice(6).trim();
+            if (line.startsWith('data:')) {
+                try { data = JSON.parse(line.slice(5).trim()); } catch { data = null; }
+            }
+        });
+        if (data !== null) onEvent?.(event, data);
+    };
+    while (true) {
+        const { done, value } = await reader.read();
+        buffer += decoder.decode(value || new Uint8Array(), { stream: !done });
+        const frames = buffer.split('\n\n');
+        buffer = frames.pop() || '';
+        frames.filter(Boolean).forEach(dispatch);
+        if (done) break;
+    }
+    if (buffer.trim()) dispatch(buffer);
+};
+
 // Admin planes
 const getPlanes = async () => {
     try {
@@ -944,6 +1012,13 @@ export default {
     getKPIs,
     getChurnRisk,
     sendChurnContactEmail,
+    getAiHome,
+    getAiConversations,
+    createAiConversation,
+    getAiConversation,
+    deleteAiConversation,
+    getAiRoutineDraft,
+    streamAiMessage,
     // Planes
     getPlanes,
     postPlanes,

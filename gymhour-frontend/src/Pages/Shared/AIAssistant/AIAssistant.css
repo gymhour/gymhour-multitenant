@@ -1,0 +1,46 @@
+.ai-assistant-page {
+  height: 100vh;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.ai-assistant-content {
+  width: 100%;
+  height: 100vh;
+  max-width: 1500px;
+  box-sizing: border-box;
+  margin-inline: auto;
+}
+
+/* El chat ocupa el viewport, pero el menú debe poder recorrer todos sus enlaces. */
+.ai-assistant-page > .sidebar {
+  height: 100vh;
+  height: 100dvh;
+  min-height: 0;
+  box-sizing: border-box;
+}
+
+.ai-assistant-page > .sidebar .sidebar-menu {
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-right: 6px;
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--text-color) 20%, transparent) transparent;
+}
+
+.ai-assistant-page > .sidebar .sidebar-menu::-webkit-scrollbar {
+  width: 5px;
+}
+
+.ai-assistant-page > .sidebar .sidebar-menu::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--text-color) 20%, transparent);
+  border-radius: 999px;
+}
+
+@media (max-width: 760px) {
+  .ai-assistant-content {
+    padding: 80px 16px 12px;
+    height: 100dvh;
+  }
+}

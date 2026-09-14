@@ -9,9 +9,9 @@ import PrimaryButton from '../../../Components/utils/PrimaryButton/PrimaryButton
 import apiService from '../../../services/apiService';
 import { toast } from "react-toastify";
 import LoaderFullScreen from '../../../Components/utils/LoaderFullScreen/LoaderFullScreen.jsx';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import Select from 'react-select';
-import { Copy, Dumbbell, Table2, X } from 'lucide-react';
+import { Copy, Dumbbell, Sparkles, Table2, X } from 'lucide-react';
 import SecondaryButton from "../../../Components/utils/SecondaryButton/SecondaryButton.jsx";
 
 /* ================= Helpers ================= */
@@ -270,6 +270,7 @@ const convertApiBlockData = (b) => {
   const mappedSets = items.map((e) => {
     const nombreEj =
       e?.ejercicio?.nombre ??
+      e?.nuevoEjercicio?.nombre ??
       e?.nombre ??
       b?.nombreEj ??
       '';
@@ -285,7 +286,8 @@ const convertApiBlockData = (b) => {
       exercise: nombreEj,
       weight,
       placeholderExercise: '',
-      exerciseId: idEj || null
+      exerciseId: idEj || null,
+      aiSuggestedNew: Boolean(e?.nuevoEjercicio && !idEj)
     };
   });
 
@@ -414,6 +416,7 @@ const usuarioToOption = (usuario) => ({
 /* ================= Component ================= */
 const CrearRutina = ({ fromAdmin, fromEntrenador, fromAlumno }) => {
   const { rutinaId } = useParams();
+  const [searchParams] = useSearchParams();
   const isEditing = Boolean(rutinaId);
   const navigate = useNavigate();
 
@@ -428,6 +431,7 @@ const CrearRutina = ({ fromAdmin, fromEntrenador, fromAlumno }) => {
   const [selectedGrupoMuscular, setSelectedGrupoMuscular] = useState("");
   const [tipoRutina, setTipoRutina] = useState("clasica"); // "clasica" | "simple"
   const [urlPlanificacion, setUrlPlanificacion] = useState("");
+  const [aiDraftMessageId, setAiDraftMessageId] = useState(null);
   const gruposMusculares = [
     "Pecho", "Espalda", "Piernas", "Brazos", "Hombros",
     "Abdominales", "Glúteos", "Tren Superior", "Tren Inferior",
@@ -615,6 +619,51 @@ const CrearRutina = ({ fromAdmin, fromEntrenador, fromAlumno }) => {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isEditing, canAssign]);
+
+  useEffect(() => {
+    const draftId = Number(searchParams.get('aiDraft'));
+    if (isEditing || !canAssign || !Number.isInteger(draftId) || draftId < 1) return;
+    let active = true;
+    const loadDraft = async () => {
+      setLoading(true);
+      try {
+        const result = await apiService.getAiRoutineDraft(draftId);
+        const draft = result?.draft;
+        if (!draft || draft.version !== 1) throw new Error('La versión del borrador no es compatible.');
+        const student = await apiService.getUserById(draft.ID_Usuario);
+        if (!active) return;
+        setAiDraftMessageId(draftId);
+        setTipoRutina('clasica');
+        setFormData({ nombre: draft.nombre || '', descripcion: draft.desc || '' });
+        setSelectedClase(draft.claseRutina || '');
+        setSelectedGrupoMuscular(draft.grupoMuscularRutina || '');
+        setSelectedUserOptions([usuarioToOption({ ...student, ID_Usuario: student.ID_Usuario || student.id || draft.ID_Usuario })]);
+        const loadedDays = Object.keys(draft.dias || {}).sort().map((key, dayIndex) => {
+          const day = draft.dias[key] || {};
+          return {
+            key: `dia${dayIndex + 1}`,
+            nombre: day.nombre || '',
+            descripcion: day.descripcion || '',
+            blocks: (day.bloques || []).map((block, blockIndex) => ({
+              id: Date.now() + dayIndex * 100 + blockIndex,
+              type: apiToDisplayType[block.type] || block.type,
+              data: convertApiBlockData(block),
+            })),
+          };
+        });
+        setIsWeekly(false);
+        setDays(loadedDays.length ? loadedDays : [{ key: 'dia1', nombre: '', descripcion: '', blocks: [] }]);
+        setActiveDayIndex(0);
+        toast.info('Borrador de IA cargado. Revisalo antes de asignarlo.');
+      } catch (error) {
+        toast.error(error.message || 'No se pudo cargar el borrador de IA.');
+      } finally {
+        if (active) setLoading(false);
+      }
+    };
+    loadDraft();
+    return () => { active = false; };
+  }, [canAssign, isEditing, searchParams]);
 
   /* Restoring selectedUserId for JSX usage */
   const selectedUserId = useMemo(() => {
@@ -1592,6 +1641,7 @@ const CrearRutina = ({ fromAdmin, fromEntrenador, fromAlumno }) => {
       desc: formData.descripcion,
       claseRutina: selectedClase,
       grupoMuscularRutina: selectedGrupoMuscular,
+      ...(aiDraftMessageId ? { aiDraftMessageId } : {}),
     };
 
     if (isWeekly) {
@@ -1729,6 +1779,11 @@ const CrearRutina = ({ fromAdmin, fromEntrenador, fromAlumno }) => {
     return assignedInfoUserOptions.find(option => Number(option.value) === Number(selectedUserId))?.usuario || null;
   }, [assignedInfoUserOptions, canAssign, selectedUserId]);
 
+  const aiNewExerciseCount = useMemo(() => days.reduce((total, day) => total + (day.blocks || []).reduce(
+    (blockTotal, block) => blockTotal + (block.data?.setsReps || []).filter(item => item.aiSuggestedNew).length,
+    0
+  ), 0), [days]);
+
   /* ================= Render ================= */
   return (
     <div className='page-layout'>
@@ -1780,6 +1835,16 @@ const CrearRutina = ({ fromAdmin, fromEntrenador, fromAlumno }) => {
               />
             )}
           </div>
+
+          {aiDraftMessageId && (
+            <div className="ai-draft-notice">
+              <Sparkles size={18} />
+              <div>
+                <strong>Borrador generado con IA</strong>
+                <span>Revisá días, cargas y restricciones antes de asignarlo.{aiNewExerciseCount ? ` Hay ${aiNewExerciseCount} ejercicio(s) nuevo(s) para validar.` : ''}</span>
+              </div>
+            </div>
+          )}
 
           {/* STEP 1 */}
           {step === 1 && (

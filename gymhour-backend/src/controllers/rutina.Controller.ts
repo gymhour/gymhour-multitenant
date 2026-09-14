@@ -3,6 +3,7 @@ import { respondError, respondUnexpected } from "../services/apiError.service.js
 import { Request, Response } from "express";
 import prisma from "../models/Prisma.js";
 import { getImageUrl, getMedicalRecordUrl } from '../services/cloudinary.service.js';
+import { getRoutineDraft, markRoutineDraftUsed } from '../services/aiAssistant.service.js';
 
 const parseIdList = (value: unknown): number[] => {
     if (!Array.isArray(value)) return [];
@@ -1469,6 +1470,7 @@ export const createRutinaWithBlocks = async (req: Request, res: Response): Promi
             grupoMuscularRutina,
             usuariosAsignados,
             gruposAsignados,
+            aiDraftMessageId,
             dias: diasObj,       // opcional: { lun: { nombre, descripcion, bloques: [...] }, ... }
             semanas: semanasObj  // opcional: { s1: { nombre, numero, dias: { lun: {...}, mar: {...} } }, ... }
         } = req.body;
@@ -1513,6 +1515,15 @@ export const createRutinaWithBlocks = async (req: Request, res: Response): Promi
         if (!ID_Usuario && !Array.isArray(usuariosAsignados)) {
             res.status(400).json({ message: "Elegí al menos un usuario para asignar." });
             return;
+        }
+
+        if (aiDraftMessageId !== undefined) {
+            const draftId = Number(aiDraftMessageId);
+            if (!Number.isInteger(draftId) || !req.user?.id) {
+                res.status(400).json({ message: 'El borrador de IA no es válido.' });
+                return;
+            }
+            await getRoutineDraft(draftId, req.user.id);
         }
 
         // 1) Crear rutina padre
@@ -1829,6 +1840,15 @@ export const createRutinaWithBlocks = async (req: Request, res: Response): Promi
             ...mapAsignacionesRutina(rutinaFull)
         };
 
+        if (aiDraftMessageId !== undefined && req.user?.id) {
+            try {
+                await markRoutineDraftUsed(Number(aiDraftMessageId), req.user.id, rutinaFull.ID_Rutina);
+            } catch (draftError) {
+                // The routine is already persisted; a metadata failure must not turn
+                // a successful creation into a misleading 500 response.
+                console.error('No se pudo marcar el borrador de IA como utilizado:', draftError);
+            }
+        }
         res.status(201).json({ message: "Rutina creada exitosamente", rutina: rutinaResp });
         return;
     } catch (error: any) {

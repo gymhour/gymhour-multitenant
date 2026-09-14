@@ -28,8 +28,10 @@ import {
   AlertTriangle,
   TrendingDown,
   UserPlus,
+  Sparkles,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  KeyRound
 } from 'lucide-react';
 
 
@@ -187,6 +189,14 @@ const SidebarMenu = ({ isAdmin, isEntrenador }) => {
                     <li className="menu-item" title="Inicio">
                       <Home className="icon" />{" "}
                       Inicio
+                    </li>
+                  </Link>
+                  <Link
+                    to="/admin/asistente-ia"
+                    className={`menu-link ${location.pathname === "/admin/asistente-ia" ? "active" : ""}`}
+                  >
+                    <li className="menu-item" title="Asistente IA">
+                      <Sparkles className="icon" /> Asistente IA
                     </li>
                   </Link>
                   <Link
@@ -367,6 +377,14 @@ const SidebarMenu = ({ isAdmin, isEntrenador }) => {
                         <Home className="icon" /> Inicio
                       </li>
                     </Link>
+                    <Link
+                      to="/entrenador/asistente-ia"
+                      className={`menu-link ${location.pathname === "/entrenador/asistente-ia" ? "active" : ""}`}
+                    >
+                      <li className="menu-item" title="Asistente IA">
+                        <Sparkles className="icon" /> Asistente IA
+                      </li>
+                    </Link>
                     {/* <Link
                       to="/entrenador/turnos"
                       className={`menu-link ${location.pathname === "/entrenador/turnos"
@@ -464,6 +482,14 @@ const SidebarMenu = ({ isAdmin, isEntrenador }) => {
                         <li className="menu-item">
                           <Home className="icon" />{" "}
                           Inicio
+                        </li>
+                      </Link>
+                      <Link
+                        to="/alumno/asistente-ia"
+                        className={`menu-link ${location.pathname === "/alumno/asistente-ia" ? "active" : ""}`}
+                      >
+                        <li className="menu-item" title="Asistente IA">
+                          <Sparkles className="icon" /> Asistente IA
                         </li>
                       </Link>
                       <Link
@@ -592,7 +618,7 @@ const SidebarMenu = ({ isAdmin, isEntrenador }) => {
                   }`}
               >
                 <li className="menu-item">
-                  <Settings className="icon" /> Cambiar contraseña
+                  <KeyRound className="icon" /> Cambiar contraseña
                 </li>
               </Link>
 

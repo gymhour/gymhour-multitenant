@@ -49,6 +49,7 @@ import Gastos from './Pages/Admin/Gastos/Gastos';
 import UserMyAttendancesPage from './Pages/Alumno/MisAsistencias/UserMyAttendancesPage';
 import PublicCheckInPage from './Pages/Public/CheckIn/PublicCheckInPage';
 import TenantSettings from './Pages/Admin/TenantSettings/TenantSettings';
+import AIAssistant from './Pages/Shared/AIAssistant/AIAssistant';
 import React, { useState, useEffect } from 'react';
 
 function App() {
@@ -103,6 +104,13 @@ function App() {
           element={
             <ProtectedRoute>
               <AdminInicio />
+            </ProtectedRoute>
+          }
+        />
+        <Route path="/admin/asistente-ia"
+          element={
+            <ProtectedRoute roles={['ADMIN']}>
+              <AIAssistant role="ADMIN" />
             </ProtectedRoute>
           }
         />
@@ -312,6 +320,13 @@ function App() {
             </ProtectedRoute>
           }
         />
+        <Route path="/entrenador/asistente-ia"
+          element={
+            <ProtectedRoute roles={['TRAINER']}>
+              <AIAssistant role="TRAINER" />
+            </ProtectedRoute>
+          }
+        />
         <Route path="/entrenador/turnos"
           element={
             <ProtectedRoute>
@@ -430,6 +445,13 @@ function App() {
           element={
             <ProtectedRoute>
               <AlumnoInicio />
+            </ProtectedRoute>
+          }
+        />
+        <Route path="/alumno/asistente-ia"
+          element={
+            <ProtectedRoute roles={['STUDENT']}>
+              <AIAssistant role="STUDENT" />
             </ProtectedRoute>
           }
         />

@@ -10,10 +10,12 @@
     "build": "prisma generate && tsc",
     "start": "node dist/server.js",
     "migrate:deploy": "prisma migrate deploy",
+    "prisma:migrate": "prisma migrate deploy",
     "seed": "node prisma/seed.js",
     "test": "vitest run",
     "test:watch": "vitest",
-    "audit:tenant": "node scripts/auditTenantIsolation.mjs"
+    "audit:tenant": "node scripts/auditTenantIsolation.mjs",
+    "ai:tenant": "node scripts/configureAiTenant.mjs"
   },
   "prisma": {
     "seed": "node prisma/seed.js"
@@ -53,6 +55,7 @@
     "multer": "^1.4.5-lts.1",
     "node-cron": "^4.2.1",
     "nodemailer": "^6.10.1",
+    "openai": "^6.16.0",
     "swagger-ui-express": "^5.0.1"
   }
 }

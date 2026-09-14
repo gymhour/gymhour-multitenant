@@ -43,7 +43,8 @@ export const TENANT_MODELS = new Set([
     'GrupoUsuario', 'GrupoUsuarioMiembro', 'RutinaAsignacionUsuario',
     'RutinaAsignacionGrupo', 'RutinaDia', 'Semana', 'Bloque', 'Ejercicio',
     'BloqueEjercicio', 'EjercicioMedicion', 'HistoricoEjercicio', 'Asistencia',
-    'MediaAsset', 'TenantKioskCredential', 'TenantSettings'
+    'MediaAsset', 'TenantKioskCredential', 'TenantSettings', 'AiConversation',
+    'AiMessage'
 ]);
 
 const WHERE_OPERATIONS = new Set([
@@ -65,19 +66,19 @@ export const tenantizeNestedWrites = (value: unknown, tenantId: number): unknown
     const object = value as Record<string, any>;
     for (const [key, nested] of Object.entries(object)) {
         if (key === 'create') {
-            object[key] = tenantizeCreateData(nested, tenantId);
+            object[key] = tenantizeNestedCreateData(nested, tenantId);
         } else if (key === 'createMany' && nested && typeof nested === 'object') {
             const createMany = nested as Record<string, any>;
-            createMany.data = tenantizeCreateData(createMany.data, tenantId);
+            createMany.data = tenantizeNestedCreateData(createMany.data, tenantId);
         } else if (key === 'connectOrCreate' && nested && typeof nested === 'object') {
             const entries = Array.isArray(nested) ? nested : [nested];
             for (const entry of entries) {
-                if (entry?.create) entry.create = tenantizeCreateData(entry.create, tenantId);
+                if (entry?.create) entry.create = tenantizeNestedCreateData(entry.create, tenantId);
             }
         } else if (key === 'upsert' && nested && typeof nested === 'object') {
             const entries = Array.isArray(nested) ? nested : [nested];
             for (const entry of entries) {
-                if (entry?.create) entry.create = tenantizeCreateData(entry.create, tenantId);
+                if (entry?.create) entry.create = tenantizeNestedCreateData(entry.create, tenantId);
                 if (entry?.update) entry.update = tenantizeNestedWrites(entry.update, tenantId);
             }
         } else if (nested && typeof nested === 'object') {
@@ -86,6 +87,21 @@ export const tenantizeNestedWrites = (value: unknown, tenantId: number): unknown
     }
     return object;
 };
+
+function tenantizeNestedCreateData(value: unknown, tenantId: number): unknown {
+    if (Array.isArray(value)) return value.map(item => tenantizeNestedCreateData(item, tenantId));
+    if (!value || typeof value !== 'object') return value;
+
+    const data = value as Record<string, any>;
+    assertTenantValue(data.tenantId, tenantId);
+    delete data.tenantId;
+
+    const connectedTenantId = data.tenant?.connect?.id;
+    assertTenantValue(connectedTenantId, tenantId);
+    delete data.tenant;
+
+    return tenantizeNestedWrites(data, tenantId);
+}
 
 function tenantizeCreateData(value: unknown, tenantId: number): unknown {
     if (Array.isArray(value)) return value.map(item => tenantizeCreateData(item, tenantId));
