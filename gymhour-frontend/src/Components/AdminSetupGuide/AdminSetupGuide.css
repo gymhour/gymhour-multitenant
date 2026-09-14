@@ -1,0 +1,37 @@
+.admin-setup-guide { margin: 26px 0 36px; padding: 26px 28px 18px; border: 1px solid var(--border-color); border-radius: 12px; background: var(--background-color); color: var(--text-color); }
+.admin-setup-guide__header { display: flex; justify-content: space-between; align-items: flex-start; gap: 24px; }
+.admin-setup-guide__eyebrow { color: var(--primary-color); font-size: 11px; font-weight: 600; letter-spacing: .11em; text-transform: uppercase; }
+.admin-setup-guide__header h2 { margin: 6px 0; font-size: 24px; font-weight: 500; letter-spacing: -.03em; }
+.admin-setup-guide__header p { margin: 0; color: var(--text-color-distinct); font-size: 13px; line-height: 1.5; }
+.admin-setup-guide__dismiss { display: inline-flex; align-items: center; gap: 5px; flex: none; padding: 4px 0; border: 0; background: transparent; color: var(--text-color-distinct); cursor: pointer; font: inherit; font-size: 12px; }
+.admin-setup-guide__dismiss:hover:not(:disabled) { color: var(--primary-color); }
+.admin-setup-guide__dismiss:disabled { cursor: wait; opacity: .6; }
+.admin-setup-guide__progress-row { display: flex; justify-content: space-between; margin-top: 22px; color: var(--text-color-distinct); font-size: 12px; }
+.admin-setup-guide__progress-row strong { color: var(--text-color); font-weight: 500; }
+.admin-setup-guide__progress { height: 4px; margin: 8px 0 15px; overflow: hidden; border-radius: 999px; background: var(--border-color); }
+.admin-setup-guide__progress span { display: block; height: 100%; border-radius: inherit; background: var(--primary-color); transition: width .25s ease; }
+.admin-setup-guide__toggle { display: flex; width: 100%; align-items: center; justify-content: space-between; padding: 12px 0 4px; border: 0; border-top: 1px solid var(--border-color); background: transparent; color: var(--text-color); cursor: pointer; font: inherit; font-size: 13px; font-weight: 500; text-align: left; }
+.admin-setup-guide__toggle svg { color: var(--text-color-distinct); transition: transform .2s ease; }
+.admin-setup-guide__toggle svg.is-open { transform: rotate(180deg); }
+.admin-setup-guide__steps { margin: 12px 0 0; padding: 0; border-top: 1px solid var(--border-color); list-style: none; }
+.admin-setup-guide__steps li { display: grid; grid-template-columns: 28px minmax(0, 1fr); gap: 12px; padding: 17px 2px; }
+.admin-setup-guide__steps li + li { border-top: 1px solid var(--border-color); }
+.admin-setup-guide__steps li.is-complete { opacity: .62; }
+.admin-setup-guide__status { display: grid; width: 24px; height: 24px; place-items: center; border: 1px solid var(--border-color); border-radius: 50%; color: var(--text-color-distinct); font-size: 11px; }
+.admin-setup-guide__steps li.is-current .admin-setup-guide__status { border-color: var(--primary-color); color: var(--primary-color); }
+.admin-setup-guide__steps li.is-complete .admin-setup-guide__status { border-color: #22c55e; background: #22c55e; color: #fff; }
+.admin-setup-guide__copy h3 { margin: 2px 0 9px; font-size: 14px; font-weight: 600; }
+.admin-setup-guide__action { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 20px; }
+.admin-setup-guide__action + .admin-setup-guide__action { margin-top: 11px; padding-top: 11px; border-top: 1px dashed var(--border-color); }
+.admin-setup-guide__action p, .admin-setup-guide__done { margin: 0; color: var(--text-color-distinct); font-size: 13px; line-height: 1.45; }
+.admin-setup-guide__action a { color: var(--primary-color); font-size: 13px; font-weight: 600; text-decoration: none; white-space: nowrap; }
+.admin-setup-guide__action a:hover { text-decoration: underline; text-underline-offset: 3px; }
+.admin-setup-guide__toggle:focus-visible, .admin-setup-guide__action a:focus-visible, .admin-setup-guide__dismiss:focus-visible { outline: 2px solid var(--primary-color); outline-offset: 3px; }
+
+@media (max-width: 760px) {
+  .admin-setup-guide { padding: 21px 18px 15px; }
+  .admin-setup-guide__header { flex-direction: column; gap: 11px; }
+  .admin-setup-guide__header h2 { font-size: 22px; }
+  .admin-setup-guide__action { grid-template-columns: 1fr; gap: 7px; }
+  .admin-setup-guide__action a { justify-self: start; }
+}

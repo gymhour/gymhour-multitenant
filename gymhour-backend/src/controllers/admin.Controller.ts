@@ -11,8 +11,47 @@ import { sendRetencionEmail } from '../services/email.service.js';
 const monthKeyUTC = (d: Date): string =>
     `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`;
 
+const getSetupGuideStatus = async () => {
+    const [planCount, studentCount, studentWithPlanCount, routineCount, assignedRoutineCount, quotaCount, paidQuotaCount] = await Promise.all([
+        prisma.plan.count(),
+        prisma.user.count({ where: { role: 'STUDENT' } }),
+        prisma.user.count({ where: { role: 'STUDENT', ID_Plan: { not: null } } }),
+        prisma.rutina.count(),
+        prisma.rutina.count({
+            where: {
+                OR: [
+                    { asignacionesUsuarios: { some: {} } },
+                    { asignacionesGrupos: { some: { grupoUsuario: { miembros: { some: {} } } } } },
+                    // Compatibilidad con rutinas asignadas antes de las tablas de asignación.
+                    { ID_Entrenador: { not: null } },
+                ],
+            },
+        }),
+        prisma.cuota.count(),
+        prisma.cuota.count({ where: { pagada: true } }),
+    ]);
+
+    const steps = {
+        plan: planCount > 0,
+        members: studentWithPlanCount > 0,
+        routine: assignedRoutineCount > 0,
+        quotas: quotaCount > 0,
+        payment: paidQuotaCount > 0,
+    };
+    const completedSteps = Object.values(steps).filter(Boolean).length;
+
+    return {
+        totalSteps: 5,
+        completedSteps,
+        isComplete: completedSteps === 5,
+        isOperationallyEmpty: planCount === 0 && studentCount === 0 && routineCount === 0 && quotaCount === 0,
+        steps,
+    };
+};
+
 export const getDashboardStats = async (req: Request, res: Response): Promise<void> => {
     try {
+        const setupGuide = await getSetupGuideStatus();
         // 1) Cantidad total de clientes activos/inactivos
         const [totalActiveUsers, totalInactiveUsers] = await Promise.all([
             prismaU.count({ where: { estado: true, role: 'STUDENT' } }),
@@ -186,9 +225,50 @@ export const getDashboardStats = async (req: Request, res: Response): Promise<vo
             membershipHistory,
             bajasPorMotivo,
             altasPorMotivo,
+            setupGuide,
         });
     } catch (error: any) {
         respondUnexpected(res, error, "cargar las estadísticas");
+    }
+};
+
+export const updateSetupGuidePreference = async (req: Request, res: Response): Promise<void> => {
+    if (typeof req.body?.dismissed !== 'boolean') {
+        res.status(400).json({ message: "'dismissed' debe ser verdadero o falso." });
+        return;
+    }
+
+    try {
+        const setupGuideDismissedAt = req.body.dismissed ? new Date() : null;
+        await prisma.user.update({
+            where: { ID_Usuario: req.user!.id },
+            data: { setupGuideDismissedAt },
+        });
+        res.json({ setupGuideDismissedAt });
+    } catch (error) {
+        respondUnexpected(res, error, 'actualizar la preferencia de la guía de inicio');
+    }
+};
+
+export const completeSetupGuide = async (req: Request, res: Response): Promise<void> => {
+    try {
+        const status = await getSetupGuideStatus();
+        if (!status.isComplete) {
+            res.status(409).json({ message: 'Todavía hay pasos pendientes en la guía de inicio.', setupGuide: status });
+            return;
+        }
+
+        const current = await prisma.tenantSettings.findUnique({ where: { tenantId: req.tenant!.id } });
+        const completedAt = current?.setupGuideCompletedAt || new Date();
+        if (!current?.setupGuideCompletedAt) {
+            await prisma.tenantSettings.update({
+                where: { tenantId: req.tenant!.id },
+                data: { setupGuideCompletedAt: completedAt },
+            });
+        }
+        res.json({ setupGuideCompletedAt: completedAt });
+    } catch (error) {
+        respondUnexpected(res, error, 'completar la guía de inicio');
     }
 };
 
@@ -263,5 +343,7 @@ export const sendChurnContactEmail = async (req: Request, res: Response): Promis
 export const adminMethods = {
     getDashboardStats,
     getChurnRisk,
-    sendChurnContactEmail
+    sendChurnContactEmail,
+    updateSetupGuidePreference,
+    completeSetupGuide,
 }

@@ -752,6 +752,35 @@ export const swaggerDocument = {
         }
       }
     },
+    "/admin/setup-guide/preference": {
+      "patch": {
+        "tags": ["Admin Dashboard"],
+        "summary": "Ocultar o restaurar la guía de inicio para el administrador actual",
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": {
+            "type": "object", "required": ["dismissed"],
+            "properties": { "dismissed": { "type": "boolean" } }
+          } } }
+        },
+        "responses": {
+          "200": { "description": "Preferencia actualizada." },
+          "400": { "description": "Preferencia inválida." }
+        }
+      }
+    },
+    "/admin/setup-guide/complete": {
+      "post": {
+        "tags": ["Admin Dashboard"],
+        "summary": "Cerrar definitivamente la guía cuando los cinco pasos estén completos",
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": { "description": "Guía completada de forma idempotente." },
+          "409": { "description": "Todavía existen pasos pendientes." }
+        }
+      }
+    },
     "/planes": {
       "get": {
         "tags": ["Planes"],

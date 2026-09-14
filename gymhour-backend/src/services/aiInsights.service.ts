@@ -125,7 +125,11 @@ export async function getAiHome(role: TenantRole, userId: number) {
   });
   const insights = role === 'STUDENT' ? [] : await getAiInsights(role);
   const fixed = role === 'ADMIN'
-    ? ['¿Cómo está el gimnasio este mes?', '¿Cuánto ingresamos y gastamos?', '¿Quiénes tienen cuotas vencidas?']
+    ? [
+      '🏋️ Creá una rutina para un socio según sus objetivos y nivel.',
+      '📊 ¿Cuál es el estado actual del gimnasio?',
+      '🚀 ¿Qué promociones puedo lanzar para conseguir más socios y hacer crecer el gimnasio?',
+    ]
     : role === 'TRAINER'
       ? ['¿Qué alumnos necesitan seguimiento?', '¿Quiénes no tienen rutina?', 'Creá una rutina para un alumno']
       : ['Ayudame a organizar mi semana de entrenamiento', '¿Cómo puedo sostener el hábito de entrenar?', 'Explicame cómo usar Gymhour'];

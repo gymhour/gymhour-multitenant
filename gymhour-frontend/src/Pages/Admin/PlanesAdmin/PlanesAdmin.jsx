@@ -10,8 +10,10 @@ import LoaderFullScreen from '../../../Components/utils/LoaderFullScreen/LoaderF
 import ConfirmationPopup from '../../../Components/utils/ConfirmationPopUp/ConfirmationPopUp'
 import { toast } from 'react-toastify'
 import EmptyState from '../../../Components/utils/EmptyState/EmptyState'
+import { useSearchParams } from 'react-router-dom'
 
 const PlanesAdmin = () => {
+  const [searchParams, setSearchParams] = useSearchParams()
   const [planes, setPlanes] = useState([])
   const [loading, setLoading] = useState(false)
   const [showModal, setShowModal] = useState(false)
@@ -54,6 +56,16 @@ const PlanesAdmin = () => {
     setRequiereTurno(true)
     setShowModal(true)
   }
+
+  useEffect(() => {
+    if (searchParams.get('action') !== 'create') return
+    handleCreate()
+    const next = new URLSearchParams(searchParams)
+    next.delete('action')
+    setSearchParams(next, { replace: true })
+    // El parámetro es una orden de navegación que debe consumirse una sola vez.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   // Abrir modal para editar
   const handleEdit = (plan) => {

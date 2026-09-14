@@ -26,6 +26,12 @@
 .settings-field input { width: 100%; height: 46px; padding: 11px 13px; box-sizing: border-box; color: var(--text-color); background: var(--background-color-distinct); border: 1px solid var(--border-color); border-radius: 10px; outline: none; font: inherit; font-size: 14px; font-weight: 400; transition: border-color .15s ease; }
 .settings-field input::placeholder { color: var(--text-color-distinct); opacity: .55; }
 .settings-field input:focus { border-color: var(--primary-color); }
+.settings-guide-row { display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 18px; border: 1px solid var(--border-color); border-radius: 10px; background: var(--background-color-distinct); }
+.settings-guide-row > div { display: flex; flex-direction: column; gap: 5px; }
+.settings-guide-row strong { font-size: 14px; font-weight: 600; }
+.settings-guide-row small { color: var(--text-color-distinct); font-size: 13px; }
+.settings-guide-row button { display: inline-flex; align-items: center; gap: 7px; flex: none; padding: 10px 13px; border: 1px solid var(--primary-color); border-radius: 8px; background: transparent; color: var(--primary-color); cursor: pointer; font: inherit; font-size: 13px; font-weight: 600; }
+.settings-guide-row button:disabled { border-color: var(--border-color); color: var(--text-color-distinct); cursor: not-allowed; opacity: .65; }
 .settings-readonly input { color: var(--text-color-distinct); cursor: not-allowed; }
 .settings-icon-input { position: relative; display: flex; align-items: center; }
 .settings-icon-input > svg { position: absolute; left: 13px; z-index: 1; color: var(--text-color-distinct); }
@@ -80,6 +86,8 @@
   .settings-login-url { align-items: stretch; flex-wrap: wrap; }
   .settings-login-url > div { flex-basis: 100%; }
   .settings-login-url button, .settings-login-url a { flex: 1; justify-content: center; }
+  .settings-guide-row { align-items: stretch; flex-direction: column; }
+  .settings-guide-row button { justify-content: center; }
   .settings-actions { align-items: stretch; flex-direction: column; padding: 20px; }
   .settings-actions > span { text-align: center; }
   .settings-save { width: 100%; }

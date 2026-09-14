@@ -8,6 +8,7 @@ export interface AuthenticatedUser {
   email: string;
   role: TenantRole;
   authVersion: number;
+  setupGuideDismissedAt: Date | null;
 }
 
 export interface AuthenticatedTenant {

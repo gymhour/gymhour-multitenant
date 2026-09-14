@@ -93,6 +93,7 @@ model TenantSettings {
   timezone             String   @default("America/Argentina/Cordoba")
   currency             String   @default("ARS")
   onboardingCompleted  Boolean  @default(true)
+  setupGuideCompletedAt DateTime?
   logoPublicId         String?
   primaryColor         String   @default("#DA4632") @db.VarChar(7)
   contactPhone         String?
@@ -164,6 +165,7 @@ model User {
   tenantId           Int                       @default(0)
   role               TenantRole                @default(STUDENT)
   authVersion        Int                       @default(0)
+  setupGuideDismissedAt DateTime?
   tenant             Tenant                    @relation(fields: [tenantId], references: [id], onDelete: Restrict)
   fechaRegistro      DateTime?                 @default(now())
   fechaBaja          DateTime?

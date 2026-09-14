@@ -109,7 +109,7 @@ const formatConflictFecha = (iso) => {
 };
 
 const CuotasUsuarios = ({fromAdmin, fromEntrenador}) => {
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const searchParamsString = searchParams.toString();
   const initialUrlFilters = useMemo(
     () => getCuotasFiltersFromSearch(new URLSearchParams(searchParamsString)),
@@ -125,6 +125,16 @@ const CuotasUsuarios = ({fromAdmin, fromEntrenador}) => {
   // — Estados de popup de crear/eliminar/pagar cuota —
   const [showModal, setShowModal] = useState(false);
   const [showBulkModal, setShowBulkModal] = useState(false);
+
+  useEffect(() => {
+    if (searchParams.get('action') !== 'generate') return;
+    setShowBulkModal(true);
+    const next = new URLSearchParams(searchParams);
+    next.delete('action');
+    setSearchParams(next, { replace: true });
+    // El parámetro es una orden de navegación que debe consumirse una sola vez.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const [popupOpen, setPopupOpen] = useState(false);
   const [actionType, setActionType] = useState(''); // 'pay' | 'delete' | 'bulk-delete'
   const [selectedCuota, setSelectedCuota] = useState(null);

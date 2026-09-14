@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Building2, Camera, Copy, CreditCard, ExternalLink, Mail, MapPin, Phone, Save, ShieldCheck } from 'lucide-react';
+import { BookOpen, Building2, Camera, Copy, CreditCard, ExternalLink, Mail, MapPin, Phone, RotateCcw, Save, ShieldCheck } from 'lucide-react';
 import { toast } from 'react-toastify';
+import { useNavigate } from 'react-router-dom';
 import SidebarMenu from '../../../Components/SidebarMenu/SidebarMenu';
 import { useAuth } from '../../../context/AuthContext';
 import apiService from '../../../services/apiService';
@@ -9,9 +10,11 @@ import './TenantSettings.css';
 const gymLoginUrl = slug => `${window.location.origin}/${slug}/login`;
 
 const TenantSettings = () => {
+  const navigate = useNavigate();
   const { tenant, user, refresh } = useAuth();
   const fileInput = useRef(null);
   const [saving, setSaving] = useState(false);
+  const [restoringGuide, setRestoringGuide] = useState(false);
   const [logo, setLogo] = useState(null);
   const [logoPreview, setLogoPreview] = useState(tenant?.settings?.logoUrl || '');
   const [profile, setProfile] = useState({
@@ -57,6 +60,23 @@ const TenantSettings = () => {
     await navigator.clipboard.writeText(gymLoginUrl(tenant.slug));
     toast.success('Enlace de acceso copiado.');
   };
+
+  const restoreSetupGuide = async () => {
+    setRestoringGuide(true);
+    try {
+      await apiService.setSetupGuideDismissed(false);
+      await refresh();
+      toast.success('La guía vuelve a estar disponible en Inicio.');
+      navigate('/admin/inicio');
+    } catch (error) {
+      toast.error(error?.message || 'No pudimos restaurar la guía.');
+    } finally {
+      setRestoringGuide(false);
+    }
+  };
+
+  const setupComplete = Boolean(tenant?.settings?.setupGuideCompletedAt);
+  const setupDismissed = Boolean(user?.setupGuideDismissedAt);
 
   return (
     <div className="tenant-settings-page">
@@ -115,6 +135,25 @@ const TenantSettings = () => {
                   ['paymentTaxId', 'CUIL / CUIT', '20-12345678-9'],
                   ['paymentWhatsapp', 'WhatsApp para comprobantes', '5493510000000'],
                 ].map(([field, label, placeholder]) => <label className={`settings-field ${field === 'paymentWhatsapp' ? 'settings-field--full' : ''}`} key={field}><span>{label} <small>Opcional</small></span><input value={payments[field]} placeholder={placeholder} onChange={e => setPayments({ ...payments, [field]: e.target.value })} /></label>)}
+              </div>
+            </div>
+          </section>
+
+          <section className="settings-section">
+            <div className="settings-section-index">04</div>
+            <div className="settings-section-body">
+              <div className="settings-section-heading">
+                <div><h2>Guía de inicio</h2><p>Recuperá el acompañamiento para terminar de configurar la operación de Gymhour.</p></div>
+                <BookOpen size={19} />
+              </div>
+              <div className="settings-guide-row">
+                <div>
+                  <strong>{setupComplete ? 'Configuración inicial completada' : setupDismissed ? 'La guía está oculta' : 'La guía está visible'}</strong>
+                  <small>{setupComplete ? 'El recorrido ya fue completado para este gimnasio.' : 'La guía se muestra en Inicio mientras existan pasos pendientes.'}</small>
+                </div>
+                <button type="button" onClick={restoreSetupGuide} disabled={setupComplete || !setupDismissed || restoringGuide}>
+                  <RotateCcw size={15} /> {restoringGuide ? 'Restaurando…' : 'Mostrar guía en Inicio'}
+                </button>
               </div>
             </div>
           </section>

@@ -28,14 +28,18 @@ import PrimaryButton from '../../../Components/utils/PrimaryButton/PrimaryButton
 import SecondaryButton from '../../../Components/utils/SecondaryButton/SecondaryButton';
 import { ChevronDown, ChevronUp, Download, SlidersHorizontal } from 'lucide-react';
 import { useAuth } from '../../../context/AuthContext';
+import AdminSetupGuide from '../../../Components/AdminSetupGuide/AdminSetupGuide';
 
 const POSITIVE = '#22c55e';
 const NEGATIVE = '#e5484d';
 
 const AdminInicio = () => {
   const navigate = useNavigate();
-  const { tenant } = useAuth();
+  const { tenant, user, refresh } = useAuth();
   const [loading, setLoading] = useState(false);
+  const [setupGuide, setSetupGuide] = useState(null);
+  const [dismissingGuide, setDismissingGuide] = useState(false);
+  const completionRequestedRef = useRef(false);
 
   const [kpi, setKpi] = useState({
     totalActiveUsers: 0,
@@ -86,6 +90,7 @@ const AdminInicio = () => {
       setMembership(response?.membershipHistory || []);
       setBajasMotivo(response?.bajasPorMotivo || []);
       setAltasMotivo(response?.altasPorMotivo || []);
+      setSetupGuide(response?.setupGuide || null);
     } catch (error) {
       console.error('Error al obtener los KPIs:', error);
       toast.error(error?.message || 'Error al cargar KPIs');
@@ -112,6 +117,27 @@ const AdminInicio = () => {
     getKPIs();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    if (!setupGuide?.isComplete || tenant?.settings?.setupGuideCompletedAt || completionRequestedRef.current) return;
+    completionRequestedRef.current = true;
+    apiService.completeSetupGuide()
+      .then(() => refresh())
+      .catch(error => console.error('No se pudo cerrar la guía de inicio:', error));
+  }, [setupGuide?.isComplete, tenant?.settings?.setupGuideCompletedAt, refresh]);
+
+  const dismissSetupGuide = async () => {
+    setDismissingGuide(true);
+    try {
+      await apiService.setSetupGuideDismissed(true);
+      await refresh();
+      toast.success('Ocultamos la guía. Podés recuperarla desde Configuración.');
+    } catch (error) {
+      toast.error(error?.message || 'No pudimos ocultar la guía.');
+    } finally {
+      setDismissingGuide(false);
+    }
+  };
 
   const currencyFormatter = (value) => `$${Number(value || 0).toLocaleString('es-AR')}`;
 
@@ -220,6 +246,12 @@ const AdminInicio = () => {
     boxShadow: "0 2px 8px rgba(0,0,0,0.2)",
   };
   const axisTick = { fill: "var(--text-color)", fontSize: 12 };
+  const showSetupGuide = Boolean(
+    setupGuide
+    && !setupGuide.isComplete
+    && !tenant?.settings?.setupGuideCompletedAt
+    && !user?.setupGuideDismissedAt
+  );
 
   return (
     <div className='page-layout'>
@@ -242,7 +274,11 @@ const AdminInicio = () => {
           </button>
         </div>
 
+        {showSetupGuide && (
+          <AdminSetupGuide guide={setupGuide} onDismiss={dismissSetupGuide} dismissing={dismissingGuide} />
+        )}
 
+        <>
         {/* ===================== FINANZAS ===================== */}
         <h3 className="dashboard-section-title">Finanzas <span className="month-label">({currentMonthName})</span></h3>
         <div className='admin-kpi-grid'>
@@ -517,6 +553,7 @@ const AdminInicio = () => {
             <p>No hay bajas registradas para el período.</p>
           )}
         </div>
+        </>
       </div>
     </div>
   );

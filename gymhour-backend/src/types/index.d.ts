@@ -9,6 +9,7 @@ declare global {
         email: string;
         role: TenantRole;
         authVersion: number;
+        setupGuideDismissedAt: Date | null;
       };
       tenant?: { id: number; name: string; slug: string; status: TenantStatus };
       platformUser?: { id: number; email: string; role: PlatformRole; authVersion: number };

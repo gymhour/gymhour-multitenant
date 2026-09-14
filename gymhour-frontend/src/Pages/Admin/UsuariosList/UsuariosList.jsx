@@ -89,7 +89,7 @@ const getUsuariosFiltersFromSearch = (searchParams) => ({
 });
 
 const UsuariosList = ({ fromAdmin, fromTRAINER }) => {
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const searchParamsString = searchParams.toString();
   const initialFilters = useMemo(
     () => getUsuariosFiltersFromSearch(new URLSearchParams(searchParamsString)),
@@ -114,6 +114,16 @@ const UsuariosList = ({ fromAdmin, fromTRAINER }) => {
       .catch(() => {});
   };
   const [showImportModal, setShowImportModal] = useState(false);
+
+  useEffect(() => {
+    if (searchParams.get('action') !== 'import') return;
+    setShowImportModal(true);
+    const next = new URLSearchParams(searchParams);
+    next.delete('action');
+    setSearchParams(next, { replace: true });
+    // El parámetro es una orden de navegación que debe consumirse una sola vez.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Historial de turnos modal
   const [showHistoryModal, setShowHistoryModal] = useState(false);

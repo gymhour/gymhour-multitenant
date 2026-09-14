@@ -79,7 +79,7 @@ export async function authenticateToken(req: Request, res: Response, next: NextF
     const userId = Number(payload.sub);
     const user = await systemPrisma.user.findFirst({
       where: { ID_Usuario: userId, tenantId: payload.tenantId },
-      select: { ID_Usuario: true, tenantId: true, email: true, role: true, authVersion: true, estado: true },
+      select: { ID_Usuario: true, tenantId: true, email: true, role: true, authVersion: true, estado: true, setupGuideDismissedAt: true },
     });
     if (!user || user.estado !== true || user.authVersion !== payload.authVersion || user.role !== payload.role) {
       throw new Error('STALE_OR_INVALID_TOKEN');
@@ -93,7 +93,7 @@ export async function authenticateToken(req: Request, res: Response, next: NextF
 
     req.user = {
       id: user.ID_Usuario, tenantId: user.tenantId, email: user.email,
-      role: user.role, authVersion: user.authVersion,
+      role: user.role, authVersion: user.authVersion, setupGuideDismissedAt: user.setupGuideDismissedAt,
     };
     req.tenant = { id: tenant.id, name: tenant.name, slug: tenant.slug, status: tenant.status };
     runWithTenantContext({ tenantId: tenant.id, user: req.user, tenant: req.tenant, db: prisma, source: 'JWT' }, next);

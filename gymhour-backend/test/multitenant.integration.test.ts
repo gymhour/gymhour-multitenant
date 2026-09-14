@@ -104,6 +104,30 @@ describe.runIf(hasTestDatabase)('API multi-tenant (MySQL aislada)', () => {
     const me = await request(app).get('/auth/me').set('Authorization', `Bearer ${selected.body.token}`);
     expect(me.body.tenant.slug).toBe(slugs[0]);
 
+    const emptyDashboard = await request(app).get('/admin/dashboard')
+      .set('Authorization', `Bearer ${selected.body.token}`);
+    expect(emptyDashboard.status).toBe(200);
+    expect(emptyDashboard.body.setupGuide).toMatchObject({
+      totalSteps: 5,
+      completedSteps: 0,
+      isComplete: false,
+      isOperationallyEmpty: true,
+      steps: { plan: false, members: false, routine: false, quotas: false, payment: false },
+    });
+    expect((await request(app).post('/admin/setup-guide/complete')
+      .set('Authorization', `Bearer ${selected.body.token}`)).status).toBe(409);
+
+    const dismissed = await request(app).patch('/admin/setup-guide/preference')
+      .set('Authorization', `Bearer ${selected.body.token}`).send({ dismissed: true });
+    expect(dismissed.status).toBe(200);
+    expect(dismissed.body.setupGuideDismissedAt).toBeTruthy();
+    const dismissedMe = await request(app).get('/auth/me').set('Authorization', `Bearer ${selected.body.token}`);
+    expect(dismissedMe.body.user.setupGuideDismissedAt).toBeTruthy();
+    const restored = await request(app).patch('/admin/setup-guide/preference')
+      .set('Authorization', `Bearer ${selected.body.token}`).send({ dismissed: false });
+    expect(restored.status).toBe(200);
+    expect(restored.body.setupGuideDismissedAt).toBeNull();
+
     const tampered = await request(app).post('/auth/login/select-tenant').send({
       selectionToken: login.body.selectionToken,
       tenantId: 99999999,

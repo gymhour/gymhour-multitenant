@@ -502,6 +502,24 @@ const getKPIs = async () => {
     }
 }
 
+const setSetupGuideDismissed = async (dismissed) => {
+    try {
+        const response = await apiClient.patch('/admin/setup-guide/preference', { dismissed });
+        return response.data;
+    } catch (error) {
+        throw new Error(getApiErrorMessage(error, 'No pudimos actualizar la guía de inicio.'));
+    }
+}
+
+const completeSetupGuide = async () => {
+    try {
+        const response = await apiClient.post('/admin/setup-guide/complete');
+        return response.data;
+    } catch (error) {
+        throw new Error(getApiErrorMessage(error, 'No pudimos completar la guía de inicio.'));
+    }
+}
+
 const getChurnRisk = async ({ page = 1, take = 20, riskLevel = '', search = '' } = {}) => {
     try {
         const params = { page, take };
@@ -1015,6 +1033,8 @@ export default {
     postEjercicioResultado,
     // Admin dashboard
     getKPIs,
+    setSetupGuideDismissed,
+    completeSetupGuide,
     getChurnRisk,
     sendChurnContactEmail,
     getAiHome,
