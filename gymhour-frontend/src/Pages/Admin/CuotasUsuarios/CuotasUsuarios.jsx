@@ -1039,7 +1039,7 @@ const CuotasUsuarios = ({fromAdmin, fromEntrenador}) => {
             </div>
 
             <div className="cuotas-filtros-form-inputs-ctn">
-              <label htmlFor="inputStudentName">Alumno:</label>
+              <label htmlFor="inputStudentName">Socio:</label>
               <CustomInput
                 id="inputStudentName"
                 type="text"

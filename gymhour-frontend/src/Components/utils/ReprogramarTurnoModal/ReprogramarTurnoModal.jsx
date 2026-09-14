@@ -234,7 +234,7 @@ const ReprogramarTurnoModal = ({ isOpen, user, turno, createOnly = false, allowU
               </h3>
               <span>
                 {step === 'confirm'
-                  ? `Alumno: ${user.nombre}`
+                  ? `Socio: ${user.nombre}`
                   : createOnly
                     ? allowUserSelection
                       ? 'Cargá una reserva manual para un alumno activo.'

@@ -30,7 +30,7 @@ const AttendanceFilters = ({ filters, planOptions = [], onChange, onApply, onCle
         />
       </div>
       <div className="attendance-filter-field">
-        <label>Alumno</label>
+        <label>Socio</label>
         <CustomInput
           value={filters.student}
           onChange={event => updateFilter('student', event.target.value)}

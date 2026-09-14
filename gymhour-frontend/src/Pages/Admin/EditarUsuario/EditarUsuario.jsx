@@ -5,6 +5,7 @@ import CustomDropdown from '../../../Components/utils/CustomDropdown/CustomDropd
 import CustomInput from '../../../Components/utils/CustomInput/CustomInput';
 import apiService from '../../../services/apiService';
 import { toast } from 'react-toastify';
+import { ROLE_OPTIONS } from '../../../utils/roleLabels';
 import SecondaryButton from '../../../Components/utils/SecondaryButton/SecondaryButton';
 import { ArrowLeft } from 'lucide-react';
 import LoaderFullScreen from '../../../Components/utils/LoaderFullScreen/LoaderFullScreen';
@@ -52,7 +53,7 @@ const EditarUsuario = ({fromAdmin, fromTRAINER}) => {
   const [clases, setClases] = useState([]);
   const [turnosFijos, setTurnosFijos] = useState([]);
 
-  const tipos = ['STUDENT', 'TRAINER', 'Admin'];
+  const tipos = fromAdmin ? ROLE_OPTIONS : ROLE_OPTIONS.filter(({ value }) => value === 'STUDENT');
   const opcionesEstado = ['Si', 'No'];
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
@@ -174,9 +175,7 @@ const EditarUsuario = ({fromAdmin, fromTRAINER}) => {
           ? new Date(user.fechaCumple).toISOString().slice(0, 10)
           : '';
 
-        const tipoLower = (user?.role || '').toLowerCase();
-        const tipoCapitalizado =
-          tipoLower ? tipoLower.charAt(0).toUpperCase() + tipoLower.slice(1) : 'STUDENT';
+        const normalizedRole = String(user?.role || 'STUDENT').toUpperCase();
 
         // Nombre de plan si existe (API puede devolver { plan: { nombre, ID_Plan } } o solo ID)
         const planNombre =
@@ -192,11 +191,11 @@ const EditarUsuario = ({fromAdmin, fromTRAINER}) => {
           profesion: user?.profesion || '',
           direc: user?.direc || '',
           tel: user?.tel || '',
-          role: tipoCapitalizado,
+          role: normalizedRole,
           fechaCumple: fechaISO,
           estado: !!user?.estado,
           usaTurnosFijos: !!user?.usaTurnosFijos,
-          plan: tipoLower === 'STUDENT' ? planNombre : '',
+          plan: normalizedRole === 'STUDENT' ? planNombre : '',
           observacionesSalud: user?.observacionesSalud || '',
           fichaMedicaUrl: user?.fichaMedicaUrl || ''
         });

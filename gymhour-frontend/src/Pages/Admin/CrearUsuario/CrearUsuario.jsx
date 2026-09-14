@@ -4,6 +4,7 @@ import CustomDropdown from '../../../Components/utils/CustomDropdown/CustomDropd
 import apiClient from '../../../axiosConfig';
 import apiService from '../../../services/apiService';
 import { toast } from 'react-toastify';
+import { ROLE_OPTIONS } from '../../../utils/roleLabels';
 import LoaderFullScreen from '../../../Components/utils/LoaderFullScreen/LoaderFullScreen';
 import { useNavigate } from 'react-router-dom';
 import CustomInput from '../../../Components/utils/CustomInput/CustomInput';
@@ -279,7 +280,7 @@ const CrearUsuario = ({fromAdmin, fromTRAINER}) => {
     }
   };
 
-  const tipos = ['STUDENT', 'TRAINER', 'Admin'];
+  const tipos = fromAdmin ? ROLE_OPTIONS : ROLE_OPTIONS.filter(({ value }) => value === 'STUDENT');
 
   return (
     <div className="page-layout">

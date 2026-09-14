@@ -23,7 +23,7 @@ const AttendanceTable = ({ attendances = [], emptyMessage = 'No hay asistencias 
       <table className="attendance-table">
         <thead>
           <tr>
-            <th>Alumno</th>
+            <th>Socio</th>
             <th>DNI</th>
             <th>Fecha y hora</th>
             <th>Método</th>
@@ -38,7 +38,7 @@ const AttendanceTable = ({ attendances = [], emptyMessage = 'No hay asistencias 
 
             return (
               <tr key={attendance.id}>
-                <td data-label="Alumno">{attendance.student?.name || '-'}</td>
+                <td data-label="Socio">{attendance.student?.name || '-'}</td>
                 <td data-label="DNI">{attendance.student?.dni || '-'}</td>
                 <td data-label="Fecha y hora">{dateTime}</td>
                 <td data-label="Método">{getAttendanceMethodLabel(attendance.method)}</td>

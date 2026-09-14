@@ -90,7 +90,7 @@ const TenantSettings = () => {
           <section className="settings-section">
             <div className="settings-section-index">03</div>
             <div className="settings-section-body">
-              <div className="settings-section-heading"><div><h2>Datos del gimnasio</h2><p>Identidad que verán tu equipo y tus alumnos.</p></div><Building2 size={19} /></div>
+              <div className="settings-section-heading"><div><h2>Datos del gimnasio</h2><p>Identidad que verán tu equipo y tus socios.</p></div><Building2 size={19} /></div>
               <div className="settings-logo-row">
                 <div className="settings-logo-preview">{logoPreview ? <img src={logoPreview} alt={`Logo de ${profile.name}`} /> : <Building2 size={26} />}</div>
                 <div><strong>Logo del gimnasio</strong><small>PNG, JPG o WebP · Máximo 5 MB</small></div>
@@ -102,12 +102,12 @@ const TenantSettings = () => {
                 <label className="settings-field"><span>Color principal</span><span className="settings-color"><input type="color" value={profile.primaryColor} onChange={e => setProfile({ ...profile, primaryColor: e.target.value })} /><b>{profile.primaryColor.toUpperCase()}</b></span></label>
               </div>
               <div className="settings-login-url">
-                <div><strong>Enlace de acceso para tus alumnos</strong><code>{gymLoginUrl(tenant?.slug)}</code></div>
+                <div><strong>Enlace de acceso para tus socios</strong><code>{gymLoginUrl(tenant?.slug)}</code></div>
                 <button type="button" onClick={copyLoginUrl}><Copy size={14} /> Copiar</button>
                 <a href={gymLoginUrl(tenant?.slug)} target="_blank" rel="noreferrer"><ExternalLink size={14} /> Abrir</a>
               </div>
 
-              <div className="settings-subsection-heading"><CreditCard size={17} /><div><h3>Datos de cobro</h3><p>Estos datos les indican a tus alumnos dónde transferir sus cuotas.</p></div></div>
+              <div className="settings-subsection-heading"><CreditCard size={17} /><div><h3>Datos de cobro</h3><p>Estos datos les indican a tus socios dónde transferir sus cuotas.</p></div></div>
               <div className="settings-grid">
                 {[
                   ['paymentAccountHolder', 'Titular de la cuenta', 'Nombre y apellido o razón social'],

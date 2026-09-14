@@ -35,7 +35,7 @@ const CheckInResultCard = ({ result }) => {
 
       <div className="checkin-result-grid">
         <div>
-          <span>Alumno</span>
+          <span>Socio</span>
           <strong>{result.student?.name || '-'}</strong>
         </div>
         <div>

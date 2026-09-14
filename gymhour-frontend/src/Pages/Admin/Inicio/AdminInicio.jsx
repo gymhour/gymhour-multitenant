@@ -98,7 +98,7 @@ const AdminInicio = () => {
     setLoading(true);
     try {
       const response = await apiService.getUserById(getCurrentUserId());
-      setNombreUsuario(response.role === "ADMIN" ? "ADMIN" : (response.nombre || ""));
+      setNombreUsuario(response.role === "ADMIN" ? "Administrador" : (response.nombre || ""));
     } catch (error) {
       console.error('Error al obtener el usuario:', error);
       toast.error(error?.message || "Error al obtener el usuario");
@@ -199,7 +199,7 @@ const AdminInicio = () => {
       await generateFinancialReportPdf({
         kpi,
         periodoLabel,
-        aclaracionKpis: `KPIs del mes corriente (${currentMonthName}) · Deuda vencida: acumulada · STUDENTs activos: total actual · Gráficos: ${periodoLabel}`,
+        aclaracionKpis: `KPIs del mes corriente (${currentMonthName}) · Deuda vencida: acumulada · Socios activos: total actual · Gráficos: ${periodoLabel}`,
         charts,
         logoSrc: tenant?.settings?.logoUrl || CLIENT_SETUP.branding.logoLight || CLIENT_SETUP.branding.logo,
         primaryColor: tenant?.settings?.primaryColor || CLIENT_SETUP.branding.theme.primaryColor,
@@ -334,7 +334,7 @@ const AdminInicio = () => {
           >
             <div className='admin-kpi-card-header'>
               <Users size={20} className="icon-soft-grey" />
-              <h3>STUDENTs activos</h3>
+              <h3>Socios activos</h3>
             </div>
             <p className='value'>{kpi.totalActiveUsers}</p>
           </button>
@@ -376,7 +376,7 @@ const AdminInicio = () => {
           >
             <div className='admin-kpi-card-header'>
               <Users size={20} className="icon-soft-grey" />
-              <h3>STUDENTs inactivos</h3>
+              <h3>Socios inactivos</h3>
             </div>
             <p className='value'>{kpi.totalInactiveUsers}</p>
           </button>

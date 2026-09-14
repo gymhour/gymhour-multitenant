@@ -5,6 +5,7 @@ import { Link } from 'react-router-dom';
 import { authClient } from '../../../axiosConfig';
 import CustomInput from '../../../Components/utils/CustomInput/CustomInput';
 import { toast } from 'react-toastify';
+import { formatRole } from '../../../utils/roleLabels';
 import { HOME_BY_ROLE, useAuth } from '../../../context/AuthContext';
 import AuthShell from '../AuthShell/AuthShell';
 
@@ -155,7 +156,7 @@ const Login = () => {
                   <button key={tenant.id} type="button" className="tenant-option"
                     disabled={isLoading} onClick={() => handleTenantSelection(tenant.id)}>
                     <span>{tenant.name}</span>
-                    <small>{tenant.role === 'ADMIN' ? 'Administrador' : tenant.role === 'TRAINER' ? 'Entrenador' : 'Alumno'}</small>
+                    <small>{formatRole(tenant.role)}</small>
                   </button>
                 ))}
               </div>

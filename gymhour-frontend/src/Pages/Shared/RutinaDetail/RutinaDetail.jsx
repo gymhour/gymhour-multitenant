@@ -472,7 +472,7 @@ const RutinaDetail = ({ fromAdmin, fromEntrenador, fromAlumno }) => {
       : '';
 
     const headerLines = [
-      alumno ? `Alumno: ${alumno}` : '',
+      alumno ? `Socio: ${alumno}` : '',
       `Entrenador: ${entrenador}`,
       creada ? `Creada: ${creada}` : '',
       headerSubtitle ? `Detalle: ${headerSubtitle}` : '',

@@ -43,7 +43,7 @@ const getRiskLabel = riskLevel => ({
 }[riskLevel] || '-');
 
 const getStudentName = user => (
-  [user?.nombre, user?.apellido].filter(Boolean).join(' ') || user?.email || 'Alumno sin nombre'
+  [user?.nombre, user?.apellido].filter(Boolean).join(' ') || user?.email || 'Socio sin nombre'
 );
 
 // Plantilla de retención (extensible: agregar entradas y un dropdown cuando haya más de una)
@@ -194,7 +194,7 @@ const ChurnRiskPage = () => {
       tone: 'low',
     },
     {
-      label: 'Alumnos evaluados',
+      label: 'Socios evaluados',
       value: report.summary?.evaluatedUsers || 0,
       icon: <Users size={20} />,
       tone: 'neutral',
@@ -322,7 +322,7 @@ const ChurnRiskPage = () => {
               <table className="churn-risk-table">
                 <thead>
                   <tr>
-                    <th>Alumno</th>
+                    <th>Socio</th>
                     <th>Riesgo</th>
                     <th>Score</th>
                     <th>Última asistencia</th>
@@ -338,7 +338,7 @@ const ChurnRiskPage = () => {
                     const waLink = buildWhatsappLink(item.user?.tel);
                     return (
                     <tr key={item.user?.id}>
-                      <td data-label="Alumno">
+                      <td data-label="Socio">
                         <div className="churn-risk-user">
                           <strong>{getStudentName(item.user)}</strong>
                           <span>DNI {item.user?.dni || '-'}</span>

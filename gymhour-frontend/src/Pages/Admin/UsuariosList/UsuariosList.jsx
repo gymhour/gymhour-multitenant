@@ -16,6 +16,7 @@ import ReprogramarTurnoModal from '../../../Components/utils/ReprogramarTurnoMod
 import CustomInput from '../../../Components/utils/CustomInput/CustomInput';
 import ImportUsuariosModal from './ImportUsuariosModal';
 import EmptyState from '../../../Components/utils/EmptyState/EmptyState';
+import { ROLE_OPTIONS, formatRole } from '../../../utils/roleLabels';
 
 // Motivos de baja (debe coincidir con la whitelist del backend en user.Controller.ts)
 const MOTIVOS_BAJA = [
@@ -57,10 +58,10 @@ const normalizeTextFilters = (filters) => ({
 const emptyUsuariosFilters = { role: '', nombre: '', apellido: '', email: '', estado: '', dni: '', plan: '', movimiento: '', movimientoMes: '' };
 
 const normalizeTipoParam = (value) => {
-  const normalized = String(value || '').toLowerCase();
+  const normalized = String(value || '').toUpperCase();
   if (normalized === 'STUDENT') return 'STUDENT';
   if (normalized === 'TRAINER') return 'TRAINER';
-  if (normalized === 'ADMIN') return 'Admin';
+  if (normalized === 'ADMIN') return 'ADMIN';
   return '';
 };
 
@@ -140,7 +141,7 @@ const UsuariosList = ({ fromAdmin, fromTRAINER }) => {
   const [hasMore, setHasMore] = useState(true);
 
   const defaultAvatar = "https://..."; // tu URL
-  const opcionesTipo = fromAdmin ? ['STUDENT', 'TRAINER', 'Admin'] : ['STUDENT'];
+  const opcionesTipo = fromAdmin ? ROLE_OPTIONS : ROLE_OPTIONS.filter(({ value }) => value === 'STUDENT');
   const opcionesEstado = ['Activo', 'Inactivo'];
   const [planesList, setPlanesList] = useState([]);
 
@@ -610,11 +611,11 @@ const UsuariosList = ({ fromAdmin, fromTRAINER }) => {
 
         <div className="usuarios-kpi-grid">
           <div className="usuarios-kpi-item">
-            <span className="usuarios-kpi-label">Alumnos activos</span>
+            <span className="usuarios-kpi-label">Socios activos</span>
             <strong>{usuariosStats.activos}</strong>
           </div>
           <div className="usuarios-kpi-item">
-            <span className="usuarios-kpi-label">Alumnos inactivos</span>
+            <span className="usuarios-kpi-label">Socios inactivos</span>
             <strong>{usuariosStats.inactivos}</strong>
           </div>
           <div className="usuarios-kpi-item warning">
@@ -785,7 +786,7 @@ const UsuariosList = ({ fromAdmin, fromTRAINER }) => {
 
                     <td data-label="DNI">{u.dni || '—'}</td>
 
-                    <td data-label="Tipo" style={{ textTransform: 'capitalize' }}>{u.role}</td>
+                    <td data-label="Tipo">{formatRole(u.role)}</td>
 
                     <td data-label="Plan" style={{ textTransform: 'capitalize' }}>
                       {u.plan?.nombre || '—'}
