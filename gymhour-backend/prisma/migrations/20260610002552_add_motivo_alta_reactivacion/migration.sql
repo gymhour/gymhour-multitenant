@@ -1,5 +1,5 @@
 -- AlterTable
-ALTER TABLE `movimientosocio` ADD COLUMN `motivoReactivacion` VARCHAR(191) NULL;
+ALTER TABLE `MovimientoSocio` ADD COLUMN `motivoReactivacion` VARCHAR(191) NULL;
 
 -- AlterTable
-ALTER TABLE `user` ADD COLUMN `motivoAlta` VARCHAR(191) NULL;
+ALTER TABLE `User` ADD COLUMN `motivoAlta` VARCHAR(191) NULL;

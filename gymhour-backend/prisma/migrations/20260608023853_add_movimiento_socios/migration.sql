@@ -1,5 +1,5 @@
 -- AlterTable
-ALTER TABLE `rutina` ADD COLUMN `urlPlanificacion` VARCHAR(191) NULL;
+ALTER TABLE `Rutina` ADD COLUMN `urlPlanificacion` VARCHAR(191) NULL;
 
 -- CreateTable
 CREATE TABLE `MovimientoSocio` (
