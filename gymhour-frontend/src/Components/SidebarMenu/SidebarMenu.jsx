@@ -173,12 +173,12 @@ const SidebarMenu = ({ isAdmin, isEntrenador }) => {
 
         {/* Menú */}
         <nav className="sidebar-menu">
-          <h3 className="menu-title">MENÚ</h3>
           <ul className="menu-list">
             {
               // SIDEBAR ADMIN
               isAdmin ? (
                 <>
+                  <li className="menu-section-label">General</li>
                   <Link
                     to="/admin/inicio"
                     className={`menu-link ${location.pathname === "/admin/inicio"
@@ -199,6 +199,7 @@ const SidebarMenu = ({ isAdmin, isEntrenador }) => {
                       <Sparkles className="icon" /> Asistente IA
                     </li>
                   </Link>
+                  <li className="menu-section-label menu-section-label--spaced">Clases y turnos</li>
                   <Link
                     to="/admin/turnos"
                     className={`menu-link ${location.pathname ===
@@ -225,6 +226,7 @@ const SidebarMenu = ({ isAdmin, isEntrenador }) => {
                       Clases y actividades
                     </li>
                   </Link>
+                  <li className="menu-section-label menu-section-label--spaced">Personas</li>
                   <Link
                     to="/admin/usuarios"
                     className={`menu-link ${location.pathname === "/admin/usuarios"
@@ -246,9 +248,10 @@ const SidebarMenu = ({ isAdmin, isEntrenador }) => {
                   >
                     <li className="menu-item">
                       <UserCog className="icon" />{" "}
-                      Grupos de usuarios
+                      Grupos de socios
                     </li>
                   </Link>
+                  <li className="menu-section-label menu-section-label--spaced">Rutinas</li>
                   <Link
                     to="/admin/ejercicios"
                     className={`menu-link ${location.pathname === "/admin/ejercicios"
@@ -291,6 +294,7 @@ const SidebarMenu = ({ isAdmin, isEntrenador }) => {
                       Rutinas generales
                     </li>
                   </Link>
+                  <li className="menu-section-label menu-section-label--spaced">Negocio</li>
                   <Link
                     to="/admin/planes"
                     className={`menu-link ${location.pathname === "/admin/planes"
@@ -327,6 +331,7 @@ const SidebarMenu = ({ isAdmin, isEntrenador }) => {
                       Salidas de dinero
                     </li>
                   </Link>
+                  <li className="menu-section-label menu-section-label--spaced">Control</li>
                   <Link
                     to="/admin/ingreso"
                     className={`menu-link ${location.pathname === "/admin/ingreso"
@@ -368,6 +373,7 @@ const SidebarMenu = ({ isAdmin, isEntrenador }) => {
                 // SIDEBAR ENTRENADOR 
                 : isEntrenador ? (
                   <>
+                    <li className="menu-section-label">General</li>
                     <Link
                       to="/entrenador/inicio"
                       className={`menu-link ${location.pathname === "/entrenador/inicio" ? "active" : ""
@@ -396,6 +402,7 @@ const SidebarMenu = ({ isAdmin, isEntrenador }) => {
                         <CalendarCheck className="icon" /> Mis turnos
                       </li>
                     </Link> */}
+                    <li className="menu-section-label menu-section-label--spaced">Clases y turnos</li>
                     <Link
                       to="/entrenador/turnos"
                       className={`menu-link ${location.pathname === "/entrenador/turnos"
@@ -407,6 +414,7 @@ const SidebarMenu = ({ isAdmin, isEntrenador }) => {
                         <CalendarCheck className="icon" /> Turnos
                       </li>
                     </Link>
+                    <li className="menu-section-label menu-section-label--spaced">Rutinas</li>
                     <Link
                       to="/entrenador/asignar-rutinas"
                       className={`menu-link ${location.pathname === "/entrenador/asignar-rutinas" ? "active" : ""
@@ -437,6 +445,7 @@ const SidebarMenu = ({ isAdmin, isEntrenador }) => {
                         Ejercicios
                       </li>
                     </Link>
+                    <li className="menu-section-label menu-section-label--spaced">Personas</li>
                     <Link
                       to="/entrenador/crear-usuario"
                       className={`menu-link ${location.pathname === "/admin/crear-usuario"
@@ -458,6 +467,7 @@ const SidebarMenu = ({ isAdmin, isEntrenador }) => {
                         <Users className="icon" /> Usuarios
                       </li>
                     </Link>
+                    <li className="menu-section-label menu-section-label--spaced">Clases</li>
                     <Link
                       to="/entrenador/clases-actividades"
                       className={`menu-link ${location.pathname === "/entrenador/clases-actividades" ? "active" : ""
@@ -472,6 +482,7 @@ const SidebarMenu = ({ isAdmin, isEntrenador }) => {
                   // SIDEBAR ALUMNO
                   : (
                     <>
+                      <li className="menu-section-label">General</li>
                       <Link
                         to="/alumno/inicio"
                         className={`menu-link ${location.pathname === "/alumno/inicio"
@@ -492,6 +503,7 @@ const SidebarMenu = ({ isAdmin, isEntrenador }) => {
                           <Sparkles className="icon" /> Asistente IA
                         </li>
                       </Link>
+                      <li className="menu-section-label menu-section-label--spaced">Clases y turnos</li>
                       <Link
                         to="/alumno/turnos"
                         className={`menu-link ${location.pathname === "/alumno/turnos"
@@ -528,6 +540,7 @@ const SidebarMenu = ({ isAdmin, isEntrenador }) => {
                           Clases y actividades
                         </li>
                       </Link>
+                      <li className="menu-section-label menu-section-label--spaced">Entrenamiento</li>
                       <Link
                         to="/alumno/mi-rutina"
                         className={`menu-link ${location.pathname === "/alumno/mi-rutina"
@@ -577,6 +590,7 @@ const SidebarMenu = ({ isAdmin, isEntrenador }) => {
                           recomendadas
                         </li>
                       </Link>
+                      <li className="menu-section-label menu-section-label--spaced">Mi cuenta</li>
                       <Link
                         to="/alumno/cuotas"
                         className={`menu-link ${location.pathname ===
@@ -605,7 +619,7 @@ const SidebarMenu = ({ isAdmin, isEntrenador }) => {
           </ul>
 
           <div className="profile-section">
-            <h3 className="profile-title">PERFIL</h3>
+            <h3 className="profile-title">Perfil</h3>
             <ul className="menu-list">
               {isAdmin && (
                 <Link to="/admin/configuracion" className={`menu-link ${location.pathname === "/admin/configuracion" ? "active" : ""}`}>
