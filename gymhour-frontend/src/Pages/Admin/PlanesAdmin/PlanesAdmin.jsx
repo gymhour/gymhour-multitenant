@@ -9,6 +9,7 @@ import CustomDropdown from '../../../Components/utils/CustomDropdown/CustomDropd
 import LoaderFullScreen from '../../../Components/utils/LoaderFullScreen/LoaderFullScreen'
 import ConfirmationPopup from '../../../Components/utils/ConfirmationPopUp/ConfirmationPopUp'
 import { toast } from 'react-toastify'
+import EmptyState from '../../../Components/utils/EmptyState/EmptyState'
 
 const PlanesAdmin = () => {
   const [planes, setPlanes] = useState([])
@@ -154,7 +155,14 @@ const PlanesAdmin = () => {
 
         {!loading && (
           <div className="planes-grid">
-            {planes.map((plan) => (
+            {planes.length === 0 ? (
+              <EmptyState
+                title="Todavía no hay planes"
+                description="Creá el primer plan para definir precios, duración y cantidad de sesiones."
+                actionLabel="Crear primer plan"
+                onAction={handleCreate}
+              />
+            ) : planes.map((plan) => (
               <div key={plan.ID_Plan} className="plan-card">
                 <div className="plan-card-header">
                   <h2 className="plan-name">{plan.nombre}</h2>

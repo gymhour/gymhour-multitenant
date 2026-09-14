@@ -4,6 +4,7 @@ import apiService from '../../../services/apiService';
 import '../../../App.css';
 import './Entrenadores.css';
 import LoaderFullScreen from '../../../Components/utils/LoaderFullScreen/LoaderFullScreen';
+import EmptyState from '../../../Components/utils/EmptyState/EmptyState';
 
 const Entrenadores = () => {
   const [entrenadores, setEntrenadores] = useState([]);
@@ -39,9 +40,12 @@ const Entrenadores = () => {
           Conocé a nuestros instructores
         </p>
         <div className="trainers-grid">
-          {!loading &&
-            !error &&
-            entrenadores.map((trainer) => (
+          {!loading && !error && (entrenadores.length === 0 ? (
+            <EmptyState
+              title="Todavía no hay entrenadores"
+              description="Cuando el gimnasio publique sus entrenadores, vas a poder conocerlos acá."
+            />
+          ) : entrenadores.map((trainer) => (
               <div className="trainer-item" key={trainer.ID_Usuario}>
                 <div
                   className="trainer-card"
@@ -66,7 +70,7 @@ const Entrenadores = () => {
                   </p>
                 )}
               </div>
-            ))}
+            )))}
         </div>
       </div>
     </div>

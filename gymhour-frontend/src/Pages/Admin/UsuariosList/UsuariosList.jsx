@@ -15,6 +15,7 @@ import { ChevronDown, ChevronUp, ChevronLeft, ChevronRight, X, UserPlus, Upload,
 import ReprogramarTurnoModal from '../../../Components/utils/ReprogramarTurnoModal/ReprogramarTurnoModal';
 import CustomInput from '../../../Components/utils/CustomInput/CustomInput';
 import ImportUsuariosModal from './ImportUsuariosModal';
+import EmptyState from '../../../Components/utils/EmptyState/EmptyState';
 
 // Motivos de baja (debe coincidir con la whitelist del backend en user.Controller.ts)
 const MOTIVOS_BAJA = [
@@ -736,7 +737,12 @@ const UsuariosList = ({ fromAdmin, fromTRAINER }) => {
         )}
 
         {usuarios.length === 0 ? (
-          <p>No hay usuarios para mostrar.</p>
+          <EmptyState
+            title="No hay usuarios para mostrar"
+            description="Creá el primer usuario o modificá los filtros para encontrar otros resultados."
+            actionLabel="Crear usuario"
+            actionTo={fromAdmin ? '/admin/crear-usuario' : '/entrenador/crear-usuario'}
+          />
         ) : (
           <div className="table-responsive">
             <table className='usuarios-table'>

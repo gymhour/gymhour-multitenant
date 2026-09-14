@@ -4,6 +4,7 @@ import { Check, ChevronDown, Edit, Eye, EyeOff, Plus, Search, Trash2, Users, X }
 import SidebarMenu from '../../../Components/SidebarMenu/SidebarMenu';
 import ConfirmationPopup from '../../../Components/utils/ConfirmationPopUp/ConfirmationPopUp';
 import LoaderFullScreen from '../../../Components/utils/LoaderFullScreen/LoaderFullScreen';
+import EmptyState from '../../../Components/utils/EmptyState/EmptyState';
 import apiService from '../../../services/apiService';
 import './GruposUsuarios.css';
 
@@ -255,7 +256,12 @@ const GruposUsuarios = () => {
 
           <div className="grupos-list">
             {grupos.length === 0 ? (
-              <p className="grupos-empty">No hay grupos creados.</p>
+              <EmptyState
+                title="Todavía no hay grupos"
+                description="Creá un grupo para organizar usuarios y asignarles rutinas en conjunto."
+                actionLabel="Crear primer grupo"
+                onAction={openCreateGrupo}
+              />
             ) : grupos.map(grupo => (
               <article className="grupo-card" key={grupo.ID_GrupoUsuario}>
                 <div className="grupo-card-header">

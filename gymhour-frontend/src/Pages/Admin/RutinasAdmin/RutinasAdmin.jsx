@@ -10,6 +10,7 @@ import ConfirmationPopup from '../../../Components/utils/ConfirmationPopUp/Confi
 import apiService from '../../../services/apiService.js';
 import LoaderFullScreen from '../../../Components/utils/LoaderFullScreen/LoaderFullScreen.jsx';
 import { ChevronDown, ChevronUp, Copy, Edit, Trash2, Video } from 'lucide-react';
+import EmptyState from '../../../Components/utils/EmptyState/EmptyState.jsx';
 
 /* ===================== Helpers ===================== */
 const WEEK_ORDER = [
@@ -276,15 +277,18 @@ const RutinasAdmin = () => {
       <SidebarMenu isAdmin={true} />
       <div className='content-layout mi-rutina-ctn'>
         <div className="rutinas-admin-page-header">
-          <h1>Rutinas recomendadas</h1>
+          <h1>Rutinas generales</h1>
           <PrimaryButton text="Crear rutina" linkTo="/admin/crear-rutina" />
         </div>
 
         <div className="mis-rutinas-list">
           {rutinas.length === 0 ? (
-            <div className="rutinas-admin-empty-state">
-              <p>No tiene rutinas cargadas aún.</p>
-            </div>
+            <EmptyState
+              title="Todavía no hay rutinas"
+              description="Creá la primera rutina general para empezar a organizar los entrenamientos."
+              actionLabel="Crear primera rutina"
+              actionTo="/admin/crear-rutina"
+            />
           ) : rutinas.map(rutina => {
             const dias = normalizeDias(rutina);
 

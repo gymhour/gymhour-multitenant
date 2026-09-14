@@ -14,6 +14,7 @@ import 'react-datepicker/dist/react-datepicker.css';
 import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp, SlidersHorizontal, X } from 'lucide-react';
 import apiService from '../../../services/apiService';
 import { toast } from 'react-toastify';
+import EmptyState from '../../../Components/utils/EmptyState/EmptyState';
 
 const CATEGORIAS = ['Alquiler', 'Sueldos', 'Insumos', 'Servicios', 'Marketing', 'Impuestos', 'Otros'];
 
@@ -309,7 +310,12 @@ const Gastos = () => {
         ) : error ? (
           <p className="text-error">Error cargando datos.</p>
         ) : gastos.length === 0 ? (
-          <p>No hay gastos para mostrar.</p>
+          <EmptyState
+            title="No hay gastos para mostrar"
+            description="Registrá un gasto nuevo o modificá los filtros para encontrar otros resultados."
+            actionLabel="Registrar gasto"
+            onAction={openCreate}
+          />
         ) : (
           <div className="table-responsive">
             <table className="cuotas-table">

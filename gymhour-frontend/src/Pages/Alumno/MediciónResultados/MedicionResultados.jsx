@@ -7,6 +7,7 @@ import SidebarMenu from '../../../Components/SidebarMenu/SidebarMenu';
 import LoaderFullScreen from '../../../Components/utils/LoaderFullScreen/LoaderFullScreen';
 import apiService from '../../../services/apiService';
 import PrimaryButton from '../../../Components/utils/PrimaryButton/PrimaryButton';
+import EmptyState from '../../../Components/utils/EmptyState/EmptyState';
 import { Trash2 } from 'lucide-react';
 import ConfirmationPopup from '../../../Components/utils/ConfirmationPopUp/ConfirmationPopUp';
 import { toast } from 'react-toastify';
@@ -122,9 +123,12 @@ const MedicionResultados = () => {
 
           <div className="med-resultados-ejercicios-list">
             {!loading && ejercicios.length === 0 ? (
-              <p className="no-ejercicios-message">
-                No tienes ejercicios registrados. ¡Agrega uno para comenzar!
-              </p>
+              <EmptyState
+                title="Todavía no registraste ejercicios"
+                description="Agregá un ejercicio para empezar a seguir tu progreso."
+                actionLabel="Agregar primer ejercicio"
+                actionTo="/alumno/medicion-resultados/nueva-medicion"
+              />
             ) : (
               ejercicios.map((ejercicio) => {
                 // const maxCantidad = getMaxCantidad(ejercicio.HistoricoEjercicios);

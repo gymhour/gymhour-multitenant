@@ -11,6 +11,7 @@ import LoaderFullScreen from '../../../Components/utils/LoaderFullScreen/LoaderF
 import ConfirmationPopup from '../../../Components/utils/ConfirmationPopUp/ConfirmationPopUp';
 import { isTurnoInFuture } from '../../../utils/turnoDate';
 import { ChevronDown, ChevronUp } from 'lucide-react';
+import EmptyState from '../../../Components/utils/EmptyState/EmptyState';
 // ToastContainer
 import { toast } from 'react-toastify';
 
@@ -130,7 +131,12 @@ const MisTurnos = () => {
                         {visibleProximoTurnos.length > 0 ? (
                             visibleProximoTurnos.map(renderTurnoCard)
                         ) : (
-                            <p>No tienes próximos turnos.</p>
+                            <EmptyState
+                                title="No tenés próximos turnos"
+                                description="Agendá una clase para sumarla a tu agenda."
+                                actionLabel="Agendar un turno"
+                                actionTo="/alumno/agendar-turno"
+                            />
                         )}
                     </div>
                     {hasMoreProximos && renderToggleButton({
@@ -151,7 +157,10 @@ const MisTurnos = () => {
                         {visibleHistorialTurnos.length > 0 ? (
                             visibleHistorialTurnos.map(renderTurnoCard)
                         ) : (
-                            <p>No tienes historial de turnos.</p>
+                            <EmptyState
+                                title="Todavía no hay historial"
+                                description="Tus turnos realizados y cancelados aparecerán acá."
+                            />
                         )}
                     </div>
                     {hasMoreHistorial && renderToggleButton({

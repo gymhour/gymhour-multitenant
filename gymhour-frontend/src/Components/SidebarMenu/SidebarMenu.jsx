@@ -222,7 +222,7 @@ const SidebarMenu = ({ isAdmin, isEntrenador }) => {
                   >
                     <li className="menu-item" title="Clases y Actividades">
                       <Activity className="icon" />{" "}
-                      Clases y Actividades
+                      Clases y actividades
                     </li>
                   </Link>
                   <Link
@@ -246,7 +246,7 @@ const SidebarMenu = ({ isAdmin, isEntrenador }) => {
                   >
                     <li className="menu-item">
                       <UserCog className="icon" />{" "}
-                      Grupos de Usuarios
+                      Grupos de usuarios
                     </li>
                   </Link>
                   <Link
@@ -267,7 +267,7 @@ const SidebarMenu = ({ isAdmin, isEntrenador }) => {
                       }`}
                   >
                     <li className="menu-item">
-                      <FilePenLine className="icon" /> Asignar Rutinas
+                      <FilePenLine className="icon" /> Asignar rutinas
                     </li>
                   </Link>
                   <Link
@@ -276,7 +276,7 @@ const SidebarMenu = ({ isAdmin, isEntrenador }) => {
                       }`}
                   >
                     <li className="menu-item">
-                      <FilePenLine className="icon" /> Rutinas Asignadas
+                      <FilePenLine className="icon" /> Rutinas asignadas
                     </li>
                   </Link>
                   <Link
@@ -288,7 +288,7 @@ const SidebarMenu = ({ isAdmin, isEntrenador }) => {
                   >
                     <li className="menu-item">
                       <Notebook className="icon" />{" "}
-                      Rutinas Recomendadas
+                      Rutinas generales
                     </li>
                   </Link>
                   <Link
@@ -300,7 +300,7 @@ const SidebarMenu = ({ isAdmin, isEntrenador }) => {
                   >
                     <li className="menu-item">
                       <FileText className="icon" />{" "}
-                      Planes
+                      Planes del gym
                     </li>
                   </Link>
                   <Link
@@ -336,7 +336,7 @@ const SidebarMenu = ({ isAdmin, isEntrenador }) => {
                   >
                     <li className="menu-item">
                       <ScanLine className="icon" />{" "}
-                      Ingreso
+                      Ingreso de alumnos
                     </li>
                   </Link>
                   <Link
@@ -348,7 +348,7 @@ const SidebarMenu = ({ isAdmin, isEntrenador }) => {
                   >
                     <li className="menu-item">
                       <ClipboardCheck className="icon" />{" "}
-                      Asistencias
+                      Asistencias de alumnos
                     </li>
                   </Link>
                   <Link

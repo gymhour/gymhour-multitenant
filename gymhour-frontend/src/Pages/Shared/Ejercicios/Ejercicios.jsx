@@ -9,6 +9,7 @@ import CustomInput from '../../../Components/utils/CustomInput/CustomInput';
 import PrimaryButton from '../../../Components/utils/PrimaryButton/PrimaryButton';
 import './Ejercicios.css';
 import EjercicioCard from '../../../Components/EjercicioCard/EjercicioCard';
+import EmptyState from '../../../Components/utils/EmptyState/EmptyState';
 
 const Ejercicios = ({ fromAdmin, fromEntrenador, fromAlumno }) => {
   const navigate = useNavigate();
@@ -118,7 +119,18 @@ const Ejercicios = ({ fromAdmin, fromEntrenador, fromAlumno }) => {
         />
 
         <div className='ejercicios-list'>
-          {Object.keys(grouped)
+          {!loading && filteredEjercicios.length === 0 ? (
+            <EmptyState
+              title={searchTerm ? 'No encontramos ejercicios' : 'Todavía no hay ejercicios'}
+              description={searchTerm
+                ? 'Probá con otro nombre para encontrar el ejercicio que buscás.'
+                : (fromAdmin || fromEntrenador)
+                  ? 'Cargá el primer ejercicio para empezar a armar la biblioteca.'
+                  : 'Cuando el gimnasio cargue ejercicios, vas a encontrarlos acá.'}
+              actionLabel={!searchTerm && (fromAdmin || fromEntrenador) ? 'Crear primer ejercicio' : undefined}
+              actionTo={!searchTerm && (fromAdmin || fromEntrenador) ? `${basePath}/form` : undefined}
+            />
+          ) : Object.keys(grouped)
             .sort()
             .map(letter => (
               <div key={letter} className='exercise-group'>

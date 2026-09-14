@@ -11,6 +11,7 @@ import SecondaryButton from '../../../Components/utils/SecondaryButton/Secondary
 import ConfirmationPopup from '../../../Components/utils/ConfirmationPopUp/ConfirmationPopUp';
 import { ChevronDown, ChevronUp, Copy, Edit, Trash2, Video, MoreVertical, FileSpreadsheet, ExternalLink, ChevronLeft, ChevronRight } from 'lucide-react';
 import '../../Entrenador/RutinasAsignadas/RutinasAsignadas.css';
+import EmptyState from '../../../Components/utils/EmptyState/EmptyState';
 
 /* ===================== Helpers ===================== */
 const WEEK_ORDER = [
@@ -763,7 +764,12 @@ const RutinasAsignadas = () => {
         {/* ——— Listado de rutinas ——— */}
         <div className='mis-rutinas-list'>
           {rutinas.length === 0 ? (
-            <p>No tienes rutinas asignadas en este momento.</p>
+            <EmptyState
+              title="Todavía no hay rutinas asignadas"
+              description="Creá una rutina y asignala a usuarios o grupos para verla en este listado."
+              actionLabel="Asignar rutina"
+              actionTo="/admin/asignar-rutinas"
+            />
           ) : rutinas.map(rutina => {
             const dias = normalizeDias(rutina);
             const usuariosResumen = resumenAsignaciones(

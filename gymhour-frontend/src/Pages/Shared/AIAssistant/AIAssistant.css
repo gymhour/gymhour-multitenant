@@ -5,11 +5,12 @@
 }
 
 .ai-assistant-content {
-  width: 100%;
+  flex: 1;
+  width: auto;
+  min-width: 0;
   height: 100vh;
-  max-width: 1500px;
+  max-width: none;
   box-sizing: border-box;
-  margin-inline: auto;
 }
 
 /* El chat ocupa el viewport, pero el menú debe poder recorrer todos sus enlaces. */

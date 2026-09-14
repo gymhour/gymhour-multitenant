@@ -310,7 +310,7 @@ const RutinasRecomendadas = () => {
       <div className='content-layout mi-rutina-ctn'>
 
         <div className="mi-rutina-title">
-          <h2>Rutinas Recomendadas</h2>
+          <h2>Rutinas Generales</h2>
         </div>
 
         <div style={{ margin: '20px 0' }}>

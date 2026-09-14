@@ -6,6 +6,7 @@ import PrimaryButton from "../../../Components/utils/PrimaryButton/PrimaryButton
 import { PlusCircle } from 'lucide-react';
 import { Link } from "react-router-dom";
 import apiClient from "../../../axiosConfig";
+import EmptyState from '../../../Components/utils/EmptyState/EmptyState';
 
 const ClasesActividadesAdmin = ({ fromAdmin, fromEntrenador }) => {
     const [clases, setClases] = useState([]);
@@ -71,7 +72,14 @@ const ClasesActividadesAdmin = ({ fromAdmin, fromEntrenador }) => {
                                     </Link>
                                 ))
                             ) : (
-                                <p>No hay clases disponibles.</p>
+                                <EmptyState
+                                    title="Todavía no hay clases"
+                                    description={fromAdmin
+                                        ? 'Agregá la primera clase o actividad para configurar sus horarios.'
+                                        : 'Cuando el gimnasio cargue clases o actividades, aparecerán acá.'}
+                                    actionLabel={fromAdmin ? 'Agregar primera clase' : undefined}
+                                    actionTo={fromAdmin ? '/admin/agregar-clase' : undefined}
+                                />
                             )}
                         </div>
                     )}
