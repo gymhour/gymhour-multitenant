@@ -28,14 +28,13 @@
 
 .usuarios-page-actions .primary-button {
   padding: 10px 14px;
-  border-radius: 8px;
+  border-radius: 14px;
   font-weight: 500;
   white-space: nowrap;
 }
 
 .usuarios-page-actions .secondary-button {
-  border: 1px solid var(--border-color);
-  border-radius: 8px;
+  border-radius: 14px;
   padding: 10px 14px;
   color: var(--text-color);
   font-weight: 500;

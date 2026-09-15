@@ -17,7 +17,7 @@
 .signup-form .auth-field small {
   margin-top: -2px;
   color: rgba(255, 255, 255, 0.38);
-  font-size: 11px;
+  font-size: 13px;
   line-height: 1.4;
 }
 
@@ -51,5 +51,5 @@
     grid-template-columns: 1fr;
   }
 
-  .auth-shell--signup .auth-shell__grid { gap: 22px; }
+  .auth-shell--signup .signup-form { gap: 12px; }
 }

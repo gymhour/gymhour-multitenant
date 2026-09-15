@@ -72,15 +72,15 @@
 }
 
 .logo {
-  max-width: 96px;
-  width: 80px;
+  max-width: 84px;
+  width: 70px;
   height: auto;
 }
 
 .sidebar-logo .logo.tenant-logo {
-  width: min(150px, 80%);
-  max-width: 150px;
-  height: 72px;
+  width: min(128px, 76%);
+  max-width: 128px;
+  height: 60px;
   object-fit: contain;
 }
 
@@ -128,7 +128,7 @@
   gap: 10px;
   padding: 8px 10px;
   border-radius: 10px;
-  font-size: 14px;
+  font-size: 15px;
   font-weight: 400;
   cursor: pointer;
   color: var(--text-color);
@@ -304,6 +304,7 @@
     background-color: var(--background-color);
     color: var(--text-color);
     z-index: 1003;
+    box-sizing: border-box;
   }
 
   .svg-icon {
@@ -312,21 +313,29 @@
   }
 
   .mobile-logo {
-    height: 44px;
+    position: absolute;
+    left: 50%;
+    height: 30px;
+    max-width: 104px;
     width: auto;
-    margin: 0 auto;
-    /* centra el logo */
+    object-fit: contain;
+    transform: translateX(-50%);
   }
 
   .mobile-logo.tenant-logo {
-    width: 120px;
-    height: 40px;
+    width: 96px;
+    height: 30px;
     object-fit: contain;
   }
 
   .hamburger-btn {
-    display: block;
+    display: grid;
+    width: 36px;
+    height: 36px;
+    place-items: center;
     flex-shrink: 0;
+    color: var(--primary-color);
+    border-radius: 50%;
   }
 
   /* 2) Ocultar logo dentro del sidebar */

@@ -21,7 +21,7 @@
   min-height: 40px;
   padding: 9px 16px;
   border: 1px solid var(--border-color);
-  border-radius: 8px;
+  border-radius: 14px;
   background: var(--background-color);
   color: var(--text-color);
   font-size: 14px;
@@ -73,7 +73,7 @@
   min-height: 142px;
   overflow: hidden;
   border: 1px solid transparent;
-  border-radius: 8px;
+  border-radius: 14px;
   padding: 25px;
   background:
     var(--admin-kpi-card-gradient),
@@ -221,7 +221,7 @@
 .toggle-filters-button {
   outline: none;
   border: 1px solid var(--border-color);
-  border-radius: 8px;
+  border-radius: 14px;
   background-color: var(--background-color);
   color: var(--text-color);
   cursor: pointer;

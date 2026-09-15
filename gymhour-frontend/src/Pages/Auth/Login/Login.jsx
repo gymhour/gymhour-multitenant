@@ -205,7 +205,7 @@ const Login = () => {
       {showBirthdayModal && (
         <div className="birthday-overlay" aria-modal="true" role="dialog">
           <div className="birthday-modal">
-            <h3 style={{ margin: 0, fontSize: 22 }}>🎉 ¡Feliz cumpleaños! 🎉</h3>
+            <h3 style={{ margin: 0, fontSize: 22, fontWeight: 400 }}>🎉 ¡Feliz cumpleaños! 🎉</h3>
             <p style={{ margin: '14px 0 0', lineHeight: 1.5 }}>
               Te deseamos un gran día y muchos logros. ¡A entrenar con todo! 💪
             </p>

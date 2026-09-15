@@ -118,12 +118,15 @@ const SidebarMenu = ({ isAdmin, isEntrenador }) => {
       {/* MOBILE NAVBAR: hamburguesa a la izquierda + logo centrado */}
       <header className="mobile-navbar">
         <button
+          type="button"
           className="hamburger-btn"
           onClick={() => setIsSidebarOpen(prev => !prev)}
+          aria-label={isSidebarOpen ? 'Cerrar menú' : 'Abrir menú'}
+          aria-expanded={isSidebarOpen}
         >
           {isSidebarOpen
-            ? <X size={35} className="svg-icon" />
-            : <Menu size={20} className="svg-icon" />
+            ? <X size={18} className="svg-icon" />
+            : <Menu size={18} className="svg-icon" />
           }
         </button>
         <img

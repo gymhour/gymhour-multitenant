@@ -4,7 +4,7 @@
 .auth-shell::before { content: ''; position: absolute; inset: 0; z-index: -1; background: rgba(10,10,10,.52); backdrop-filter: grayscale(1) brightness(1.06); -webkit-backdrop-filter: grayscale(1) brightness(1.06); }
 .auth-shell__inner { width: min(920px, calc(100% - 64px)); min-height: 100vh; min-height: 100dvh; margin: 0 auto; display: flex; align-items: center; justify-content: center; padding: 48px 0; box-sizing: border-box; }
 .auth-shell__header { display: none; }
-.auth-shell__grid { display: grid; grid-template-columns: 1fr 1fr; width: 100%; overflow: hidden; border: 1px solid var(--auth-line); border-radius: 20px; background: rgba(18,18,17,.76); box-shadow: 0 30px 80px rgba(0,0,0,.55); backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px); }
+.auth-shell__grid { display: grid; grid-template-columns: 1fr 1fr; width: 100%; overflow: hidden; border: 1px solid var(--auth-line); border-radius: 20px; background: rgba(18,18,17,.76); backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px); }
 .auth-story { min-height: 500px; padding: 52px 46px; display: flex; flex-direction: column; justify-content: space-between; box-sizing: border-box; border-right: 1px solid var(--auth-line); background: rgba(255,255,255,.03); }
 .auth-story__brand { display: inline-flex; align-items: center; align-self: flex-start; color: var(--auth-ink); text-decoration: none; }
 .auth-story__brand img { width: auto; max-width: 140px; object-fit: contain; }
@@ -13,7 +13,7 @@
 .auth-story h1 { margin: 0; color: var(--auth-ink); font-size: 42px; font-weight: 400; line-height: 1.05; letter-spacing: -.035em; }
 .auth-story h1 span { color: inherit; }
 .auth-story__content > p { max-width: 310px; margin: 18px 0 0; color: var(--auth-muted); font-size: 14px; line-height: 1.6; }
-.auth-story__caption { color: var(--auth-dim); font-size: 11px; letter-spacing: .16em; text-transform: uppercase; }
+.auth-story__caption { color: var(--auth-dim); font-size: 13px; letter-spacing: .16em; text-transform: uppercase; }
 .auth-card { width: 100%; padding: 52px 46px; box-sizing: border-box; }
 .auth-card__heading { margin-bottom: 28px; }
 .auth-card__kicker { display: none; }
@@ -21,22 +21,24 @@
 .auth-card__heading p { margin: 0; color: var(--auth-muted); font-size: 13px; line-height: 1.55; }
 
 @media (max-width: 760px) {
-  .auth-shell__inner { width: min(520px, calc(100% - 28px)); padding: 24px 0; }
+  .auth-shell__inner { width: min(430px, calc(100% - 28px)); padding: 20px 0; }
   .auth-shell__grid { grid-template-columns: 1fr; }
-  .auth-story { min-height: auto; padding: 28px 28px 26px; border-right: 0; border-bottom: 1px solid var(--auth-line); }
-  .auth-story__content { margin: 44px 0 30px; }
-  .auth-story h1 { font-size: 36px; }
+  .auth-story { min-height: auto; padding: 18px 24px; border-right: 0; border-bottom: 1px solid var(--auth-line); background: rgba(255,255,255,.02); }
+  .auth-story__brand img { max-width: 112px; max-height: 36px; }
+  .auth-story__brand img.auth-shell__tenant-logo { height: 36px; }
+  .auth-story__content { display: none; }
   .auth-story__caption { display: none; }
-  .auth-card { padding: 32px 28px; }
+  .auth-card { padding: 28px 24px 26px; }
+  .auth-card__heading { margin-bottom: 22px; }
+  .auth-card__heading h2 { margin-bottom: 0; font-size: 25px; letter-spacing: -.025em; }
+  .auth-card__heading p { display: none; }
 }
 @media (max-width: 440px) {
-  .auth-shell__inner { width: calc(100% - 20px); padding: 10px 0; }
-  .auth-shell__grid { border-radius: 16px; }
-  .auth-story { padding: 22px; }
-  .auth-story__content { margin: 30px 0 10px; }
-  .auth-story h1 { font-size: 30px; }
-  .auth-story__content p { display: none; }
-  .auth-card { padding: 28px 22px; }
+  .auth-shell__inner { width: calc(100% - 24px); padding: 12px 0; }
+  .auth-shell__grid { border-radius: 14px; }
+  .auth-story { padding: 16px 20px; }
+  .auth-card { padding: 24px 20px 22px; }
+  .auth-card__heading h2 { font-size: 23px; }
 }
 @media (min-width: 761px) and (max-height: 680px) {
   .auth-shell__inner { padding: 22px 0; }
