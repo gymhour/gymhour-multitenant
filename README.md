@@ -103,7 +103,7 @@ casos same-tenant/cross-tenant.
 No hay WebSockets ni caches actualmente. Cualquier incorporación futura debe incluir
 `tenantId` en canales, claves, tags de invalidación y payloads de jobs.
 
-## Identidad visual y configuración
+## Identidad visual y configuración.
 
 La configuración visual y comercial está centralizada en `gymhour-frontend/src/setup.js`. Allí se controlan:
 
