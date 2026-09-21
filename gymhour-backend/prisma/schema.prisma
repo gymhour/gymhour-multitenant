@@ -48,67 +48,70 @@ enum AiMessageKind {
 }
 
 model Tenant {
-  id        Int                     @id @default(autoincrement())
-  name      String
-  slug      String                  @unique
-  status    TenantStatus            @default(ACTIVE)
-  createdAt DateTime                @default(now())
-  updatedAt DateTime                @updatedAt
-  settings  TenantSettings?
-  kiosks    TenantKioskCredential[]
-  media     MediaAsset[]
-  users     User[]
-  plans     Plan[]
-  fees      Cuota[]
-  expenses  Gasto[]
-  contacts  ContactoAlumno[]
-  movements MovimientoSocio[]
-  bookings  Turno[]
-  fixedBookings TurnoFijo[]
-  schedules HorarioClase[]
-  classes   Clase[]
-  classTrainers ClaseEntrenador[]
-  routines  Rutina[]
-  groups    GrupoUsuario[]
-  groupMembers GrupoUsuarioMiembro[]
-  userRoutineAssignments RutinaAsignacionUsuario[]
+  id                      Int                       @id @default(autoincrement())
+  name                    String
+  slug                    String                    @unique
+  status                  TenantStatus              @default(ACTIVE)
+  createdAt               DateTime                  @default(now())
+  updatedAt               DateTime                  @updatedAt
+  lastActivityAt          DateTime?
+  suspendedAt             DateTime?
+  suspensionReason        String?                   @db.VarChar(500)
+  settings                TenantSettings?
+  kiosks                  TenantKioskCredential[]
+  media                   MediaAsset[]
+  users                   User[]
+  plans                   Plan[]
+  fees                    Cuota[]
+  expenses                Gasto[]
+  contacts                ContactoAlumno[]
+  movements               MovimientoSocio[]
+  bookings                Turno[]
+  fixedBookings           TurnoFijo[]
+  schedules               HorarioClase[]
+  classes                 Clase[]
+  classTrainers           ClaseEntrenador[]
+  routines                Rutina[]
+  groups                  GrupoUsuario[]
+  groupMembers            GrupoUsuarioMiembro[]
+  userRoutineAssignments  RutinaAsignacionUsuario[]
   groupRoutineAssignments RutinaAsignacionGrupo[]
-  routineDays RutinaDia[]
-  weeks     Semana[]
-  blocks    Bloque[]
-  exercises Ejercicio[]
-  blockExercises BloqueEjercicio[]
-  measurements EjercicioMedicion[]
-  exerciseHistory HistoricoEjercicio[]
-  attendances Asistencia[]
-  aiConversations AiConversation[]
-  aiMessages AiMessage[]
+  routineDays             RutinaDia[]
+  weeks                   Semana[]
+  blocks                  Bloque[]
+  exercises               Ejercicio[]
+  blockExercises          BloqueEjercicio[]
+  measurements            EjercicioMedicion[]
+  exerciseHistory         HistoricoEjercicio[]
+  attendances             Asistencia[]
+  aiConversations         AiConversation[]
+  aiMessages              AiMessage[]
 
   @@index([status, createdAt])
 }
 
 model TenantSettings {
-  id                   Int      @id @default(autoincrement())
-  tenantId             Int      @unique @default(0)
-  timezone             String   @default("America/Argentina/Cordoba")
-  currency             String   @default("ARS")
-  onboardingCompleted  Boolean  @default(true)
+  id                    Int       @id @default(autoincrement())
+  tenantId              Int       @unique @default(0)
+  timezone              String    @default("America/Argentina/Cordoba")
+  currency              String    @default("ARS")
+  onboardingCompleted   Boolean   @default(true)
   setupGuideCompletedAt DateTime?
-  logoPublicId         String?
-  primaryColor         String   @default("#DA4632") @db.VarChar(7)
-  contactPhone         String?
-  contactEmail         String?
-  location             String?
-  paymentAccountHolder String?
-  paymentAlias         String?
-  paymentCbu           String?
-  paymentTaxId         String?
-  paymentWhatsapp      String?
-  aiEnabled            Boolean  @default(false)
-  aiMonthlyTokenLimit  Int      @default(2000000)
-  createdAt            DateTime @default(now())
-  updatedAt            DateTime @updatedAt
-  tenant               Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  logoPublicId          String?
+  primaryColor          String    @default("#DA4632") @db.VarChar(7)
+  contactPhone          String?
+  contactEmail          String?
+  location              String?
+  paymentAccountHolder  String?
+  paymentAlias          String?
+  paymentCbu            String?
+  paymentTaxId          String?
+  paymentWhatsapp       String?
+  aiEnabled             Boolean   @default(false)
+  aiMonthlyTokenLimit   Int       @default(2000000)
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+  tenant                Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 }
 
 model TenantKioskCredential {
@@ -142,58 +145,147 @@ model MediaAsset {
 }
 
 model PlatformUser {
-  id          Int          @id @default(autoincrement())
-  email       String       @unique
-  password    String
-  role        PlatformRole @default(SUPER_ADMIN)
-  active      Boolean      @default(true)
-  authVersion Int          @default(0)
-  createdAt   DateTime     @default(now())
-  updatedAt   DateTime     @updatedAt
+  id                 Int                     @id @default(autoincrement())
+  email              String                  @unique
+  password           String
+  role               PlatformRole            @default(SUPER_ADMIN)
+  active             Boolean                 @default(true)
+  authVersion        Int                     @default(0)
+  mfaSecretEncrypted String?                 @db.Text
+  mfaEnabledAt       DateTime?
+  mfaLastUsedStep    BigInt?
+  failedLoginCount   Int                     @default(0)
+  lockedUntil        DateTime?
+  lastLoginAt        DateTime?
+  passwordChangedAt  DateTime                @default(now())
+  createdAt          DateTime                @default(now())
+  updatedAt          DateTime                @updatedAt
+  sessions           PlatformSession[]
+  challenges         PlatformAuthChallenge[]
+  recoveryCodes      PlatformRecoveryCode[]
+}
+
+model PlatformSession {
+  id             Int          @id @default(autoincrement())
+  platformUserId Int
+  authVersion    Int
+  tokenHash      String       @unique @db.Char(64)
+  csrfHash       String       @db.Char(64)
+  ipAddress      String?      @db.VarChar(64)
+  userAgent      String?      @db.VarChar(500)
+  lastSeenAt     DateTime     @default(now())
+  expiresAt      DateTime
+  revokedAt      DateTime?
+  createdAt      DateTime     @default(now())
+  user           PlatformUser @relation(fields: [platformUserId], references: [id], onDelete: Cascade)
+
+  @@index([platformUserId, expiresAt])
+}
+
+model PlatformAuthChallenge {
+  id             Int          @id @default(autoincrement())
+  platformUserId Int
+  tokenHash      String       @unique @db.Char(64)
+  attempts       Int          @default(0)
+  expiresAt      DateTime
+  createdAt      DateTime     @default(now())
+  user           PlatformUser @relation(fields: [platformUserId], references: [id], onDelete: Cascade)
+
+  @@index([platformUserId, expiresAt])
+}
+
+model PlatformRecoveryCode {
+  id             Int          @id @default(autoincrement())
+  platformUserId Int
+  codeHash       String       @unique @db.Char(64)
+  usedAt         DateTime?
+  createdAt      DateTime     @default(now())
+  user           PlatformUser @relation(fields: [platformUserId], references: [id], onDelete: Cascade)
+
+  @@index([platformUserId, usedAt])
+}
+
+model PlatformAuditLog {
+  id                BigInt   @id @default(autoincrement())
+  platformUserId    Int?
+  platformUserEmail String?  @db.VarChar(191)
+  action            String   @db.VarChar(80)
+  targetTenantId    Int?
+  targetTenantSlug  String?  @db.VarChar(50)
+  outcome           String   @db.VarChar(20)
+  reason            String?  @db.VarChar(500)
+  ipAddress         String?  @db.VarChar(64)
+  userAgent         String?  @db.VarChar(500)
+  metadata          Json?
+  createdAt         DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([targetTenantId, createdAt])
+  @@index([action, outcome, createdAt])
+}
+
+model TenantDeletionJob {
+  id                 Int       @id @default(autoincrement())
+  tenantIdSnapshot   Int
+  tenantSlugSnapshot String    @db.VarChar(50)
+  tenantNameSnapshot String    @db.VarChar(191)
+  initiatedByUserId  Int
+  initiatedByEmail   String    @db.VarChar(191)
+  assetManifest      Json
+  status             String    @default("PENDING") @db.VarChar(20)
+  attempts           Int       @default(0)
+  lastError          String?   @db.Text
+  databaseDeletedAt  DateTime?
+  mediaDeletedAt     DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  @@index([status, createdAt])
+  @@index([tenantIdSnapshot])
 }
 
 model User {
-  ID_Usuario         Int                       @id @default(autoincrement())
-  dni                String?
-  email              String
-  nombre             String?
-  apellido           String?
-  password           String
-  profesion          String?
-  direc              String?
-  tel                String?
-  tenantId           Int                       @default(0)
-  role               TenantRole                @default(STUDENT)
-  authVersion        Int                       @default(0)
+  ID_Usuario            Int                       @id @default(autoincrement())
+  dni                   String?
+  email                 String
+  nombre                String?
+  apellido              String?
+  password              String
+  profesion             String?
+  direc                 String?
+  tel                   String?
+  tenantId              Int                       @default(0)
+  role                  TenantRole                @default(STUDENT)
+  authVersion           Int                       @default(0)
   setupGuideDismissedAt DateTime?
-  tenant             Tenant                    @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  fechaRegistro      DateTime?                 @default(now())
-  fechaBaja          DateTime?
-  motivoAlta         String? // por qué se sumó el socio (whitelist MOTIVOS_ALTA); opcional
-  fechaCumple        DateTime?
-  estado             Boolean?
-  resetToken         String?
-  resetTokenExpiry   DateTime?
-  imagenUsuario      String?
-  observacionesSalud String?                   @db.Text
-  fichaMedicaUrl     String?                   @db.Text
-  usaTurnosFijos     Boolean                   @default(false)
-  ID_Plan            Int?
-  plan               Plan?                     @relation("UserPlan", fields: [tenantId, ID_Plan], references: [tenantId, ID_Plan])
-  Turnos             Turno[]
-  TurnosFijos        TurnoFijo[]
-  EjerciciosMedicion EjercicioMedicion[]
-  ClasesACargo       ClaseEntrenador[]
-  rutinasAsignadas   Rutina[]                  @relation("AlumnoRutinas")
-  rutinasCreadas     Rutina[]                  @relation("EntrenadorRutinas")
-  gruposUsuario      GrupoUsuarioMiembro[]
-  asignacionesRutina RutinaAsignacionUsuario[]
-  Cuotas             Cuota[]
-  Asistencias        Asistencia[]
-  movimientos        MovimientoSocio[]
-  contactos          ContactoAlumno[]
-  aiConversations    AiConversation[]
-  aiMessages         AiMessage[]
+  tenant                Tenant                    @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  fechaRegistro         DateTime?                 @default(now())
+  fechaBaja             DateTime?
+  motivoAlta            String? // por qué se sumó el socio (whitelist MOTIVOS_ALTA); opcional
+  fechaCumple           DateTime?
+  estado                Boolean?
+  resetToken            String?
+  resetTokenExpiry      DateTime?
+  imagenUsuario         String?
+  observacionesSalud    String?                   @db.Text
+  fichaMedicaUrl        String?                   @db.Text
+  usaTurnosFijos        Boolean                   @default(false)
+  ID_Plan               Int?
+  plan                  Plan?                     @relation("UserPlan", fields: [tenantId, ID_Plan], references: [tenantId, ID_Plan])
+  Turnos                Turno[]
+  TurnosFijos           TurnoFijo[]
+  EjerciciosMedicion    EjercicioMedicion[]
+  ClasesACargo          ClaseEntrenador[]
+  rutinasAsignadas      Rutina[]                  @relation("AlumnoRutinas")
+  rutinasCreadas        Rutina[]                  @relation("EntrenadorRutinas")
+  gruposUsuario         GrupoUsuarioMiembro[]
+  asignacionesRutina    RutinaAsignacionUsuario[]
+  Cuotas                Cuota[]
+  Asistencias           Asistencia[]
+  movimientos           MovimientoSocio[]
+  contactos             ContactoAlumno[]
+  aiConversations       AiConversation[]
+  aiMessages            AiMessage[]
 
   @@unique([tenantId, ID_Usuario])
   @@unique([tenantId, email])
@@ -536,7 +628,7 @@ model RutinaAsignacionGrupo {
   createdAt                DateTime     @default(now())
   rutina                   Rutina       @relation(fields: [tenantId, ID_Rutina], references: [tenantId, ID_Rutina], onDelete: Cascade)
   grupoUsuario             GrupoUsuario @relation(fields: [tenantId, ID_GrupoUsuario], references: [tenantId, ID_GrupoUsuario], onDelete: Cascade)
-  tenant                   Tenant        @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  tenant                   Tenant       @relation(fields: [tenantId], references: [id], onDelete: Restrict)
 
   @@unique([tenantId, ID_RutinaAsignacionGrupo])
   @@unique([tenantId, ID_Rutina, ID_GrupoUsuario])
@@ -671,7 +763,7 @@ model HistoricoEjercicio {
   Cantidad              Int
   ID_EjercicioMedicion  Int
   EjercicioMedicion     EjercicioMedicion @relation(fields: [tenantId, ID_EjercicioMedicion], references: [tenantId, ID_EjercicioMedicion], onDelete: Cascade)
-  tenant                 Tenant            @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  tenant                Tenant            @relation(fields: [tenantId], references: [id], onDelete: Restrict)
 
   @@unique([tenantId, ID_HistoricoEjercicio])
   @@index([tenantId, ID_EjercicioMedicion, Fecha])

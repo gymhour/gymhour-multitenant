@@ -1,5 +1,7 @@
 import express, { Request, Response } from "express";
 import { runAllTenantNightlyTasks, runAllTenantReminderTasks } from '../services/tenantJobs.service.js';
+import { retryPendingTenantDeletions } from '../services/tenantDeletion.service.js';
+import { cleanupExpiredPlatformAuth } from '../services/platformSecurity.service.js';
 
 const cronRouter = express.Router();
 
@@ -41,6 +43,19 @@ cronRouter.get("/reminders", async (req: Request, res: Response) => {
   } catch (e: any) {
     console.error("[cron/reminders] error:", e);
     res.status(500).json({ ok: false, error: e?.message ?? String(e) });
+  }
+});
+
+cronRouter.post('/platform-maintenance', async (req: Request, res: Response) => {
+  if (!requireCronSecret(req, res)) return;
+  try {
+    const [deletionCleanup, authCleanup] = await Promise.all([
+      retryPendingTenantDeletions(), cleanupExpiredPlatformAuth(),
+    ]);
+    res.json({ ok: true, deletionCleanup, authCleanup });
+  } catch (error: any) {
+    console.error('[cron/platform-maintenance] error:', error);
+    res.status(500).json({ ok: false, error: error?.message ?? String(error) });
   }
 });
 

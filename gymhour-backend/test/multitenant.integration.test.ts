@@ -4,6 +4,7 @@ import request from 'supertest';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import app from '../src/app.js';
 import { systemPrisma } from '../src/models/Prisma.js';
+import { purgeTenantDatabase } from '../src/services/tenantDeletion.service.js';
 
 const hasTestDatabase = Boolean(process.env.TEST_DATABASE_URL);
 const backendDir = fileURLToPath(new URL('../', import.meta.url));
@@ -15,12 +16,16 @@ async function cleanTenants() {
     select: { id: true },
   });
   const ids = tenants.map(tenant => tenant.id);
-  if (!ids.length) return;
-  await systemPrisma.tenantKioskCredential.deleteMany({ where: { tenantId: { in: ids } } });
-  await systemPrisma.tenantSettings.deleteMany({ where: { tenantId: { in: ids } } });
-  await systemPrisma.user.deleteMany({ where: { tenantId: { in: ids } } });
-  await systemPrisma.plan.deleteMany({ where: { tenantId: { in: ids } } });
-  await systemPrisma.tenant.deleteMany({ where: { id: { in: ids } } });
+  if (ids.length) {
+    await systemPrisma.tenantKioskCredential.deleteMany({ where: { tenantId: { in: ids } } });
+    await systemPrisma.tenantSettings.deleteMany({ where: { tenantId: { in: ids } } });
+    await systemPrisma.user.deleteMany({ where: { tenantId: { in: ids } } });
+    await systemPrisma.plan.deleteMany({ where: { tenantId: { in: ids } } });
+    await systemPrisma.tenant.deleteMany({ where: { id: { in: ids } } });
+  }
+  await systemPrisma.platformAuditLog.deleteMany({ where: { targetTenantSlug: { in: slugs } } });
+  await systemPrisma.tenantDeletionJob.deleteMany({ where: { tenantSlugSnapshot: { in: slugs } } });
+  await systemPrisma.platformUser.deleteMany({ where: { email: 'platform-admin@gymhour.test' } });
 }
 
 async function register(slug: string) {
@@ -224,5 +229,25 @@ describe.runIf(hasTestDatabase)('API multi-tenant (MySQL aislada)', () => {
     await systemPrisma.tenant.update({ where: { id: tenant.id }, data: { status: 'SUSPENDED' } });
     expect((await request(app).get('/auth/me').set('Authorization', `Bearer ${newLogin.body.token}`)).status).toBe(403);
     await systemPrisma.tenant.update({ where: { id: tenant.id }, data: { status: 'ACTIVE' } });
+  });
+
+  it('purga un tenant completo sin modificar los demás y conserva la auditoría', async () => {
+    const target = await systemPrisma.tenant.findUniqueOrThrow({ where: { slug: slugs[2] } });
+    const untouched = await systemPrisma.tenant.findUniqueOrThrow({ where: { slug: slugs[1] } });
+    const actor = await systemPrisma.platformUser.create({ data: {
+      email: 'platform-admin@gymhour.test', password: 'test-only-hash', active: true,
+    } });
+    await systemPrisma.plan.create({ data: { tenantId: target.id, nombre: 'Plan a purgar', precio: 1 } });
+    const jobId = await purgeTenantDatabase({
+      tenant: { id: target.id, slug: target.slug, name: target.name },
+      actor: { id: actor.id, email: actor.email }, assets: [], reason: 'Prueba de purga segura',
+      ipAddress: '127.0.0.1', userAgent: 'vitest',
+    });
+    expect(await systemPrisma.tenant.findUnique({ where: { id: target.id } })).toBeNull();
+    expect(await systemPrisma.user.count({ where: { tenantId: target.id } })).toBe(0);
+    expect(await systemPrisma.plan.count({ where: { tenantId: target.id } })).toBe(0);
+    expect(await systemPrisma.tenant.findUnique({ where: { id: untouched.id } })).not.toBeNull();
+    expect(await systemPrisma.tenantDeletionJob.findUnique({ where: { id: jobId } })).toMatchObject({ status: 'COMPLETED' });
+    expect(await systemPrisma.platformAuditLog.findFirst({ where: { targetTenantId: target.id, action: 'TENANT_DELETE' } })).not.toBeNull();
   });
 });

@@ -12,7 +12,16 @@ declare global {
         setupGuideDismissedAt: Date | null;
       };
       tenant?: { id: number; name: string; slug: string; status: TenantStatus };
-      platformUser?: { id: number; email: string; role: PlatformRole; authVersion: number };
+      platformUser?: {
+        id: number;
+        email: string;
+        password: string;
+        role: PlatformRole;
+        authVersion: number;
+        mfaSecretEncrypted: string | null;
+        mfaLastUsedStep: bigint | null;
+      };
+      platformSession?: { id: number; csrfHash: string };
     }
   }
 }

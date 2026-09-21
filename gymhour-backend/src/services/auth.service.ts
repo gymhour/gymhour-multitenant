@@ -96,6 +96,9 @@ export async function authenticateToken(req: Request, res: Response, next: NextF
       role: user.role, authVersion: user.authVersion, setupGuideDismissedAt: user.setupGuideDismissedAt,
     };
     req.tenant = { id: tenant.id, name: tenant.name, slug: tenant.slug, status: tenant.status };
+    if (!tenant.lastActivityAt || tenant.lastActivityAt.getTime() < Date.now() - 15 * 60 * 1000) {
+      void systemPrisma.tenant.update({ where: { id: tenant.id }, data: { lastActivityAt: new Date() } }).catch(() => undefined);
+    }
     runWithTenantContext({ tenantId: tenant.id, user: req.user, tenant: req.tenant, db: prisma, source: 'JWT' }, next);
   } catch (error) {
     console.error('Error en la autenticación:', error);

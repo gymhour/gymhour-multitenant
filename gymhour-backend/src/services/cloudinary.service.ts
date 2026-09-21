@@ -118,3 +118,19 @@ export const deleteImage = async (publicId: string, tenantIdOverride?: number): 
     // Compatibilidad temporal con assets legacy durante la migración copy-verify.
     await cloudinary.uploader.destroy(publicId);
 };
+
+export const deleteExternalAsset = async (publicId: string, resourceType: string = 'image'): Promise<void> => {
+    if (resourceType === 'tenant-prefix') {
+        for (const type of ['image', 'raw', 'video']) {
+            let nextCursor: string | undefined;
+            do {
+                const result = await cloudinary.api.delete_resources_by_prefix(publicId, {
+                    type: 'authenticated', resource_type: type, ...(nextCursor ? { next_cursor: nextCursor } : {}),
+                });
+                nextCursor = result.next_cursor;
+            } while (nextCursor);
+        }
+        return;
+    }
+    await cloudinary.uploader.destroy(publicId, { type: 'authenticated', resource_type: resourceType });
+};

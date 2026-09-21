@@ -37,6 +37,9 @@ export async function authenticateKiosk(req: Request, res: Response, next: NextF
   void systemPrisma.tenantKioskCredential.update({
     where: { id: credential.id }, data: { lastUsedAt: new Date() },
   }).catch(error => console.error('No se pudo actualizar lastUsedAt del kiosco:', error));
+  if (!tenant.lastActivityAt || tenant.lastActivityAt.getTime() < Date.now() - 15 * 60 * 1000) {
+    void systemPrisma.tenant.update({ where: { id: tenant.id }, data: { lastActivityAt: new Date() } }).catch(() => undefined);
+  }
   req.tenant = { id: tenant.id, name: tenant.name, slug: tenant.slug, status: tenant.status };
   runWithTenantContext({ tenantId: tenant.id, user: null, tenant: req.tenant, db: prisma, source: 'KIOSK' }, next);
 }

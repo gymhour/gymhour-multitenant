@@ -29,6 +29,7 @@ import rutinaRoutes from './routes/rutina.Routes.js';
 import turnoRoutes from './routes/turno.Routes.js';
 import userRouter from './routes/user.Routes.js';
 import tenantRouter from './routes/tenant.Routes.js';
+import platformRouter from './routes/platform.Routes.js';
 
 // :=)
 const app = express();
@@ -48,7 +49,17 @@ app.use(
     })
 );
 app.use(express.json());
-app.use(cors());
+app.use(cors({
+    origin: (origin, callback) => {
+        if (!origin) { callback(null, true); return; }
+        const allowed = new Set([
+            process.env.FRONTEND_URL || 'http://localhost:3001',
+            process.env.PLATFORM_FRONTEND_URL || 'http://localhost:3001',
+        ]);
+        callback(null, allowed.has(origin));
+    },
+    credentials: true,
+}));
 app.use(morgan('dev'));
 
 // Límite general por IP. Las rutas sensibles agregan límites más estrictos.
@@ -96,6 +107,7 @@ app.use('/admin', adminRoutes);
 app.use('/ai', aiRoutes);
 app.use('/auth', authRoutes);
 app.use('/tenant', tenantRouter);
+app.use('/platform', platformRouter);
 app.use('/clase', claseRoutes);
 app.use('/turnos', turnoRoutes);
 app.use('/rutinas', rutinaRoutes);
