@@ -10,6 +10,7 @@ import { useNavigate } from 'react-router-dom';
 import CustomInput from '../../../Components/utils/CustomInput/CustomInput';
 import '../UsuarioForm.css';
 import SecondaryButton from '../../../Components/utils/SecondaryButton/SecondaryButton';
+import ConfirmationPopup from '../../../Components/utils/ConfirmationPopUp/ConfirmationPopUp';
 import { ArrowLeft } from 'lucide-react';
 
 const DAY_ORDER = {
@@ -64,6 +65,8 @@ const CrearUsuario = ({fromAdmin, fromTRAINER}) => {
   const [avatarFile, setAvatarFile] = useState(null);
   const [avatarPreview, setAvatarPreview] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [isSendingWelcomeEmail, setIsSendingWelcomeEmail] = useState(false);
+  const [createdUser, setCreatedUser] = useState(null);
   const [planOptions, setPlanOptions] = useState([]);
   const [planSesionesSemana, setPlanSesionesSemana] = useState(0);
   const [clases, setClases] = useState([]);
@@ -261,7 +264,7 @@ const CrearUsuario = ({fromAdmin, fromTRAINER}) => {
         payload.append('avatar', avatarFile);
       }
 
-      await apiClient.post('/usuarios', payload, {
+      const { data: newUser } = await apiClient.post('/usuarios', payload, {
         headers: { 'Content-Type': 'multipart/form-data' },
       });
 
@@ -270,7 +273,11 @@ const CrearUsuario = ({fromAdmin, fromTRAINER}) => {
       setTurnosFijos([]);
       setAvatarFile(null);
       setAvatarPreview("");
-      navigate("/admin/usuarios");
+      setCreatedUser({
+        id: newUser.ID_Usuario,
+        email: newUser.email,
+        nombre: [newUser.nombre, newUser.apellido].filter(Boolean).join(' '),
+      });
     } catch (error) {
       console.error(error);
       const msg = error?.response?.data?.message || 'No se pudo registrar el usuario';
@@ -280,12 +287,44 @@ const CrearUsuario = ({fromAdmin, fromTRAINER}) => {
     }
   };
 
+  const finishCreation = () => {
+    if (isSendingWelcomeEmail) return;
+    setCreatedUser(null);
+    navigate("/admin/usuarios");
+  };
+
+  const handleSendWelcomeEmail = async () => {
+    if (!createdUser?.id || isSendingWelcomeEmail) return;
+    try {
+      setIsSendingWelcomeEmail(true);
+      await apiClient.post(`/usuarios/${createdUser.id}/welcome-email`);
+      toast.success(`Mail de bienvenida enviado a ${createdUser.email}`);
+      setCreatedUser(null);
+      navigate("/admin/usuarios");
+    } catch (error) {
+      console.error(error);
+      const msg = error?.response?.data?.message || 'No pudimos enviar el mail de bienvenida. Podés volver a intentarlo.';
+      toast.error(msg);
+    } finally {
+      setIsSendingWelcomeEmail(false);
+    }
+  };
+
   const tipos = fromAdmin ? ROLE_OPTIONS : ROLE_OPTIONS.filter(({ value }) => value === 'STUDENT');
 
   return (
     <div className="page-layout">
       {isLoading && <LoaderFullScreen />}
       <SidebarMenu isAdmin={fromAdmin} isTRAINER={fromTRAINER} />
+      <ConfirmationPopup
+        isOpen={Boolean(createdUser)}
+        onClose={finishCreation}
+        onConfirm={handleSendWelcomeEmail}
+        message={`El usuario ya fue creado. ¿Querés enviarle ahora el mail de bienvenida a ${createdUser?.nombre ? `${createdUser.nombre} (${createdUser.email})` : createdUser?.email || 'este usuario'}?`}
+        cancelText="No enviar"
+        confirmText="Sí, enviar"
+        isLoading={isSendingWelcomeEmail}
+      />
       <div className="content-layout">
         <div className="usuario-form-page">
           <SecondaryButton

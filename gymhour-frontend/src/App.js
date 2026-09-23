@@ -448,13 +448,6 @@ function App() {
             </ProtectedRoute>
           }
         />
-        <Route path="/alumno/asistente-ia"
-          element={
-            <ProtectedRoute roles={['STUDENT']}>
-              <AIAssistant role="STUDENT" />
-            </ProtectedRoute>
-          }
-        />
         <Route path="/alumno/turnos"
           element={
             <ProtectedRoute>

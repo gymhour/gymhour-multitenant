@@ -414,13 +414,6 @@ export const createUser = async (req: Request, res: Response): Promise<void> => 
             user.imagenUsuario = result.public_id;
         }
 
-        // 3) Enviar email (sin bloquear)
-        try {
-            await sendWelcomeEmail(user.email, user.nombre ?? "");
-        } catch {
-            // no hacemos nada si falla el mail
-        }
-
         res.status(201).json(user);
     } catch (error: any) {
         if (error.code === 'P2002') {
@@ -434,6 +427,31 @@ export const createUser = async (req: Request, res: Response): Promise<void> => 
         } else {
             respondUnexpected(res, error, "crear el usuario");
         }
+    }
+};
+
+/** SEND WELCOME EMAIL (ADMIN OPT-IN AFTER CREATION) */
+export const sendUserWelcomeEmail = async (req: Request, res: Response): Promise<void> => {
+    try {
+        const userId = Number(req.params.id);
+        if (!Number.isInteger(userId) || userId < 1) {
+            res.status(400).json({ message: 'El usuario indicado no es válido.' });
+            return;
+        }
+
+        const user = await prisma.user.findUnique({
+            where: { ID_Usuario: userId },
+            select: { email: true, nombre: true },
+        });
+        if (!user) {
+            res.status(404).json({ message: 'No encontramos ese usuario.' });
+            return;
+        }
+
+        await sendWelcomeEmail(user.email, user.nombre ?? '');
+        res.status(200).json({ ok: true, enviadoA: user.email });
+    } catch (error: any) {
+        respondUnexpected(res, error, 'enviar el mail de bienvenida');
     }
 };
 
@@ -1279,6 +1297,7 @@ export const importUsers = async (req: Request, res: Response): Promise<void> =>
 
 export const userMethods = {
     createUser,
+    sendUserWelcomeEmail,
     getAllUsers,
     getUserStats,
     deleteUser,

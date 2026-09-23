@@ -27,7 +27,6 @@ import {
   ScanLine,
   AlertTriangle,
   TrendingDown,
-  UserPlus,
   Sparkles,
   ChevronLeft,
   ChevronRight,
@@ -448,28 +447,6 @@ const SidebarMenu = ({ isAdmin, isEntrenador }) => {
                         Ejercicios
                       </li>
                     </Link>
-                    <li className="menu-section-label menu-section-label--spaced">Personas</li>
-                    <Link
-                      to="/entrenador/crear-usuario"
-                      className={`menu-link ${location.pathname === "/admin/crear-usuario"
-                        ? "active"
-                        : ""
-                        }`}
-                    >
-                      <li className="menu-item">
-                        <UserPlus className="icon" />{" "}
-                        Crear usuario
-                      </li>
-                    </Link>
-                    <Link
-                      to="/entrenador/usuarios"
-                      className={`menu-link ${location.pathname === "/entrenador/usuarios" ? "active" : ""
-                        }`}
-                    >
-                      <li className="menu-item">
-                        <Users className="icon" /> Usuarios
-                      </li>
-                    </Link>
                     <li className="menu-section-label menu-section-label--spaced">Clases</li>
                     <Link
                       to="/entrenador/clases-actividades"
@@ -496,14 +473,6 @@ const SidebarMenu = ({ isAdmin, isEntrenador }) => {
                         <li className="menu-item">
                           <Home className="icon" />{" "}
                           Inicio
-                        </li>
-                      </Link>
-                      <Link
-                        to="/alumno/asistente-ia"
-                        className={`menu-link ${location.pathname === "/alumno/asistente-ia" ? "active" : ""}`}
-                      >
-                        <li className="menu-item" title="Asistente IA">
-                          <Sparkles className="icon" /> Asistente IA
                         </li>
                       </Link>
                       <li className="menu-section-label menu-section-label--spaced">Clases y turnos</li>

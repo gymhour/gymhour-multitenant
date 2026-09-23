@@ -10,6 +10,9 @@ const ConfirmationPopup = ({
   message,
   options = [],
   placeholderOption = "Selecciona una opción",
+  cancelText = "Cancelar",
+  confirmText = "Confirmar",
+  isLoading = false,
   children,
 }) => {
   const [selectedOption, setSelectedOption] = useState("");
@@ -22,21 +25,22 @@ const ConfirmationPopup = ({
   useEffect(() => {
     if (!isOpen) return;
     const onKeyDown = (e) => {
-      if (e.key === "Escape") onClose?.();
+      if (e.key === "Escape" && !isLoading) onClose?.();
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [isOpen, onClose]);
+  }, [isOpen, isLoading, onClose]);
 
   if (!isOpen) return null;
 
   const handleConfirm = () => {
+    if (isLoading) return;
     const estadoBool = selectedOption === "Activar";
     onConfirm?.(estadoBool);
   };
 
   const handleOverlayClick = (e) => {
-    if (e.target.classList.contains("confirmation-popup-overlay")) {
+    if (!isLoading && e.target.classList.contains("confirmation-popup-overlay")) {
       onClose?.();
     }
   };
@@ -61,15 +65,15 @@ const ConfirmationPopup = ({
 
         <div className="confirmation-popup-buttons">
           <div className="popup-btns-ctn">
-            <button onClick={onClose} className="popup-cancel-button">
-              Cancelar
+            <button onClick={onClose} className="popup-cancel-button" disabled={isLoading}>
+              {cancelText}
             </button>
             <button
               onClick={handleConfirm}
               className="popup-confirm-button"
-              disabled={options.length > 0 && !selectedOption}
+              disabled={isLoading || (options.length > 0 && !selectedOption)}
             >
-              Confirmar
+              {isLoading ? "Enviando..." : confirmText}
             </button>
           </div>
         </div>

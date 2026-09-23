@@ -13,6 +13,7 @@ userRouter.get('/entrenadores', authServices.authenticateToken, userMethods.getA
 userRouter.get('/admins', authServices.authenticateToken, authServices.isAdmin, userMethods.getAllAdmins)
 userRouter.post('/', authServices.authenticateToken, authServices.isAdmin, upload.single('avatar'), userMethods.createUser)
 userRouter.post('/import', authServices.authenticateToken, authServices.isAdmin, userMethods.importUsers)
+userRouter.post('/:id/welcome-email', authServices.authenticateToken, authServices.isAdmin, userMethods.sendUserWelcomeEmail)
 userRouter.get('/me', authServices.authenticateToken, (req, res) => {
     req.params.id = String(req.user!.id);
     return userMethods.getUserById(req, res);
