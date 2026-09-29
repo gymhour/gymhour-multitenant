@@ -81,7 +81,7 @@ npm run seed
 
 La migración de Cloudinary hace copy-verify hacia `tenants/{tenantId}/...`, registra cada copia
 en `MediaAsset` y no elimina los originales. Los assets nuevos usan entrega autenticada y URLs
-firmadas por 15 minutos; `CLOUDINARY_AUTH_TOKEN_KEY` es obligatoria para servirlos.
+firmadas por el backend con `CLOUDINARY_SECRET_KEY`.
 
 Los scripts manuales de `prisma/` exigen siempre `--tenant=<slug>` y fallan si se omite.
 

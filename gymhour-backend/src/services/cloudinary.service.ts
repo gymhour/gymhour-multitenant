@@ -73,31 +73,23 @@ export const uploadImageBuffer = (
 };
 
 export const getImageUrl = (publicId: string, options?: Record<string, any>): string => {
-    const tokenKey = process.env.CLOUDINARY_AUTH_TOKEN_KEY;
     const isTenantPrivateAsset = publicId.startsWith('tenants/');
-    if (isTenantPrivateAsset && !tokenKey) {
-        throw new Error('CLOUDINARY_AUTH_TOKEN_KEY_REQUIRED');
-    }
     return cloudinary.url(publicId, {
         secure: true,
         type: isTenantPrivateAsset ? 'authenticated' : 'upload',
         sign_url: isTenantPrivateAsset,
-        ...(isTenantPrivateAsset ? { auth_token: { key: tokenKey, duration: 15 * 60 } } : {}),
         ...options,
     });
 };
 
-// El logo identifica públicamente al gimnasio. Si el ambiente no tiene una
-// auth-token key, usamos la firma estándar de Cloudinary para poder mostrarlo
-// sin relajar la entrega privada del resto de los archivos del tenant.
+// El logo identifica públicamente al gimnasio, pero conserva el mismo tipo de
+// entrega autenticada que el resto de los assets del tenant.
 export const getTenantLogoUrl = (publicId: string): string => {
-    const tokenKey = process.env.CLOUDINARY_AUTH_TOKEN_KEY;
     return cloudinary.url(publicId, {
         secure: true,
         type: 'authenticated',
         sign_url: true,
         transformation: [{ width: 360, height: 180, crop: 'limit', quality: 'auto', fetch_format: 'auto' }],
-        ...(tokenKey ? { auth_token: { key: tokenKey, duration: 15 * 60 } } : {}),
     });
 };
 
