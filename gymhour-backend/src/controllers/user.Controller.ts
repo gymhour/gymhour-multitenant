@@ -7,6 +7,7 @@ import { getArgentinaDate, resolveSlots } from "../services/accessRules.service.
 import { deleteImage, getImageUrl, getMedicalRecordUrl, uploadImageBuffer } from "../services/cloudinary.service.js";
 import { sendWelcomeEmail } from "../services/email.service.js";
 import { hashPassword } from "../services/password.service.js";
+import { isForbiddenSelfRoleChange } from "../services/userRole.service.js";
 
 // Parsea la fecha de cumpleaños del import masivo. Acepta DD/MM/AAAA (formato del Excel) e ISO AAAA-MM-DD.
 // Devuelve { date } (mediodía UTC para evitar drift de día), { date: null } si viene vacío, o { error }.
@@ -808,6 +809,14 @@ export const updateUser = async (req: Request, res: Response): Promise<void> => 
     const file = req.file;
 
     try {
+        const requestedRole = role ? normalizeTenantRole(role) : null;
+        const isSelfUpdate = req.user?.id === id;
+        if (requestedRole && req.user
+            && isForbiddenSelfRoleChange(req.user.id, req.user.role, id, requestedRole)) {
+            res.status(403).json({ message: 'No podés cambiar tu propio tipo de usuario.' });
+            return;
+        }
+
         // 1) Build data to update
         const data: any = {};
         if (email) data.email = email;
@@ -817,7 +826,8 @@ export const updateUser = async (req: Request, res: Response): Promise<void> => 
         if (profesion) data.profesion = profesion;
         if (direc) data.direc = direc;
         if (tel) data.tel = tel;
-        if (role) data.role = normalizeTenantRole(role);
+        // En la autoedición, el rol se conserva aunque el cliente reenvíe el valor actual.
+        if (requestedRole && !isSelfUpdate) data.role = requestedRole;
         if (fechaCumple) data.fechaCumple = new Date(fechaCumple);
         if (estado !== undefined) data.estado = estado;
         if (usaTurnosFijos !== undefined) data.usaTurnosFijos = parseBoolean(usaTurnosFijos);
@@ -837,7 +847,7 @@ export const updateUser = async (req: Request, res: Response): Promise<void> => 
         if (password) {
             data.password = await hashPassword(password);
         }
-        if (password || role) {
+        if (password || (requestedRole && !isSelfUpdate)) {
             data.authVersion = { increment: 1 };
         }
 

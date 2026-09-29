@@ -5,10 +5,11 @@ import CustomDropdown from '../../../Components/utils/CustomDropdown/CustomDropd
 import CustomInput from '../../../Components/utils/CustomInput/CustomInput';
 import apiService from '../../../services/apiService';
 import { toast } from 'react-toastify';
-import { ROLE_OPTIONS } from '../../../utils/roleLabels';
+import { ROLE_OPTIONS, formatRole } from '../../../utils/roleLabels';
 import SecondaryButton from '../../../Components/utils/SecondaryButton/SecondaryButton';
 import { ArrowLeft } from 'lucide-react';
 import LoaderFullScreen from '../../../Components/utils/LoaderFullScreen/LoaderFullScreen';
+import { useAuth } from '../../../context/AuthContext';
 import '../UsuarioForm.css';
 
 const DAY_ORDER = {
@@ -28,6 +29,10 @@ const sortHorarios = (horarios) =>
 
 const EditarUsuario = ({fromAdmin, fromTRAINER}) => {
   const { id } = useParams();
+  const { user: authenticatedUser } = useAuth();
+  const isEditingOwnAdmin = fromAdmin
+    && authenticatedUser?.role === 'ADMIN'
+    && Number(id) === Number(authenticatedUser?.id);
 
   const initialFormData = {
     email: '',
@@ -270,7 +275,9 @@ const EditarUsuario = ({fromAdmin, fromTRAINER}) => {
       payload.append('apellido', formData.apellido);
       payload.append('direc', formData.direc);
       payload.append('tel', formData.tel);
-      payload.append('role', formData.role.toLowerCase());
+      if (!isEditingOwnAdmin) {
+        payload.append('role', formData.role.toLowerCase());
+      }
       payload.append('fechaCumple', isoFecha);
       payload.append('observacionesSalud', formData.observacionesSalud.trim());
       payload.append('fichaMedicaUrl', formData.fichaMedicaUrl.trim());
@@ -386,13 +393,26 @@ const EditarUsuario = ({fromAdmin, fromTRAINER}) => {
 
             <div className="usuario-form-field">
               <label htmlFor="role">Tipo de usuario</label>
-              <CustomDropdown
-                options={tipos}
-                value={formData.role}
-                onChange={handleTipoChange}
-                name="role"
-                id="role"
-              />
+              {isEditingOwnAdmin ? (
+                <>
+                  <CustomInput
+                    id="role"
+                    value={formatRole(formData.role)}
+                    readOnly
+                    disabled
+                    width="100%"
+                  />
+                  <span className="usuario-form-help">No podés cambiar tu propio tipo de usuario.</span>
+                </>
+              ) : (
+                <CustomDropdown
+                  options={tipos}
+                  value={formData.role}
+                  onChange={handleTipoChange}
+                  name="role"
+                  id="role"
+                />
+              )}
             </div>
 
             {formData.role === 'STUDENT' && (
