@@ -36,15 +36,37 @@ export const AuthProvider = ({ children }) => {
       setSession(data);
       setAuthSnapshot(data);
       return data;
-    } catch {
-      localStorage.removeItem('token');
-      setSession(null);
-      setAuthSnapshot(null);
+    } catch (error) {
+      if (error.response?.status === 401 || error.response?.status === 403) {
+        localStorage.removeItem('token');
+        setSession(null);
+        setAuthSnapshot(null);
+      }
       return null;
     } finally { setLoading(false); }
   }, []);
 
   useEffect(() => { refresh(); }, [refresh]);
+
+  useEffect(() => {
+    if (!session || !localStorage.getItem('token')) return undefined;
+    const onFocus = () => { refresh(); };
+    window.addEventListener('focus', onFocus);
+    window.addEventListener('gymhour:subscription-required', onFocus);
+    const interval = window.setInterval(refresh, 60_000);
+    const dates = [session.tenant?.billing?.trialEndsAt, session.tenant?.billing?.paidUntil]
+      .map(value => value ? new Date(value).getTime() : NaN)
+      .filter(value => Number.isFinite(value) && value > Date.now());
+    const nextBoundary = dates.length ? Math.min(...dates) : null;
+    const timeout = nextBoundary === null ? null : window.setTimeout(refresh,
+      Math.min(2_147_483_647, Math.max(0, nextBoundary - Date.now() + 100)));
+    return () => {
+      window.removeEventListener('focus', onFocus);
+      window.removeEventListener('gymhour:subscription-required', onFocus);
+      window.clearInterval(interval);
+      if (timeout !== null) window.clearTimeout(timeout);
+    };
+  }, [session, refresh]);
 
   useEffect(() => {
     const color = session?.tenant?.settings?.primaryColor;

@@ -25,7 +25,7 @@ const mapCheckInResponse = data => {
     return {
         allowed,
         status: allowed ? ATTENDANCE_STATUS.ALLOWED : ATTENDANCE_STATUS.REJECTED,
-        message: data?.motivo || (allowed ? 'Ingreso permitido.' : 'Ingreso rechazado.'),
+        message: data?.motivo || data?.message || (allowed ? 'Ingreso permitido.' : 'Ingreso rechazado.'),
         reason: attendanceReasonMap[data?.resultado],
         student: data?.alumno ? {
             id: data.alumno.id ? String(data.alumno.id) : '',

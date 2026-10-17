@@ -1,5 +1,5 @@
 import './App.css';
-import { Route, Routes } from 'react-router-dom';
+import { Route, Routes, useLocation } from 'react-router-dom';
 import { ToastContainer } from 'react-toastify'; // Importa el ToastContainer
 import ProtectedRoute from './ProtectedRoute';
 import Login from './Pages/Auth/Login/Login';
@@ -51,9 +51,22 @@ import PublicCheckInPage from './Pages/Public/CheckIn/PublicCheckInPage';
 import TenantSettings from './Pages/Admin/TenantSettings/TenantSettings';
 import AIAssistant from './Pages/Shared/AIAssistant/AIAssistant';
 import SupportWhatsAppButton from './Components/utils/SupportWhatsAppButton/SupportWhatsAppButton';
-import React, { useState, useEffect } from 'react';
+import { useAuth } from './context/AuthContext';
+import SubscriptionExpired from './Components/SubscriptionExpired/SubscriptionExpired';
+import SubscriptionRenewalStatusBar, { renewalDaysRemaining } from './Components/SubscriptionExpired/SubscriptionRenewalStatusBar';
+import TrialStatusBar from './Components/TrialStatusBar/TrialStatusBar';
+import React, { useState, useEffect, useRef } from 'react';
 
 function App() {
+  const { user, tenant } = useAuth();
+  const { pathname } = useLocation();
+  const expired = tenant?.billing?.state === 'EXPIRED';
+  const appContentRef = useRef(null);
+  const appPath = pathname === '/onboarding' || /^\/(admin|entrenador|alumno)(\/|$)/.test(pathname);
+  const reminderDays = renewalDaysRemaining(tenant?.billing);
+  const showRenewalBar = Boolean(user?.role === 'ADMIN' && appPath && reminderDays !== null);
+  const showTrial = Boolean(user && tenant?.billing?.state === 'TRIAL'
+    && appPath);
 
 
   // Theme logic
@@ -64,14 +77,16 @@ function App() {
     localStorage.setItem('theme', theme);
   }, [theme]);
 
+  useEffect(() => {
+    if (appContentRef.current) appContentRef.current.inert = expired;
+  }, [expired]);
+
   // Expose toggle function globally for temporary testing or pass down if needed
   window.toggleTheme = () => setTheme(prev => prev === 'dark' ? 'light' : 'dark');
 
-
-
   return (
     <>
-      <ToastContainer
+      {!expired && <ToastContainer
         position="top-right"
         autoClose={1500}
         hideProgressBar={false}
@@ -82,7 +97,10 @@ function App() {
         draggable
         pauseOnHover
         theme={theme}
-      />
+      />}
+      {showTrial && <TrialStatusBar billing={tenant.billing} />}
+      {showRenewalBar && <SubscriptionRenewalStatusBar days={reminderDays} />}
+      <div ref={appContentRef} aria-hidden={expired} className={showTrial || showRenewalBar ? 'trial-app-shell' : undefined}>
       <Routes>
         {/* Rutas públicas */}
         <Route path="/" element={<Login />} />
@@ -595,7 +613,9 @@ function App() {
         {/* Ruta de error */}
         <Route path="*" element={<NotFound />} />
       </Routes>
-      <SupportWhatsAppButton />
+      {!expired && <SupportWhatsAppButton />}
+      </div>
+      {expired && <SubscriptionExpired />}
     </>
   );
 }

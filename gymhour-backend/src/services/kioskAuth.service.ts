@@ -2,6 +2,7 @@ import crypto from 'node:crypto';
 import type { NextFunction, Request, Response } from 'express';
 import prisma, { systemPrisma } from '../models/Prisma.js';
 import { runWithTenantContext } from './tenantContext.service.js';
+import { getBillingAccess } from './billing.service.js';
 
 export const hashKioskToken = (token: string): string => crypto.createHash('sha256').update(token).digest('hex');
 export const generateKioskToken = (): string => crypto.randomBytes(32).toString('base64url');
@@ -16,6 +17,10 @@ export async function authenticatePublicTenant(req: Request, res: Response, next
     where: { slug, status: 'ACTIVE', settings: { is: { onboardingCompleted: true } } },
   }) : null;
   if (!tenant) { res.status(404).json({ error: 'Gimnasio no encontrado.' }); return; }
+  if (getBillingAccess(tenant).state === 'EXPIRED') {
+    res.status(403).json({ code: 'SUBSCRIPTION_REQUIRED', message: 'El gimnasio no está habilitado para registrar ingresos.' });
+    return;
+  }
   req.tenant = { id: tenant.id, name: tenant.name, slug: tenant.slug, status: tenant.status };
   runWithTenantContext({ tenantId: tenant.id, user: null, tenant: req.tenant, db: prisma, source: 'KIOSK' }, next);
 }
@@ -34,6 +39,10 @@ export async function authenticateKiosk(req: Request, res: Response, next: NextF
   }
 
   const tenant = credential.tenant;
+  if (getBillingAccess(tenant).state === 'EXPIRED') {
+    res.status(403).json({ code: 'SUBSCRIPTION_REQUIRED', message: 'El gimnasio no está habilitado para registrar ingresos.' });
+    return;
+  }
   void systemPrisma.tenantKioskCredential.update({
     where: { id: credential.id }, data: { lastUsedAt: new Date() },
   }).catch(error => console.error('No se pudo actualizar lastUsedAt del kiosco:', error));

@@ -209,6 +209,43 @@ describe.runIf(hasTestDatabase)('API multi-tenant (MySQL aislada)', () => {
       .set('X-Kiosk-Token', token).send({ dni: '00000000', metodo: 'DNI' })).status).toBe(401);
   });
 
+  it('bloquea API y check-in al vencer y restablece el acceso con un período pago', async () => {
+    const tenant = await systemPrisma.tenant.findUniqueOrThrow({ where: { slug: slugs[1] } });
+    const login = await request(app).post(`/auth/tenants/${tenant.slug}/login`)
+      .send({ email: 'same-admin@gymhour.test', password: 'TestPassword123!' });
+    const auth = { Authorization: `Bearer ${login.body.token}` };
+    const kiosk = await request(app).post('/tenant/kiosks').set(auth).send({ label: 'Billing test' });
+    expect(kiosk.status).toBe(201);
+    const original = { trialEndsAt: tenant.trialEndsAt, paidUntil: tenant.paidUntil, billingExempt: tenant.billingExempt };
+    try {
+      await systemPrisma.tenant.update({ where: { id: tenant.id }, data: {
+        trialEndsAt: new Date(Date.now() - 1000), paidUntil: null, billingExempt: false,
+      } });
+      const me = await request(app).get('/auth/me').set(auth);
+      expect(me.status).toBe(200);
+      expect(me.body.tenant.billing.state).toBe('EXPIRED');
+      const blocked = await request(app).get('/planes').set(auth);
+      expect(blocked.status).toBe(403);
+      expect(blocked.body.code).toBe('SUBSCRIPTION_REQUIRED');
+      const publicCheckIn = await request(app).post(`/usuarios/asistencias/public/${tenant.slug}/registrar`).send({ dni: '00000000' });
+      expect(publicCheckIn.status).toBe(403);
+      expect(publicCheckIn.body.code).toBe('SUBSCRIPTION_REQUIRED');
+      const kioskCheckIn = await request(app).post('/usuarios/asistencias/kiosk/registrar')
+        .set('X-Kiosk-Token', kiosk.body.activationToken).send({ dni: '00000000' });
+      expect(kioskCheckIn.status).toBe(403);
+      expect(kioskCheckIn.body.code).toBe('SUBSCRIPTION_REQUIRED');
+
+      await systemPrisma.tenant.update({ where: { id: tenant.id }, data: { paidUntil: new Date(Date.now() + 60_000) } });
+      expect((await request(app).get('/planes').set(auth)).status).toBe(200);
+      await systemPrisma.tenant.update({ where: { id: tenant.id }, data: {
+        paidUntil: new Date(Date.now() - 1000), billingExempt: true,
+      } });
+      expect((await request(app).get('/planes').set(auth)).status).toBe(200);
+    } finally {
+      await systemPrisma.tenant.update({ where: { id: tenant.id }, data: original });
+    }
+  });
+
   it('invalida tokens al cambiar password y bloquea tenant suspendido', async () => {
     const login = await request(app).post(`/auth/tenants/${slugs[0]}/login`)
       .send({ email: 'same-admin@gymhour.test', password: 'TestPassword123!' });

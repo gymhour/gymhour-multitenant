@@ -3,6 +3,13 @@
   --pf-border-strong:#cfd5dc; --pf-text:#20242a; --pf-muted:#717984;
   --pf-accent:#c84b38; --pf-accent-soft:#fbefec; --pf-green:#247a5a; --pf-green-soft:#eaf5f0;
 }
+.platform-status.billing-trial{border-color:#d8e1f1;background:#f1f5fc;color:#416394}
+.platform-status.billing-paid,.platform-status.billing-exempt{border-color:#cce5da;background:var(--pf-green-soft);color:var(--pf-green)}
+.platform-status.billing-expired{border-color:#f0d4ce;background:var(--pf-accent-soft);color:#a33b2b}
+.platform-billing-panel{margin-top:20px;display:flex;align-items:center;justify-content:space-between;gap:20px}
+.platform-billing-panel h2{margin-bottom:12px}.platform-billing-panel p{margin:5px 0;color:var(--pf-muted)}
+.platform-billing-panel button{width:auto;padding:12px 16px;border:1px solid #b94231;border-radius:9px;background:var(--pf-accent);color:#fff}
+@media(max-width:650px){.platform-billing-panel{align-items:flex-start;flex-direction:column}}
 *{box-sizing:border-box}
 body.platform-mode{margin:0;background:var(--pf-bg);color:var(--pf-text);font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;font-weight:400;-webkit-font-smoothing:antialiased}
 .platform-mode h1,.platform-mode h2,.platform-mode h3,.platform-mode strong,.platform-mode b,.platform-mode button,.platform-mode label,.platform-mode th{font-weight:500}

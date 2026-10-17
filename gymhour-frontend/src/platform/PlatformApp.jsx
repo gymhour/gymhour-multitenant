@@ -10,6 +10,7 @@ import './Platform.css';
 const errorMessage = error => error.response?.data?.message || 'No pudimos completar la operación.';
 const number = value => new Intl.NumberFormat('es-AR').format(value || 0);
 const date = value => value ? new Intl.DateTimeFormat('es-AR', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value)) : 'Sin actividad';
+const billingDate = value => value ? date(value) : '—';
 
 function Login() {
   const { user, completeLogin } = usePlatformAuth();
@@ -103,6 +104,8 @@ function Dashboard() {
 }
 
 function StatusPill({ status }) { return <span className={`platform-status ${status.toLowerCase()}`}>{status === 'ACTIVE' ? 'Activo' : 'Suspendido'}</span>; }
+const BILLING_LABELS = { TRIAL: 'Prueba', PAID: 'Pago', EXPIRED: 'Vencido', EXEMPT: 'Acceso conservado' };
+function BillingPill({ billing }) { return <span className={`platform-status billing-${(billing?.state || 'expired').toLowerCase()}`}>{BILLING_LABELS[billing?.state] || 'Sin estado'}</span>; }
 
 function Tenants() {
   const [params, setParams] = useSearchParams();
@@ -115,7 +118,7 @@ function Tenants() {
   const update = (key, value) => { const next = new URLSearchParams(params); value ? next.set(key, value) : next.delete(key); next.set('page', '1'); setParams(next); };
   return <Page title="Tenants" subtitle="Información operativa y administración del ciclo de vida.">
     <div className="platform-toolbar"><label className="platform-search"><Search size={18}/><input placeholder="Nombre, slug o email" value={search} onChange={e => update('search', e.target.value)} /></label><select value={status} onChange={e => update('status', e.target.value)}><option value="">Todos los estados</option><option value="ACTIVE">Activos</option><option value="SUSPENDED">Suspendidos</option></select><select value={sort} onChange={e => update('sort', e.target.value)}><option value="createdAt">Más recientes</option><option value="name">Nombre</option><option value="lastActivityAt">Última actividad</option></select></div>
-    <div className="platform-table-wrap"><table><thead><tr><th>Gimnasio</th><th>Estado</th><th>Administradores</th><th>Actividad</th><th></th></tr></thead><tbody>{data?.items?.map(item => <tr key={item.id}><td><strong>{item.name}</strong><small>{item.slug}</small></td><td><StatusPill status={item.status}/></td><td>{item.users.map(admin => <small key={admin.ID_Usuario}>{admin.email}</small>)}</td><td><small>{date(item.lastActivityAt)}</small></td><td><Link className="platform-row-link" to={`/tenants/${item.id}`}>Ver detalle</Link></td></tr>)}</tbody></table></div>
+    <div className="platform-table-wrap"><table><thead><tr><th>Gimnasio</th><th>Estado</th><th>Suscripción</th><th>Administradores</th><th>Actividad</th><th></th></tr></thead><tbody>{data?.items?.map(item => <tr key={item.id}><td><strong>{item.name}</strong><small>{item.slug}</small></td><td><StatusPill status={item.status}/></td><td><BillingPill billing={item.billing}/></td><td>{item.users.map(admin => <small key={admin.ID_Usuario}>{admin.email}</small>)}</td><td><small>{date(item.lastActivityAt)}</small></td><td><Link className="platform-row-link" to={`/tenants/${item.id}`}>Ver detalle</Link></td></tr>)}</tbody></table></div>
     {data && <div className="platform-pagination"><button disabled={data.pagination.page <= 1} onClick={() => update('page', data.pagination.page - 1)}>Anterior</button><span>Página {data.pagination.page} de {Math.max(1, data.pagination.pages)}</span><button disabled={data.pagination.page >= data.pagination.pages} onClick={() => update('page', data.pagination.page + 1)}>Siguiente</button></div>}
   </Page>;
 }
@@ -151,6 +154,30 @@ function ConfirmDialog({ tenant, action, onClose, onDone }) {
   return <div className="platform-modal-backdrop"><form className={`platform-modal ${destructive ? 'danger' : ''}`} onSubmit={submit}><h2>{destructive ? 'Confirmación final' : action === 'suspend' ? 'Suspender tenant' : 'Reactivar tenant'}</h2><label>Motivo{destructive ? <select value={form.reason} onChange={e => setForm({ ...form, reason: e.target.value })} required><option value="" disabled>Seleccioná un motivo de baja</option>{deletionReasons.map(reason => <option key={reason} value={reason}>{reason}</option>)}</select> : <input value={form.reason} minLength={5} onChange={e => setForm({ ...form, reason: e.target.value })} required />}</label>{destructive && <><label>Escribí el slug <strong>{tenant.slug}</strong><input value={form.slug} onChange={e => setForm({ ...form, slug: e.target.value })} required /></label><label>Contraseña<input type="password" autoComplete="current-password" value={form.password} onChange={e => setForm({ ...form, password: e.target.value })} required /></label></>}<label>Código MFA<input inputMode="numeric" autoComplete="one-time-code" value={form.mfaCode} onChange={e => setForm({ ...form, mfaCode: e.target.value })} required /></label><div className="platform-modal-actions"><button type="button" className="secondary" onClick={onClose}>Cancelar</button><button disabled={busy || (destructive && form.slug !== tenant.slug)} className={destructive ? 'danger-button' : ''}>{busy ? 'Procesando…' : 'Confirmar'}</button></div></form></div>;
 }
 
+function BillingDialog({ tenant, onClose, onDone }) {
+  const [form, setForm] = useState({ paidUntil: '', reason: '', mfaCode: '' });
+  const [busy, setBusy] = useState(false);
+  const submit = async event => {
+    event.preventDefault(); setBusy(true);
+    try {
+      await platformApi.patch(`/platform/tenants/${tenant.id}/billing`, {
+        paidUntil: new Date(form.paidUntil).toISOString(), reason: form.reason, mfaCode: form.mfaCode,
+      });
+      toast.success('Período pago registrado.'); onDone();
+    } catch (error) { toast.error(errorMessage(error)); }
+    finally { setBusy(false); }
+  };
+  return <div className="platform-modal-backdrop"><form className="platform-modal" onSubmit={submit}>
+    <h2>Registrar período pago</h2>
+    <p>Elegí hasta cuándo tendrá acceso {tenant.name}. Al llegar esa fecha y hora, se bloqueará automáticamente.</p>
+    {tenant.billing?.state === 'EXEMPT' && <p>Este gimnasio conserva el acceso por ser anterior al trial. Al registrar un período pago, pasará a tener vencimiento.</p>}
+    <label>Vencimiento (fecha y hora local)<input type="datetime-local" value={form.paidUntil} onChange={e => setForm({ ...form, paidUntil: e.target.value })} required /></label>
+    <label>Motivo o referencia de pago<input value={form.reason} minLength={5} onChange={e => setForm({ ...form, reason: e.target.value })} required /></label>
+    <label>Código MFA<input inputMode="numeric" autoComplete="one-time-code" value={form.mfaCode} onChange={e => setForm({ ...form, mfaCode: e.target.value })} required /></label>
+    <div className="platform-modal-actions"><button type="button" className="secondary" onClick={onClose}>Cancelar</button><button disabled={busy}>{busy ? 'Guardando…' : 'Confirmar pago'}</button></div>
+  </form></div>;
+}
+
 function TenantDetail() {
   const { id } = useParams(); const navigate = useNavigate();
   const [tenant, setTenant] = useState(null); const [dialog, setDialog] = useState(null);
@@ -161,11 +188,13 @@ function TenantDetail() {
   if (!tenant) return <Page title="Tenant" subtitle="Cargando detalle…"/>;
   const done = deleted => { setDialog(null); if (deleted) navigate('/tenants'); else load(); };
   return <Page title={tenant.name} subtitle={tenant.slug}>
-    <div className="platform-detail-head"><StatusPill status={tenant.status}/><span>Creado {date(tenant.createdAt)}</span><span>Última actividad {date(tenant.lastActivityAt)}</span></div>
+    <div className="platform-detail-head"><StatusPill status={tenant.status}/><BillingPill billing={tenant.billing}/><span>Creado {date(tenant.createdAt)}</span><span>Última actividad {date(tenant.lastActivityAt)}</span></div>
     {tenant.status === 'SUSPENDED' && <div className="platform-warning"><strong>Suspendido:</strong> {tenant.suspensionReason} · {date(tenant.suspendedAt)}</div>}
     <div className="platform-grid"><section className="platform-panel"><h2>Contacto y configuración</h2><dl><dt>Email</dt><dd>{tenant.settings?.contactEmail || '—'}</dd><dt>Teléfono</dt><dd>{tenant.settings?.contactPhone || '—'}</dd><dt>Ubicación</dt><dd>{tenant.settings?.location || '—'}</dd><dt>Onboarding</dt><dd>{tenant.settings?.onboardingCompleted ? 'Completo' : 'Pendiente'}</dd></dl></section><section className="platform-panel"><h2>Administradores del gimnasio</h2>{tenant.users.map(admin => <div className="platform-event" key={admin.ID_Usuario}><strong>{[admin.nombre, admin.apellido].filter(Boolean).join(' ') || 'Sin nombre'}</strong><span>{admin.email}</span><small>{admin.estado ? 'Activo' : 'Inactivo'}</small></div>)}</section></div>
+    <section className="platform-panel platform-billing-panel"><div><h2>Suscripción</h2><p>Estado: {BILLING_LABELS[tenant.billing?.state] || 'Sin estado'}</p><p>Fin de prueba: {billingDate(tenant.billing?.trialEndsAt)}</p><p>Acceso pago hasta: {billingDate(tenant.billing?.paidUntil)}</p></div><button onClick={() => setDialog('billing')}>Registrar período pago</button></section>
     <section className="platform-danger-zone"><div><h2>Administración del estado</h2><p>Estas acciones afectan inmediatamente el acceso del gimnasio.</p></div><div>{tenant.status === 'ACTIVE' ? <button onClick={() => setDialog('suspend')}>Suspender</button> : <button onClick={() => setDialog('activate')}>Reactivar</button>}<button className="danger-button" onClick={() => setDialog('delete')}><Trash2 size={17}/>Eliminar definitivamente</button></div></section>
-    {dialog && <ConfirmDialog tenant={tenant} action={dialog} onClose={() => setDialog(null)} onDone={done}/>} 
+    {dialog === 'billing' && <BillingDialog tenant={tenant} onClose={() => setDialog(null)} onDone={() => done(false)} />}
+    {dialog && dialog !== 'billing' && <ConfirmDialog tenant={tenant} action={dialog} onClose={() => setDialog(null)} onDone={done}/>}
   </Page>;
 }
 

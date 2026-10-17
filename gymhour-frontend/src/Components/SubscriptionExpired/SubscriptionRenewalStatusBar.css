@@ -1,0 +1,66 @@
+.trial-status-bar.subscription-renewal-status-bar,
+.trial-status-bar__label.subscription-renewal-status-bar__label {
+  background: #e7bc5b;
+}
+
+.trial-status-bar__label.subscription-renewal-status-bar__label {
+  color: #241a07;
+  font-weight: 500;
+  pointer-events: auto;
+}
+
+.subscription-renewal-status-bar__help {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 8px;
+}
+
+.subscription-renewal-status-bar__help button {
+  display: grid;
+  place-items: center;
+  width: 17px;
+  height: 17px;
+  padding: 0;
+  border: 1px solid currentColor;
+  border-radius: 50%;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1;
+  cursor: help;
+}
+
+.subscription-renewal-status-bar__help button:focus-visible {
+  outline: 2px solid #241a07;
+  outline-offset: 2px;
+}
+
+.subscription-renewal-status-bar__tooltip {
+  position: fixed;
+  top: 36px;
+  left: 50%;
+  z-index: 1;
+  width: min(340px, calc(100vw - 24px));
+  padding: 12px 14px;
+  border: 1px solid #e7bc5b;
+  border-radius: 10px;
+  background: var(--background-color, #fff);
+  color: var(--text-color, #111);
+  box-shadow: 0 12px 30px rgba(0, 0, 0, .22);
+  font-size: 13px;
+  line-height: 1.5;
+  text-align: left;
+  white-space: normal;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateX(-50%);
+  visibility: hidden;
+}
+
+.subscription-renewal-status-bar__help:hover .subscription-renewal-status-bar__tooltip,
+.subscription-renewal-status-bar__help:focus-within .subscription-renewal-status-bar__tooltip {
+  opacity: 1;
+  visibility: visible;
+}

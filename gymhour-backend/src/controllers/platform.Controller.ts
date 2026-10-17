@@ -8,6 +8,7 @@ import {
 import {
   collectTenantAssets, processTenantDeletionJob, purgeTenantDatabase,
 } from '../services/tenantDeletion.service.js';
+import { getBillingAccess } from '../services/billing.service.js';
 
 const normalizeEmail = (value: unknown) => String(value ?? '').trim().toLowerCase();
 const cleanReason = (value: unknown) => String(value ?? '').trim().slice(0, 500);
@@ -140,7 +141,7 @@ export async function listTenants(req: Request, res: Response): Promise<void> {
   ]);
   res.setHeader('Cache-Control', 'no-store');
   res.json({
-    items: tenants,
+    items: tenants.map(tenant => ({ ...tenant, billing: getBillingAccess(tenant) })),
     pagination: { page, pageSize, total, pages: Math.ceil(total / pageSize) },
   });
 }
@@ -162,7 +163,43 @@ export async function tenantDetail(req: Request, res: Response): Promise<void> {
   });
   if (!tenant) { res.status(404).json({ message: 'Tenant no encontrado.' }); return; }
   res.setHeader('Cache-Control', 'no-store');
-  res.json(tenant);
+  res.json({ ...tenant, billing: getBillingAccess(tenant) });
+}
+
+export async function updateTenantBilling(req: Request, res: Response): Promise<void> {
+  const id = Number(req.params.id);
+  const reason = cleanReason(req.body?.reason);
+  const rawPaidUntil = req.body?.paidUntil;
+  const paidUntil = typeof rawPaidUntil === 'string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(rawPaidUntil)
+    ? new Date(rawPaidUntil) : null;
+  if (!Number.isInteger(id) || !paidUntil || Number.isNaN(paidUntil.getTime())
+    || paidUntil <= new Date() || reason.length < 5) {
+    res.status(400).json({ message: 'Indicá una fecha futura y un motivo de al menos 5 caracteres.' }); return;
+  }
+  const tenant = await systemPrisma.tenant.findUnique({ where: { id } });
+  if (!tenant) { res.status(404).json({ message: 'Tenant no encontrado.' }); return; }
+  if (tenant.paidUntil && paidUntil <= tenant.paidUntil) {
+    res.status(409).json({ message: 'El nuevo vencimiento debe ser posterior al período ya registrado.' }); return;
+  }
+  if (!await verifyAndConsumeMfa(req.platformUser!, String(req.body?.mfaCode ?? ''))) {
+    await auditPlatform(req, { action: 'TENANT_BILLING_UPDATE', outcome: 'FAILURE', targetTenantId: id, targetTenantSlug: tenant.slug, reason });
+    res.status(401).json({ message: 'El código MFA no es válido o ya fue utilizado.' }); return;
+  }
+  const updated = await systemPrisma.$transaction(async tx => {
+    const saved = await tx.tenant.update({ where: { id }, data: { paidUntil, billingExempt: false } });
+    await tx.platformAuditLog.create({ data: {
+      platformUserId: req.platformUser!.id, platformUserEmail: req.platformUser!.email,
+      action: 'TENANT_BILLING_UPDATE', outcome: 'SUCCESS', targetTenantId: id,
+      targetTenantSlug: tenant.slug, reason, metadata: {
+        previousPaidUntil: tenant.paidUntil?.toISOString() ?? null,
+        previousBillingExempt: tenant.billingExempt,
+        paidUntil: paidUntil.toISOString(),
+      }, ...requestIdentity(req),
+    } });
+    return saved;
+  });
+  res.setHeader('Cache-Control', 'no-store');
+  res.json({ id, billing: getBillingAccess(updated) });
 }
 
 export async function changeTenantStatus(req: Request, res: Response): Promise<void> {
@@ -236,5 +273,5 @@ export async function auditList(req: Request, res: Response): Promise<void> {
 }
 
 export const platformMethods = {
-  login, verifyMfa, me, logout, dashboard, listTenants, tenantDetail, changeTenantStatus, purgeTenant, auditList,
+  login, verifyMfa, me, logout, dashboard, listTenants, tenantDetail, updateTenantBilling, changeTenantStatus, purgeTenant, auditList,
 };

@@ -32,7 +32,7 @@ const SignUp = () => {
       <div className="auth-card__heading signup-heading">
         <span className="auth-card__kicker">Cuenta para propietarios</span>
         <h2>Creá tu cuenta</h2>
-        <p>Primero configurá tus datos de acceso. Después personalizaremos tu gimnasio.</p>
+        <p>Creá tu cuenta gratis y probá Gymhour durante 14 días. Después personalizaremos tu gimnasio.</p>
       </div>
 
       <form className="signup-form" onSubmit={handleSubmit}>

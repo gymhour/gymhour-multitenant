@@ -6,6 +6,7 @@ import { authServices } from '../services/auth.service.js';
 import { sendResetPasswordEmail, sendWelcomeEmail } from '../services/email.service.js';
 import { comparePassword, hashPassword } from '../services/password.service.js';
 import { getTenantLogoUrl } from '../services/cloudinary.service.js';
+import { getBillingAccess } from '../services/billing.service.js';
 
 const TIMEZONE = process.env.TIMEZONE || 'America/Argentina/Cordoba';
 const normalizeEmail = (value: unknown): string => String(value ?? '').trim().toLowerCase();
@@ -79,6 +80,7 @@ export const registerTenant = async (req: Request, res: Response): Promise<void>
   try {
     const passwordHash = await hashPassword(password);
     const kioskToken = crypto.randomBytes(32).toString('base64url');
+    const registeredAt = new Date();
     let result;
     for (let attempt = 0; attempt < 3 && !result; attempt += 1) {
       const slug = await availableTenantSlug(`nuevo-gimnasio-${crypto.randomBytes(4).toString('hex')}`);
@@ -88,6 +90,9 @@ export const registerTenant = async (req: Request, res: Response): Promise<void>
             data: {
               name: 'Mi gimnasio',
               slug,
+              createdAt: registeredAt,
+              trialEndsAt: new Date(registeredAt.getTime() + 14 * 24 * 60 * 60 * 1000),
+              billingExempt: false,
               settings: { create: { timezone: TIMEZONE, currency: 'ARS', onboardingCompleted: false } },
               kiosks: { create: { tokenHash: hashOpaqueToken(kioskToken) } },
             },
@@ -234,7 +239,9 @@ export const me = async (req: Request, res: Response): Promise<void> => {
     const { getTenantLogoUrl } = await import('../services/cloudinary.service.js');
     enrichedSettings = { ...settings, logoUrl: getTenantLogoUrl(settings.logoPublicId) };
   }
-  res.json({ user: req.user, tenant: { ...req.tenant, settings: enrichedSettings } });
+  const tenant = await systemPrisma.tenant.findUniqueOrThrow({ where: { id: req.tenant.id } });
+  res.setHeader('Cache-Control', 'no-store');
+  res.json({ user: req.user, tenant: { ...req.tenant, settings: enrichedSettings, billing: getBillingAccess(tenant) } });
 };
 
 export const forgotPassword = async (req: Request, res: Response): Promise<void> => {

@@ -1,0 +1,8 @@
+ALTER TABLE `Tenant`
+    ADD COLUMN `trialEndsAt` DATETIME(3) NULL,
+    ADD COLUMN `paidUntil` DATETIME(3) NULL,
+    ADD COLUMN `billingExempt` BOOLEAN NOT NULL DEFAULT TRUE;
+
+UPDATE `Tenant` SET `trialEndsAt` = DATE_ADD(`createdAt`, INTERVAL 14 DAY);
+
+ALTER TABLE `Tenant` ALTER COLUMN `billingExempt` SET DEFAULT FALSE;

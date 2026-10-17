@@ -2,6 +2,7 @@ import prisma, { systemPrisma } from '../models/Prisma.js';
 import { runWithTenantContext } from './tenantContext.service.js';
 import { runNightlyTasks } from './nightly.service.js';
 import { runReminderTasks } from './reminders.service.js';
+import { requireBillingAccess } from './billing.service.js';
 
 type TenantJob = () => Promise<unknown>;
 
@@ -11,6 +12,7 @@ async function dispatchToActiveTenants(job: TenantJob): Promise<Record<string, u
 
   // Secuencial a propósito: evita multiplicar conexiones y ráfagas SMTP en Railway/serverless.
   for (const tenant of tenants) {
+    if (!requireBillingAccess(tenant)) continue;
     const context = {
       tenantId: tenant.id,
       user: null,
