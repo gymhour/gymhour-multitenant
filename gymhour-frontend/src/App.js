@@ -50,6 +50,7 @@ import UserMyAttendancesPage from './Pages/Alumno/MisAsistencias/UserMyAttendanc
 import PublicCheckInPage from './Pages/Public/CheckIn/PublicCheckInPage';
 import TenantSettings from './Pages/Admin/TenantSettings/TenantSettings';
 import AIAssistant from './Pages/Shared/AIAssistant/AIAssistant';
+import SupportWhatsAppButton from './Components/utils/SupportWhatsAppButton/SupportWhatsAppButton';
 import React, { useState, useEffect } from 'react';
 
 function App() {
@@ -594,6 +595,7 @@ function App() {
         {/* Ruta de error */}
         <Route path="*" element={<NotFound />} />
       </Routes>
+      <SupportWhatsAppButton />
     </>
   );
 }

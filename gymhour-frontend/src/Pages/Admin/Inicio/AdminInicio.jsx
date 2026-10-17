@@ -26,7 +26,7 @@ import 'react-datepicker/dist/react-datepicker.css';
 import { toast } from 'react-toastify';
 import PrimaryButton from '../../../Components/utils/PrimaryButton/PrimaryButton';
 import SecondaryButton from '../../../Components/utils/SecondaryButton/SecondaryButton';
-import { ChevronDown, ChevronUp, Download, SlidersHorizontal } from 'lucide-react';
+import { BookOpen, ChevronDown, ChevronUp, Download, SlidersHorizontal } from 'lucide-react';
 import { useAuth } from '../../../context/AuthContext';
 import AdminSetupGuide from '../../../Components/AdminSetupGuide/AdminSetupGuide';
 
@@ -38,7 +38,9 @@ const AdminInicio = () => {
   const { tenant, user, refresh } = useAuth();
   const [loading, setLoading] = useState(false);
   const [setupGuide, setSetupGuide] = useState(null);
-  const [dismissingGuide, setDismissingGuide] = useState(false);
+  const [updatingGuide, setUpdatingGuide] = useState(false);
+  const [guideVisibilityOverride, setGuideVisibilityOverride] = useState(null);
+  const [showCompletedGuide, setShowCompletedGuide] = useState(false);
   const completionRequestedRef = useRef(false);
 
   const [kpi, setKpi] = useState({
@@ -126,16 +128,24 @@ const AdminInicio = () => {
       .catch(error => console.error('No se pudo cerrar la guía de inicio:', error));
   }, [setupGuide?.isComplete, tenant?.settings?.setupGuideCompletedAt, refresh]);
 
-  const dismissSetupGuide = async () => {
-    setDismissingGuide(true);
+  const toggleSetupGuide = async () => {
+    if (setupGuide?.isComplete || tenant?.settings?.setupGuideCompletedAt) {
+      setShowCompletedGuide(value => !value);
+      return;
+    }
+
+    const nextVisible = !showSetupGuide;
+    setGuideVisibilityOverride(nextVisible);
+    setUpdatingGuide(true);
     try {
-      await apiService.setSetupGuideDismissed(true);
+      await apiService.setSetupGuideDismissed(!nextVisible);
       await refresh();
-      toast.success('Ocultamos la guía. Podés recuperarla desde Configuración.');
+      setGuideVisibilityOverride(null);
     } catch (error) {
-      toast.error(error?.message || 'No pudimos ocultar la guía.');
+      setGuideVisibilityOverride(null);
+      toast.error(error?.message || 'No pudimos actualizar la guía.');
     } finally {
-      setDismissingGuide(false);
+      setUpdatingGuide(false);
     }
   };
 
@@ -246,12 +256,10 @@ const AdminInicio = () => {
     boxShadow: "0 2px 8px rgba(0,0,0,0.2)",
   };
   const axisTick = { fill: "var(--text-color)", fontSize: 12 };
-  const showSetupGuide = Boolean(
-    setupGuide
-    && !setupGuide.isComplete
-    && !tenant?.settings?.setupGuideCompletedAt
-    && !user?.setupGuideDismissedAt
-  );
+  const guideComplete = Boolean(setupGuide?.isComplete || tenant?.settings?.setupGuideCompletedAt);
+  const showSetupGuide = Boolean(setupGuide) && (guideComplete
+    ? showCompletedGuide
+    : guideVisibilityOverride ?? !user?.setupGuideDismissedAt);
 
   return (
     <div className='page-layout'>
@@ -263,19 +271,34 @@ const AdminInicio = () => {
           <div className="admin-inicio-header">
             <h2>¡Hola, {nombreUsuario}!</h2>
           </div>
-          <button
-            type="button"
-            className="download-pdf-btn"
-            onClick={handleDownloadPdf}
-            disabled={exporting}
-          >
-            <Download size={18} />
-            {exporting ? 'Generando PDF…' : 'Descargar PDF'}
-          </button>
+          <div className="admin-inicio-topbar-actions">
+            {setupGuide && (
+              <button
+                type="button"
+                className="download-pdf-btn"
+                onClick={toggleSetupGuide}
+                disabled={updatingGuide}
+                aria-expanded={showSetupGuide}
+                aria-controls="admin-setup-guide"
+              >
+                <BookOpen size={18} />
+                {showSetupGuide ? 'Ocultar guía' : 'Ver guía'}
+              </button>
+            )}
+            <button
+              type="button"
+              className="download-pdf-btn"
+              onClick={handleDownloadPdf}
+              disabled={exporting}
+            >
+              <Download size={18} />
+              {exporting ? 'Generando PDF…' : 'Descargar PDF'}
+            </button>
+          </div>
         </div>
 
         {showSetupGuide && (
-          <AdminSetupGuide guide={setupGuide} onDismiss={dismissSetupGuide} dismissing={dismissingGuide} />
+          <AdminSetupGuide guide={setupGuide} />
         )}
 
         <>
