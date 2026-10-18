@@ -263,6 +263,10 @@ model User {
   setupGuideDismissedAt DateTime?
   tenant                Tenant                    @relation(fields: [tenantId], references: [id], onDelete: Restrict)
   fechaRegistro         DateTime?                 @default(now())
+  fechaInicioCobro      DateTime?
+  proximoInicioCuota    DateTime?
+  diaAnclaCobro         Int?
+  cobroAutomaticoActivo Boolean                   @default(false)
   fechaBaja             DateTime?
   motivoAlta            String? // por qué se sumó el socio (whitelist MOTIVOS_ALTA); opcional
   fechaCumple           DateTime?
@@ -294,6 +298,7 @@ model User {
   @@unique([tenantId, email])
   @@unique([tenantId, dni])
   @@index([tenantId, role, estado])
+  @@index([tenantId, role, estado, cobroAutomaticoActivo, proximoInicioCuota], map: "User_fee_cycle_due_idx")
   @@map("User")
 }
 
@@ -367,6 +372,7 @@ model Cuota {
   pagada                      Boolean      @default(false) // Indica si la cuota fue pagada
   formaPago                   String?
   fechaPago                   DateTime? // Fecha en que se realizó el pago, opcional
+  recordatorioVenceEnviado    DateTime?
   vencida                     Boolean      @default(false)
   // Cómo se creó la cuota: "MANUAL" (alta individual, proporcional al mes) o
   // "MASIVA" (generación del mes, período completo del plan). Null en las anteriores
@@ -387,6 +393,7 @@ model Cuota {
   tenant                      Tenant       @relation(fields: [tenantId], references: [id], onDelete: Restrict)
 
   @@unique([tenantId, ID_Cuota])
+  @@unique([tenantId, ID_Usuario, fechaInicio])
   @@index([tenantId, mes])
   @@index([tenantId, ID_Usuario, mes])
   @@index([tenantId, pagada, vence])

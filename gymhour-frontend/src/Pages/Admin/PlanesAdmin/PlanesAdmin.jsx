@@ -5,12 +5,23 @@ import './PlanesAdmin.css'
 import PrimaryButton from '../../../Components/utils/PrimaryButton/PrimaryButton'
 import { Copy, Edit, Trash2, X } from 'lucide-react'
 import CustomInput from '../../../Components/utils/CustomInput/CustomInput'
-import CustomDropdown from '../../../Components/utils/CustomDropdown/CustomDropdown'
 import LoaderFullScreen from '../../../Components/utils/LoaderFullScreen/LoaderFullScreen'
 import ConfirmationPopup from '../../../Components/utils/ConfirmationPopUp/ConfirmationPopUp'
 import { toast } from 'react-toastify'
 import EmptyState from '../../../Components/utils/EmptyState/EmptyState'
 import { useSearchParams } from 'react-router-dom'
+
+const parseDuration = value => {
+  const legacy = { SEMANAL: ['WEEKS', 1], MENSUAL: ['MONTHS', 1], BIMESTRAL: ['MONTHS', 2], TRIMESTRAL: ['MONTHS', 3], SEMESTRAL: ['MONTHS', 6], ANUAL: ['MONTHS', 12] }
+  const match = /^(WEEKS|MONTHS):(\d+)$/.exec(value || '')
+  const [unit, count] = match ? [match[1], Number(match[2])] : (legacy[value] || legacy.MENSUAL)
+  return { unit, count }
+}
+
+const durationLabel = value => {
+  const { unit, count } = parseDuration(value)
+  return `${count} ${unit === 'WEEKS' ? (count === 1 ? 'semana' : 'semanas') : (count === 1 ? 'mes' : 'meses')}`
+}
 
 const PlanesAdmin = () => {
   const [searchParams, setSearchParams] = useSearchParams()
@@ -20,7 +31,8 @@ const PlanesAdmin = () => {
   const [nuevoNombre, setNuevoNombre] = useState('')
   const [nuevoPrecio, setNuevoPrecio] = useState('')
   const [nuevaDesc, setNuevaDesc] = useState('')
-  const [duracion, setDuracion] = useState('MENSUAL')
+  const [duracionUnidad, setDuracionUnidad] = useState('MONTHS')
+  const [duracionCantidad, setDuracionCantidad] = useState(1)
   const [sesionesTotales, setSesionesTotales] = useState('')
   const [sesionesGracia, setSesionesGracia] = useState('')
   const [requiereTurno, setRequiereTurno] = useState(true)
@@ -50,7 +62,8 @@ const PlanesAdmin = () => {
     setNuevoNombre('')
     setNuevoPrecio('')
     setNuevaDesc('')
-    setDuracion('MENSUAL')
+    setDuracionUnidad('MONTHS')
+    setDuracionCantidad(1)
     setSesionesTotales('')
     setSesionesGracia('')
     setRequiereTurno(true)
@@ -73,7 +86,9 @@ const PlanesAdmin = () => {
     setNuevoNombre(plan.nombre)
     setNuevoPrecio(plan.precio)
     setNuevaDesc(plan.desc || '')
-    setDuracion(plan.duracion || 'MENSUAL')
+    const duration = parseDuration(plan.duracion)
+    setDuracionUnidad(duration.unit)
+    setDuracionCantidad(duration.count)
     setSesionesTotales(plan.sesionesTotales ?? '')
     setSesionesGracia(plan.sesionesGracia ?? '')
     setRequiereTurno(plan.requiereTurno !== false)
@@ -86,7 +101,8 @@ const PlanesAdmin = () => {
     setNuevoNombre('')
     setNuevoPrecio('')
     setNuevaDesc('')
-    setDuracion('MENSUAL')
+    setDuracionUnidad('MONTHS')
+    setDuracionCantidad(1)
     setSesionesTotales('')
     setSesionesGracia('')
     setRequiereTurno(true)
@@ -101,7 +117,8 @@ const PlanesAdmin = () => {
       nombre: nuevoNombre,
       precio: Number(nuevoPrecio),
       desc: nuevaDesc,
-      duracion,
+      duracionUnidad,
+      duracionCantidad: Number(duracionCantidad),
       sesionesTotales: Number(sesionesTotales || 0),
       sesionesGracia: Number(sesionesGracia || 0),
       requiereTurno
@@ -194,7 +211,7 @@ const PlanesAdmin = () => {
                 <p className="plan-desc">{plan.desc || 'Sin descripción'}</p>
                 <p className="plan-price">${plan.precio.toLocaleString()}</p>
                 <p className="plan-desc">
-                  {plan.duracion || 'MENSUAL'} · {plan.sesionesTotales || 0} ses. totales · {plan.sesionesGracia || 0} gracia
+                  {durationLabel(plan.duracion)} · {plan.sesionesTotales || 0} ses. totales · {plan.sesionesGracia || 0} gracia
                 </p>
                 <div className="plan-actions">
                   <div onClick={() => handleEdit(plan)} style={{ cursor: 'pointer' }}>
@@ -261,21 +278,14 @@ const PlanesAdmin = () => {
                     />
                   </div>
                   <div className="plan-form-input-container">
-                    <label>Duración</label>
-                    <CustomDropdown
-                      options={[
-                        { value: 'SEMANAL', label: 'Semanal' },
-                        { value: 'MENSUAL', label: 'Mensual' },
-                        { value: 'TRIMESTRAL', label: 'Trimestral' },
-                        { value: 'SEMESTRAL', label: 'Semestral' },
-                        { value: 'ANUAL', label: 'Anual' },
-                      ]}
-                      value={duracion}
-                      onChange={(e) => setDuracion(e.target.value)}
-                      placeholderOption={null}
-                      name="duracion"
-                      id="duracion"
-                    />
+                    <label htmlFor="duracionCantidad">Duración del ciclo</label>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <input id="duracionCantidad" type="number" min="1" max={duracionUnidad === 'WEEKS' ? '52' : '24'} value={duracionCantidad} onChange={e => setDuracionCantidad(e.target.value)} required style={{ width: 82 }} />
+                      <select value={duracionUnidad} onChange={e => { setDuracionUnidad(e.target.value); setDuracionCantidad(1) }} aria-label="Unidad de duración">
+                        <option value="WEEKS">Semanas</option>
+                        <option value="MONTHS">Meses</option>
+                      </select>
+                    </div>
                   </div>
                   <div className="plan-form-input-container">
                     <label>Sesiones totales</label>

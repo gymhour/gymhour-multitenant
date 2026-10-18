@@ -2,17 +2,22 @@ import { Request, Response } from 'express';
 import { respondUnexpected } from "../services/apiError.service.js";
 import prisma from '../models/Prisma.js';
 import { getMaxSessionsForDuration, normalizePlanDuration } from '../services/accessRules.service.js';
+import { parseFeeDuration, serializeFeeDuration } from '../services/feeDates.service.js';
 
 // Crear un nuevo plan
 export const createPlan = async (req: Request, res: Response): Promise<void> => {
     try {
-        const { nombre, precio, desc, duracion, sesionesPorSemana, sesionesTotales, sesionesGracia, requiereTurno } = req.body;
+        const { nombre, precio, desc, duracion, duracionUnidad, duracionCantidad, sesionesPorSemana, sesionesTotales, sesionesGracia, requiereTurno } = req.body;
         const precioNumber = Number(precio);
         if (!nombre || !Number.isFinite(precioNumber)) {
             res.status(400).json({ message: "Completá el nombre y el precio del plan." });
             return;
         }
-        const dur = normalizePlanDuration(duracion);
+        const dur = duracionUnidad !== undefined || duracionCantidad !== undefined
+            ? serializeFeeDuration(duracionUnidad, duracionCantidad) : normalizePlanDuration(duracion);
+        if (!dur || (duracion !== undefined && !parseFeeDuration(duracion) && duracionUnidad === undefined)) {
+            res.status(400).json({ message: 'Elegí una duración válida: 1–52 semanas o 1–24 meses.' }); return;
+        }
         const totales = Number(sesionesTotales || 0);
         const maxSesiones = getMaxSessionsForDuration(dur);
         if (totales > maxSesiones) {
@@ -66,16 +71,21 @@ export const getPlanById = async (req: Request, res: Response): Promise<void> =>
 export const updatePlan = async (req: Request, res: Response): Promise<void> => {
     try {
         const ID_Plan = Number(req.params.id);
-        const { nombre, precio, desc, duracion, sesionesPorSemana, sesionesTotales, sesionesGracia, requiereTurno } = req.body;
-        if (!nombre && precio === undefined && desc === undefined && duracion === undefined && sesionesPorSemana === undefined && sesionesTotales === undefined && sesionesGracia === undefined && requiereTurno === undefined) {
+        const { nombre, precio, desc, duracion, duracionUnidad, duracionCantidad, sesionesPorSemana, sesionesTotales, sesionesGracia, requiereTurno } = req.body;
+        if (!nombre && precio === undefined && desc === undefined && duracion === undefined && duracionUnidad === undefined && duracionCantidad === undefined && sesionesPorSemana === undefined && sesionesTotales === undefined && sesionesGracia === undefined && requiereTurno === undefined) {
             res.status(400).json({ message: 'No hay cambios para guardar.' });
             return;
         }
-        if (sesionesTotales !== undefined) {
-            const dur = duracion !== undefined
-                ? normalizePlanDuration(duracion)
-                : normalizePlanDuration((await prisma.plan.findUnique({ where: { ID_Plan }, select: { duracion: true } }))?.duracion);
-            const totales = Number(sesionesTotales);
+        const requestedDuration = duracionUnidad !== undefined || duracionCantidad !== undefined
+            ? serializeFeeDuration(duracionUnidad, duracionCantidad) : duracion;
+        if (requestedDuration === null || (requestedDuration !== undefined && !parseFeeDuration(requestedDuration))) {
+            res.status(400).json({ message: 'Elegí una duración válida: 1–52 semanas o 1–24 meses.' }); return;
+        }
+        if (sesionesTotales !== undefined || requestedDuration !== undefined) {
+            const current = await prisma.plan.findUnique({ where: { ID_Plan }, select: { duracion: true, sesionesTotales: true } });
+            if (!current) { res.status(404).json({ message: 'No encontramos ese plan.' }); return; }
+            const dur = requestedDuration ?? current.duracion;
+            const totales = Number(sesionesTotales ?? current.sesionesTotales);
             const maxSesiones = getMaxSessionsForDuration(dur);
             if (totales > maxSesiones) {
                 res.status(400).json({ message: `Las sesiones totales (${totales}) no pueden superar ${maxSesiones} para un plan ${dur.toLowerCase()}.` });
@@ -88,7 +98,7 @@ export const updatePlan = async (req: Request, res: Response): Promise<void> => 
                 ...(nombre && { nombre }),
                 ...(precio !== undefined && { precio: Number(precio) }),
                 ...(desc !== undefined && { desc }),
-                ...(duracion !== undefined && { duracion: normalizePlanDuration(duracion) }),
+                ...(requestedDuration !== undefined && { duracion: requestedDuration }),
                 ...(sesionesPorSemana !== undefined && { sesionesPorSemana: Number(sesionesPorSemana) }),
                 ...(sesionesTotales !== undefined && { sesionesTotales: Number(sesionesTotales) }),
                 ...(sesionesGracia !== undefined && { sesionesGracia: Number(sesionesGracia) }),

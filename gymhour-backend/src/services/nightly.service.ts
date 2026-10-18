@@ -1,5 +1,6 @@
 import prisma from "../models/Prisma.js";
 import { sendBirthdayEmail } from "./email.service.js";
+import { generateDueFees } from './feeCycle.service.js';
 
 const TIMEZONE = process.env.TIMEZONE || "America/Argentina/Cordoba";
 
@@ -67,6 +68,12 @@ export async function cleanupAiConversations(): Promise<number> {
 // Ejecuta las 3 tareas nocturnas. Cada una con su try/catch para que una falla no frene las demás.
 export async function runNightlyTasks(): Promise<Record<string, unknown>> {
   const result: Record<string, unknown> = {};
+  try {
+    result.cuotasGeneradas = await generateDueFees();
+  } catch (e: any) {
+    result.cuotasGeneradasError = e?.message ?? String(e);
+    console.error('[nightly] generateDueFees', e);
+  }
   try {
     result.cuotasVencidas = await checkVencidas();
   } catch (e: any) {

@@ -9,9 +9,10 @@ import LoaderFullScreen from '../../../Components/utils/LoaderFullScreen/LoaderF
 import { useNavigate } from 'react-router-dom';
 import CustomInput from '../../../Components/utils/CustomInput/CustomInput';
 import '../UsuarioForm.css';
+import './CrearUsuarioCuota.css';
 import SecondaryButton from '../../../Components/utils/SecondaryButton/SecondaryButton';
 import ConfirmationPopup from '../../../Components/utils/ConfirmationPopUp/ConfirmationPopUp';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, ChevronDown } from 'lucide-react';
 
 const DAY_ORDER = {
   domingo: 0, lunes: 1, martes: 2, miercoles: 3, miércoles: 3,
@@ -19,6 +20,7 @@ const DAY_ORDER = {
 };
 
 const formatHora = (iso) => (iso || '').slice(11, 16);
+const formatDay = (day) => day ? new Date(`${day}T00:00:00Z`).toLocaleDateString('es-AR', { timeZone: 'UTC' }) : '';
 
 const sortHorarios = (horarios) =>
   [...horarios].sort((a, b) => {
@@ -52,7 +54,7 @@ const CrearUsuario = ({fromAdmin, fromTRAINER}) => {
     profesion: '',
     direc: '',
     tel: '',
-    role: '',
+    role: 'STUDENT',
     fechaCumple: '',
     plan: '',
     motivoAlta: '',
@@ -67,8 +69,13 @@ const CrearUsuario = ({fromAdmin, fromTRAINER}) => {
   const [isLoading, setIsLoading] = useState(false);
   const [isSendingWelcomeEmail, setIsSendingWelcomeEmail] = useState(false);
   const [createdUser, setCreatedUser] = useState(null);
+  const [askFirstFee, setAskFirstFee] = useState(false);
+  const [firstFeePreview, setFirstFeePreview] = useState(null);
+  const [firstFeePreviewError, setFirstFeePreviewError] = useState('');
+  const [firstFeeStart, setFirstFeeStart] = useState(new Date().toLocaleDateString('sv-SE'));
+  const [firstFeeBusy, setFirstFeeBusy] = useState(false);
+  const [firstFeeForm, setFirstFeeForm] = useState({ fechaFin: '', importe: '', pagada: false, formaPago: 'Efectivo', fechaPago: new Date().toLocaleDateString('sv-SE') });
   const [planOptions, setPlanOptions] = useState([]);
-  const [planSesionesSemana, setPlanSesionesSemana] = useState(0);
   const [clases, setClases] = useState([]);
   const [turnosFijos, setTurnosFijos] = useState([]);
   const navigate = useNavigate();
@@ -218,11 +225,6 @@ const CrearUsuario = ({fromAdmin, fromTRAINER}) => {
       // Valido plan si es STUDENT
       let idPlan = null;
       if (formData.role === 'STUDENT') {
-        if (!formData.dni.trim()) {
-          toast.error('Ingresá el DNI del alumno');
-          setIsLoading(false);
-          return;
-        }
         const selectedPlan = planOptions.find(p => p.label === formData.plan);
         if (!selectedPlan) {
           toast.error('Seleccioná un plan');
@@ -278,6 +280,8 @@ const CrearUsuario = ({fromAdmin, fromTRAINER}) => {
         email: newUser.email,
         nombre: [newUser.nombre, newUser.apellido].filter(Boolean).join(' '),
       });
+      setFirstFeeStart(new Date().toLocaleDateString('sv-SE'));
+      setAskFirstFee(Boolean(fromAdmin && idPlan && formData.role === 'STUDENT'));
     } catch (error) {
       console.error(error);
       const msg = error?.response?.data?.message || 'No se pudo registrar el usuario';
@@ -312,12 +316,45 @@ const CrearUsuario = ({fromAdmin, fromTRAINER}) => {
 
   const tipos = fromAdmin ? ROLE_OPTIONS : ROLE_OPTIONS.filter(({ value }) => value === 'STUDENT');
 
+  useEffect(() => {
+    if (!askFirstFee || !createdUser?.id || !firstFeeStart) return;
+    let active = true;
+    setFirstFeePreview(null);
+    setFirstFeePreviewError('');
+    apiClient.get(`/cuotas/usuario/${createdUser.id}/preview`, { params: { fechaInicioCobro: firstFeeStart } }).then(({ data }) => {
+      if (!active) return;
+      setFirstFeePreview(data);
+      setFirstFeeForm(form => ({ ...form, fechaFin: data.fechaFinSugerida, importe: String(data.importeSugerido) }));
+    }).catch(error => {
+      if (active) setFirstFeePreviewError(error?.response?.data?.message || 'No se pudo preparar la primera cuota.');
+    });
+    return () => { active = false; };
+  }, [askFirstFee, createdUser?.id, firstFeeStart]);
+
+  const saveFirstFee = async event => {
+    event.preventDefault();
+    if (!createdUser?.id) return;
+    setFirstFeeBusy(true);
+    try {
+      await apiClient.post(`/cuotas/usuario/${createdUser.id}`, {
+        fechaInicioCobro: firstFeeStart,
+        fechaFin: firstFeeForm.fechaFin,
+        importe: Number(firstFeeForm.importe),
+        pagada: firstFeeForm.pagada,
+        ...(firstFeeForm.pagada ? { formaPago: firstFeeForm.formaPago, fechaPago: firstFeeForm.fechaPago } : {}),
+      });
+      toast.success('Primera cuota creada.');
+      setAskFirstFee(false);
+    } catch (error) { toast.error(error?.response?.data?.message || 'No se pudo crear la primera cuota.'); }
+    finally { setFirstFeeBusy(false); }
+  };
+
   return (
     <div className="page-layout">
       {isLoading && <LoaderFullScreen />}
       <SidebarMenu isAdmin={fromAdmin} isTRAINER={fromTRAINER} />
       <ConfirmationPopup
-        isOpen={Boolean(createdUser)}
+        isOpen={Boolean(createdUser) && !askFirstFee}
         onClose={finishCreation}
         onConfirm={handleSendWelcomeEmail}
         message={`El usuario ya fue creado. ¿Querés enviarle ahora el mail de bienvenida a ${createdUser?.nombre ? `${createdUser.nombre} (${createdUser.email})` : createdUser?.email || 'este usuario'}?`}
@@ -325,6 +362,24 @@ const CrearUsuario = ({fromAdmin, fromTRAINER}) => {
         confirmText="Sí, enviar"
         isLoading={isSendingWelcomeEmail}
       />
+      {createdUser && askFirstFee && <div className="first-fee-overlay">
+        <form className="first-fee-dialog" role="dialog" aria-modal="true" aria-labelledby="first-fee-title" onSubmit={saveFirstFee}>
+          <h3 id="first-fee-title">¿Crear la primera cuota?</h3>
+          <p>{createdUser.nombre || createdUser.email} ya tiene su cuenta. Elegí cuándo comienza su cobro y cómo registrar la primera cuota. Si la omitís, el cobro automático quedará pausado.</p>
+          <label>Inicio de cobro<input type="date" required value={firstFeeStart} onChange={e => setFirstFeeStart(e.target.value)} /></label>
+          {firstFeePreviewError ? <p className="first-fee-error" role="alert">{firstFeePreviewError}</p> : !firstFeePreview ? <p>Calculando período…</p> : <>
+            <p className="first-fee-period">Cubre del {formatDay(firstFeePreview.fechaInicio)} al {formatDay(firstFeePreview.fechaFinSugerida)}. Vence el {formatDay(firstFeePreview.vence)}.</p>
+            <label>Fin del período<input type="date" value={firstFeeForm.fechaFin} min={firstFeePreview.fechaInicio} onChange={e => setFirstFeeForm({ ...firstFeeForm, fechaFin: e.target.value })} required /></label>
+            <label>Importe<input type="number" min="0" step="0.01" value={firstFeeForm.importe} onChange={e => setFirstFeeForm({ ...firstFeeForm, importe: e.target.value })} required /></label>
+            <label>Estado<select value={firstFeeForm.pagada ? 'pagada' : 'pendiente'} onChange={e => setFirstFeeForm({ ...firstFeeForm, pagada: e.target.value === 'pagada' })}><option value="pendiente">Pendiente</option><option value="pagada">Pagada</option></select></label>
+            {firstFeeForm.pagada && <>
+              <label>Medio de pago<input value={firstFeeForm.formaPago} onChange={e => setFirstFeeForm({ ...firstFeeForm, formaPago: e.target.value })} required /></label>
+              <label>Fecha de pago<input type="date" max={new Date().toLocaleDateString('sv-SE')} value={firstFeeForm.fechaPago} onChange={e => setFirstFeeForm({ ...firstFeeForm, fechaPago: e.target.value })} required /></label>
+            </>}
+          </>}
+          <div className="first-fee-actions"><button type="button" onClick={() => setAskFirstFee(false)}>Ahora no</button><button type="submit" disabled={!firstFeePreview || firstFeeBusy}>{firstFeeBusy ? 'Guardando…' : 'Crear cuota'}</button></div>
+        </form>
+      </div>}
       <div className="content-layout">
         <div className="usuario-form-page">
           <SecondaryButton
@@ -333,85 +388,61 @@ const CrearUsuario = ({fromAdmin, fromTRAINER}) => {
             icon={ArrowLeft}
             reversed={true}
           />
-          <h2>Crear usuario</h2>
+          <div className="usuario-create-heading">
+            <h2>Crear usuario</h2>
+            <p>Completá los datos de acceso y configurá el perfil. Los datos opcionales pueden agregarse más adelante.</p>
+          </div>
 
-          <form className="usuario-form" onSubmit={handleSubmit}>
-            <div className="usuario-form-field">
-              <label htmlFor="email">Email</label>
-              <CustomInput
-                type="text" id="email" name="email"
-                value={formData.email} onChange={handleChange}
-                required placeholder="Ingresa tu email" width="100%"
-              />
-            </div>
-
-            <div className="usuario-form-field">
-              <label htmlFor="password">Contraseña</label>
-              <CustomInput
-                type="password" id="password" name="password"
-                value={formData.password} onChange={handleChange}
-                required placeholder="Ingresa tu contraseña" width="100%"
-              />
-            </div>
-
-            <div className="usuario-form-field">
-              <label htmlFor="dni">DNI</label>
-              <CustomInput
-                type="text" id="dni" name="dni"
-                value={formData.dni} onChange={handleChange}
-                placeholder="Ingresa el DNI" width="100%"
-              />
-            </div>
-
-            <div className="usuario-form-field">
-              <label htmlFor="nombre">Nombre</label>
-              <CustomInput
-                type="text" id="nombre" name="nombre"
-                value={formData.nombre} onChange={handleChange}
-                placeholder="Ingresa el nombre" width="100%"
-              />
-            </div>
-
-            <div className="usuario-form-field">
-              <label htmlFor="apellido">Apellido</label>
-              <CustomInput
-                type="text" id="apellido" name="apellido"
-                value={formData.apellido} onChange={handleChange}
-                placeholder="Ingresa el apellido" width="100%"
-              />
-            </div>
-
-            <div className="usuario-form-field">
-              <label htmlFor="role">Tipo de usuario</label>
-              <CustomDropdown
-                options={tipos}
-                value={formData.role}
-                onChange={(val) =>
-                  setFormData(f => ({
-                    ...f,
-                    role: typeof val === 'string' ? val : val.target.value,
-                  }))
-                }
-                name="role" id="role"
-              />
-            </div>
+          <form className="usuario-form usuario-create-form" onSubmit={handleSubmit}>
+            <section className="usuario-create-section" aria-labelledby="create-essential-title">
+              <div className="usuario-create-section-heading"><h3 id="create-essential-title">Datos de acceso</h3><p>Estos datos identifican a la persona y le permiten ingresar a la app.</p></div>
+              <div className="usuario-create-grid">
+                <div className="usuario-form-field usuario-form-field--full">
+                  <label htmlFor="role">Tipo de usuario</label>
+                  <CustomDropdown options={tipos} value={formData.role} onChange={event => {
+                    const role = event.target.value;
+                    setFormData(current => ({ ...current, role, ...(role !== 'STUDENT' ? { plan: '', motivoAlta: '', usaTurnosFijos: false } : {}) }));
+                    if (role !== 'STUDENT') setTurnosFijos([]);
+                  }} name="role" id="role" placeholderOption={null} />
+                </div>
+                <div className="usuario-form-field usuario-form-field--full">
+                  <label htmlFor="email">Email <span className="usuario-required">*</span></label>
+                  <CustomInput type="text" id="email" name="email" value={formData.email} onChange={handleChange} required placeholder="nombre@ejemplo.com" width="100%" autoComplete="email" />
+                </div>
+                <div className="usuario-form-field">
+                  <label htmlFor="nombre">Nombre <span className="usuario-required">*</span></label>
+                  <CustomInput type="text" id="nombre" name="nombre" value={formData.nombre} onChange={handleChange} required placeholder="Nombre" width="100%" autoComplete="given-name" />
+                </div>
+                <div className="usuario-form-field">
+                  <label htmlFor="apellido">Apellido <span className="usuario-required">*</span></label>
+                  <CustomInput type="text" id="apellido" name="apellido" value={formData.apellido} onChange={handleChange} required placeholder="Apellido" width="100%" autoComplete="family-name" />
+                </div>
+                <div className="usuario-form-field usuario-form-field--full">
+                  <label htmlFor="password">Contraseña <span className="usuario-required">*</span></label>
+                  <CustomInput type="password" id="password" name="password" value={formData.password} onChange={handleChange} required placeholder="Elegí una contraseña" width="100%" autoComplete="new-password" />
+                </div>
+              </div>
+            </section>
 
           {formData.role === 'STUDENT' && (
-            <div className="usuario-form-field usuario-form-field--full">
-              <label htmlFor="plan">Plan</label>
+            <section className="usuario-create-section" aria-labelledby="create-app-title">
+              <div className="usuario-create-section-heading"><h3 id="create-app-title">Plan y gestión</h3><p>Asigná el plan y, si corresponde, los turnos fijos. La fecha de inicio de cobro se elige al crear la primera cuota.</p></div>
+              <div className="usuario-create-grid">
+              <div className="usuario-form-field">
+              <label htmlFor="plan">Plan <span className="usuario-required">*</span></label>
               <CustomDropdown
                 options={planOptions.map(p => p.label)}
                 value={formData.plan}
                 onChange={(e) => {
                   const label = e?.target?.value ?? '';
-                  const selected = planOptions.find(p => p.label === label);
-                  setPlanSesionesSemana(selected?.sesionesPorSemana || 0);
                   setFormData(f => ({ ...f, plan: label }));
                 }}
                 name="plan" id="plan"
               />
 
-              <label htmlFor="motivoAlta" style={{ marginTop: '12px' }}>Motivo de alta (opcional)</label>
+              </div>
+              <div className="usuario-form-field">
+              <label htmlFor="motivoAlta">Motivo de alta</label>
               <CustomDropdown
                 options={MOTIVOS_ALTA}
                 value={formData.motivoAlta}
@@ -420,8 +451,9 @@ const CrearUsuario = ({fromAdmin, fromTRAINER}) => {
                 placeholderOption="— Seleccioná un motivo —"
                 placeholderDisabled={false}
               />
+              </div>
 
-              <label className="usuario-form-toggle">
+              <div className="usuario-form-field usuario-form-field--full"><label className="usuario-form-toggle">
                   <span className="toggle-switch">
                     <input
                       type="checkbox"
@@ -432,10 +464,10 @@ const CrearUsuario = ({fromAdmin, fromTRAINER}) => {
                     <span className="toggle-slider"></span>
                   </span>
                   Usa turnos fijos
-                </label>
+                </label></div>
 
               {formData.usaTurnosFijos && (
-                <div className="usuario-turnos-fijos">
+                <div className="usuario-turnos-fijos usuario-form-field--full">
                   {turnosFijos.map((item, index) => {
                     const clase = item.horarioId ? getClaseForHorario(item.horarioId) : null;
                     const horario = item.horarioId
@@ -501,85 +533,30 @@ const CrearUsuario = ({fromAdmin, fromTRAINER}) => {
                   </span>
                 </div>
               )}
-            </div>
+              </div>
+            </section>
           )}
 
-          {formData.role === 'TRAINER' && (
-            <div className="usuario-form-field">
-              <label htmlFor="profesion">Profesión</label>
-              <CustomInput
-                type="text" id="profesion" name="profesion"
-                value={formData.profesion} onChange={handleChange}
-                placeholder="Ingresa la profesión" width="100%"
-              />
-            </div>
-          )}
+            <details className="usuario-create-section usuario-create-section--collapsible">
+              <summary className="usuario-create-disclosure"><span className="usuario-create-section-heading"><h3>Datos opcionales</h3><p>Información de contacto y perfil. Podés completarla después.</p></span><ChevronDown size={20} aria-hidden="true" /></summary>
+              <div className="usuario-create-grid">
+                <div className="usuario-form-field"><label htmlFor="dni">DNI</label><CustomInput type="text" id="dni" name="dni" value={formData.dni} onChange={handleChange} placeholder="Número de documento" width="100%" /></div>
+                <div className="usuario-form-field"><label htmlFor="direc">Domicilio</label><CustomInput type="text" id="direc" name="direc" value={formData.direc} onChange={handleChange} placeholder="Calle y número" width="100%" /></div>
+                <div className="usuario-form-field"><label htmlFor="tel">Teléfono</label><CustomInput type="tel" id="tel" name="tel" value={formData.tel} onChange={handleChange} placeholder="Número de teléfono" width="100%" autoComplete="tel" /></div>
+                <div className="usuario-form-field"><label htmlFor="fechaCumple">Fecha de nacimiento</label><CustomInput type="date" id="fechaCumple" name="fechaCumple" value={formData.fechaCumple} onChange={handleChange} width="100%" max={new Date().toLocaleDateString('sv-SE')} /></div>
+                {formData.role === 'TRAINER' && <div className="usuario-form-field"><label htmlFor="profesion">Profesión</label><CustomInput type="text" id="profesion" name="profesion" value={formData.profesion} onChange={handleChange} placeholder="Profesión" width="100%" /></div>}
+                <div className="usuario-form-field usuario-form-field--full"><label htmlFor="avatar">Foto</label><input type="file" id="avatar" name="avatar" accept="image/*" onChange={handleFileChange} /></div>
+                {avatarPreview && <div className="preview-container usuario-form-preview"><img src={avatarPreview} alt="Vista previa de la foto" className="preview-img" /></div>}
+              </div>
+            </details>
 
-            <div className="usuario-form-field">
-              <label htmlFor="direc">Dirección</label>
-              <CustomInput
-                type="text" id="direc" name="direc"
-                value={formData.direc} onChange={handleChange}
-                placeholder="Ingresa la dirección" width="100%"
-              />
-            </div>
-
-            <div className="usuario-form-field">
-              <label htmlFor="tel">Teléfono</label>
-              <CustomInput
-                type="tel" id="tel" name="tel"
-                value={formData.tel} onChange={handleChange}
-                placeholder="Ingresa el teléfono" width="100%"
-              />
-            </div>
-
-            <div className="usuario-form-field">
-              <label htmlFor="fechaCumple">Fecha de nacimiento</label>
-              <CustomInput
-                type="date" id="fechaCumple" name="fechaCumple"
-                value={formData.fechaCumple} onChange={handleChange}
-                width="100%"
-              />
-            </div>
-
-            <div className="usuario-form-field">
-              <label htmlFor="fichaMedicaUrl">Ficha médica</label>
-              <CustomInput
-                type="text" id="fichaMedicaUrl" name="fichaMedicaUrl"
-                value={formData.fichaMedicaUrl} onChange={handleChange}
-                placeholder="URL de la ficha médica" width="100%"
-              />
-            </div>
-
-            <div className="usuario-form-field usuario-form-field--full">
-              <label htmlFor="observacionesSalud">Observaciones de salud</label>
-              <textarea
-                id="observacionesSalud"
-                name="observacionesSalud"
-                value={formData.observacionesSalud}
-                onChange={handleChange}
-                placeholder="Observaciones de salud"
-                rows={5}
-                className="usuario-form-textarea"
-              />
-            </div>
-
-            <div className="usuario-form-field">
-              <label htmlFor="avatar">Avatar</label>
-              <input
-                type="file" id="avatar" name="avatar"
-                accept="image/*" onChange={handleFileChange}
-              />
-            </div>
-
-          {avatarPreview && (
-            <div className="preview-container usuario-form-preview">
-              <img
-                src={avatarPreview} alt="Preview clase"
-                className="preview-img" width={300}
-              />
-            </div>
-          )}
+            <details className="usuario-create-section usuario-create-section--collapsible">
+              <summary className="usuario-create-disclosure"><span className="usuario-create-section-heading"><h3>Datos de salud</h3><p>Ficha médica y observaciones para el equipo. Podés completarlas después.</p></span><ChevronDown size={20} aria-hidden="true" /></summary>
+              <div className="usuario-create-grid">
+                <div className="usuario-form-field usuario-form-field--full"><label htmlFor="fichaMedicaUrl">Ficha médica</label><CustomInput type="url" id="fichaMedicaUrl" name="fichaMedicaUrl" value={formData.fichaMedicaUrl} onChange={handleChange} placeholder="Enlace a la ficha médica" width="100%" /></div>
+                <div className="usuario-form-field usuario-form-field--full"><label htmlFor="observacionesSalud">Observaciones</label><textarea id="observacionesSalud" name="observacionesSalud" value={formData.observacionesSalud} onChange={handleChange} placeholder="Lesiones, recomendaciones u otra información importante" rows={4} className="usuario-form-textarea" /></div>
+              </div>
+            </details>
 
             <div className="usuario-form-actions">
               <button type="submit" className="primary-button" disabled={isLoading}>

@@ -5,10 +5,10 @@
 // Por eso importamos los servicios directamente y nunca `app.ts` (que hace app.listen).
 //
 // Tareas que ejecuta:
-//   runNightlyTasks   -> cuotas vencidas · turnos ausentes · mails de cumpleaños
+//   runNightlyTasks   -> próximas cuotas · cuotas vencidas · turnos ausentes · mails de cumpleaños
 //   runReminderTasks  -> mails: turno de hoy · cuota que vence en 3 días · inactividad 15 días
 //
-// ⚠️ Las tareas de mail NO son idempotentes: cada corrida vuelve a enviar. Correr 1 vez por día.
+// Los recordatorios de cuota se envían una sola vez por vencimiento. Otros mails siguen siendo diarios.
 //
 // Para ver el alcance sin escribir ni enviar nada: node prisma/runCron.js --tarea=<nombre>
 import 'dotenv/config'; // ANTES de todo: email.service lee SMTP_* a nivel de módulo

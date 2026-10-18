@@ -20,6 +20,8 @@ import {
   resolveSlots,
 } from '../services/accessRules.service.js';
 import { runSerializableTransaction } from '../services/transaction.service.js';
+import { parseFeeDate } from '../services/feeDates.service.js';
+import { localFeeToday } from '../services/feeCycle.service.js';
 
 type CuotaReturn = {
   ID_Cuota: number;
@@ -1594,15 +1596,20 @@ export const getAllCuotas = async (req: Request, res: Response): Promise<void> =
         }
       } else if (est === 'pagada' || est === 'true') {
         where.pagada = true;
+      } else if (est === 'vencida') {
+        where.pagada = false;
+        where.vencida = true;
       } else if (est === 'false') {
         // mantiene backward compatibility: pagada=false (pero puede incluir vencidas salvo que 'vencida' también se setee)
         where.pagada = false;
       }
     }
 
-    // 3) mes (contains)
+    // Mes de vencimiento, independiente del mes en que comenzó la cobertura.
     if (mes && typeof mes === 'string') {
-      where.mes = { contains: mes } as Prisma.StringFilter;
+      const parsed = parseMesParam(mes);
+      if (!parsed) { res.status(400).json({ message: 'Elegí un mes válido.' }); return; }
+      where.vence = { gte: new Date(Date.UTC(parsed.year, parsed.monthIndex, 1)), lt: new Date(Date.UTC(parsed.year, parsed.monthIndex + 1, 1)) };
     }
 
     // 4) Construir de forma segura el filtro sobre User (plan + email + dni)
@@ -1652,11 +1659,7 @@ export const getAllCuotas = async (req: Request, res: Response): Promise<void> =
         // sin una clave única al final del ORDER BY el motor puede devolverlas en distinto
         // orden en cada página. Eso hacía que un mismo registro apareciera en dos páginas
         // (y otro no apareciera en ninguna), y el admin lo leía como cuotas duplicadas.
-        orderBy: [
-          { mes: 'desc' },
-          { vence: 'desc' },
-          { ID_Cuota: 'desc' },
-        ],
+        orderBy: [{ vence: 'desc' }, { ID_Cuota: 'desc' }],
         select: {
           ID_Cuota: true,
           mes: true,
@@ -1714,11 +1717,7 @@ export const getAllCuotasByUsuario = async (req: Request, res: Response): Promis
       where: { ID_Usuario: idUsuario },
       // De la más reciente a la más antigua, con ID_Cuota como desempate estable entre
       // cuotas del mismo mes/vencimiento.
-      orderBy: [
-        { mes: 'desc' },
-        { vence: 'desc' },
-        { ID_Cuota: 'desc' },
-      ],
+      orderBy: [{ fechaInicio: 'desc' }, { ID_Cuota: 'desc' }],
       select: {
         ID_Cuota: true,
         mes: true,
@@ -1983,21 +1982,33 @@ const updateCuota = async (req: Request, res: Response): Promise<void> => {
 const payCuota = async (req: Request, res: Response): Promise<void> => {
   try {
     const cuotaId = parseInt(req.params.id, 10);
-    const { formaPago } = req.body;
+    const { formaPago, fechaPago } = req.body;
 
     if (isNaN(cuotaId) || !formaPago) {
       res.status(400).json({ message: 'Revisá la cuota y la forma de pago seleccionadas.' });
       return;
     }
+    const paidOn = fechaPago ? parseFeeDate(fechaPago) : await localFeeToday();
+    if (!paidOn || paidOn > await localFeeToday()) {
+      res.status(400).json({ message: 'Elegí una fecha de pago válida, no posterior a hoy.' });
+      return;
+    }
 
-    const updatedCuota = await prismaC.update({
-      where: { ID_Cuota: cuotaId },
+    const changed = await prismaC.updateMany({
+      where: { ID_Cuota: cuotaId, pagada: false },
       data: {
         pagada: true,
         vencida: false,
-        fechaPago: new Date(),
+        fechaPago: paidOn,
         formaPago
-      },
+      }
+    });
+    if (!changed.count) {
+      res.status(409).json({ message: 'La cuota ya está pagada o no existe.' });
+      return;
+    }
+    const updatedCuota = await prismaC.findUnique({
+      where: { ID_Cuota: cuotaId },
       include: { User: { select: { ID_Usuario: true, email: true, nombre: true, apellido: true } } }
     });
 

@@ -666,7 +666,7 @@
   color: #fff;
   font-family: inherit;
   font-size: 14px;
-  font-weight: 600;
+  font-weight: 500;
   cursor: pointer;
   transition: background-color 150ms ease;
 }
@@ -870,7 +870,7 @@
     left: 12px;
     top: 12px;
     width: 40%;
-    font-weight: 600;
+    font-weight: 500;
     opacity: 0.85;
     line-height: 1.2;
   }
@@ -952,6 +952,242 @@
   margin-top: 8px;
   text-align: right;
   font-size: 12px;
-  font-weight: 600;
+  font-weight: 500;
   color: var(--text-color-distinct);
+}
+/* Pantalla de ciclos individuales: estilos propios para no depender de botones globales. */
+.fee-cycle-page {
+  width: 100%;
+  font-weight: 400;
+}
+
+.fee-cycle-page h1,
+.fee-cycle-dialog h2,
+.fee-cycle-preview strong {
+  font-weight: 500;
+}
+
+.fee-cycle-page .cuotas-table th,
+.fee-cycle-page .badge,
+.fee-cycle-page .cuotas-table td::before {
+  font-weight: 500;
+}
+
+.fee-cycle-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 24px;
+  margin-bottom: 26px;
+}
+
+.fee-cycle-heading h1 { margin-bottom: 4px; }
+.fee-cycle-heading p { max-width: 720px; color: var(--text-color-distinct); line-height: 1.5; }
+
+.fee-cycle-filters {
+  display: flex;
+  align-items: end;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 24px;
+}
+
+.fee-cycle-filters label,
+.fee-cycle-dialog label {
+  display: grid;
+  gap: 7px;
+  font-size: 14px;
+  font-weight: 400;
+  color: var(--text-color);
+}
+
+.fee-cycle-filters input,
+.fee-cycle-filters select,
+.fee-cycle-dialog input,
+.fee-cycle-dialog select {
+  min-height: 42px;
+  padding: 8px 12px;
+  border: 1px solid var(--border-color);
+  border-radius: 9px;
+  background: var(--background-color);
+  color: var(--text-color);
+  font: inherit;
+  font-weight: 400;
+}
+
+.fee-cycle-filters input:focus-visible,
+.fee-cycle-filters select:focus-visible,
+.fee-cycle-dialog input:focus-visible,
+.fee-cycle-dialog select:focus-visible {
+  outline: 2px solid var(--primary-color);
+  outline-offset: 2px;
+}
+
+.fee-cycle-page button,
+.fee-cycle-dialog button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 40px;
+  padding: 9px 15px;
+  border: 1px solid transparent;
+  border-radius: 9px;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.25;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background-color 150ms ease, border-color 150ms ease, color 150ms ease;
+}
+
+.fee-cycle-page button:focus-visible,
+.fee-cycle-dialog button:focus-visible {
+  outline: 2px solid var(--primary-color);
+  outline-offset: 2px;
+}
+
+.fee-cycle-page button:disabled,
+.fee-cycle-dialog button:disabled {
+  opacity: .45;
+  cursor: not-allowed;
+}
+
+.fee-cycle-page .primary-button,
+.fee-cycle-dialog .primary-button {
+  background: var(--primary-color);
+  border-color: var(--primary-color);
+  color: #fff;
+}
+
+.fee-cycle-page .primary-button:hover:not(:disabled),
+.fee-cycle-dialog .primary-button:hover:not(:disabled) {
+  background: var(--primary-color-hover);
+  border-color: var(--primary-color-hover);
+}
+
+.fee-cycle-page .secondary-button,
+.fee-cycle-pagination button,
+.fee-cycle-actions > button:first-child {
+  background: var(--background-color);
+  border-color: var(--border-color);
+  color: var(--text-color);
+}
+
+.fee-cycle-page .secondary-button:hover:not(:disabled),
+.fee-cycle-pagination button:hover:not(:disabled),
+.fee-cycle-actions > button:first-child:hover:not(:disabled) {
+  background: var(--background-color-distinct);
+  border-color: var(--primary-color);
+}
+
+.fee-cycle-page .accion-button.pay {
+  min-height: 34px;
+  padding: 7px 11px;
+  background: rgba(34, 197, 94, .1);
+  border-color: rgba(34, 197, 94, .35);
+  color: #16803c;
+  box-shadow: none;
+}
+
+.fee-cycle-page .accion-button.pay:hover:not(:disabled) {
+  background: rgba(34, 197, 94, .18);
+  border-color: rgba(34, 197, 94, .6);
+  color: #11632f;
+  transform: none;
+}
+
+[data-theme="dark"] .fee-cycle-page .accion-button.pay { color: #77e97b; }
+[data-theme="dark"] .fee-cycle-page .accion-button.pay:hover:not(:disabled) { color: #a4f1a6; }
+
+.fee-cycle-page .cuotas-table th,
+.fee-cycle-page .cuotas-table td { padding: 16px 10px; }
+.fee-cycle-page .cuotas-table th { color: var(--text-color-distinct); }
+
+.fee-cycle-pagination {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  justify-content: flex-end;
+  margin-top: 18px;
+  font-size: 14px;
+  color: var(--text-color-distinct);
+}
+
+.fee-cycle-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  display: grid;
+  place-items: center;
+  padding: 18px;
+  background: rgba(0, 0, 0, .55);
+}
+
+.fee-cycle-dialog {
+  width: min(100%, 550px);
+  max-height: 90vh;
+  overflow: auto;
+  display: grid;
+  gap: 16px;
+  padding: 28px;
+  border: 1px solid var(--border-color);
+  border-radius: 16px;
+  background: var(--background-color);
+  color: var(--text-color);
+  font-weight: 400;
+  box-shadow: 0 24px 80px rgba(0, 0, 0, .2);
+}
+
+.fee-cycle-dialog form { display: grid; gap: 15px; }
+.fee-cycle-dialog p { margin: 0; color: var(--text-color-distinct); line-height: 1.5; }
+.fee-cycle-dialog-head { display: flex; justify-content: space-between; align-items: center; gap: 16px; }
+.fee-cycle-dialog-head h2 { margin: 0; }
+
+.fee-cycle-dialog .fee-cycle-dialog-head button {
+  min-width: 36px;
+  min-height: 36px;
+  padding: 0;
+  background: transparent;
+  color: var(--text-color-distinct);
+  font-size: 25px;
+  font-weight: 400;
+}
+
+.fee-cycle-dialog .fee-cycle-dialog-head button:hover { background: var(--background-color-distinct); color: var(--text-color); }
+
+.fee-cycle-students {
+  display: grid;
+  max-height: 180px;
+  overflow: auto;
+  border: 1px solid var(--border-color);
+  border-radius: 9px;
+}
+
+.fee-cycle-dialog .fee-cycle-students button {
+  justify-content: flex-start;
+  min-height: 42px;
+  text-align: left;
+  white-space: normal;
+  background: transparent;
+  color: inherit;
+}
+
+.fee-cycle-students button + button { border-top: 1px solid var(--border-color); }
+.fee-cycle-dialog .fee-cycle-students button:hover { background: var(--background-hover-color); }
+.fee-cycle-preview { display: grid; gap: 5px; padding: 13px; background: var(--background-color-distinct); border-radius: 9px; }
+.fee-cycle-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 8px; }
+
+@media (max-width: 700px) {
+  .fee-cycle-heading { flex-direction: column; }
+  .fee-cycle-page .cuotas-table td { padding: 12px 12px 12px 44%; }
+  .fee-cycle-pagination { justify-content: center; flex-wrap: wrap; }
+  .fee-cycle-page .cuotas-table td::before { font-weight: 500; }
+}
+
+@media (max-width: 480px) {
+  .fee-cycle-heading .primary-button { width: 100%; }
+  .fee-cycle-filters label { width: 100%; }
+  .fee-cycle-filters .secondary-button { width: 100%; }
+  .fee-cycle-dialog { padding: 20px; }
 }

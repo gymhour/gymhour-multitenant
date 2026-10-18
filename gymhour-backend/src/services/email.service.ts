@@ -438,11 +438,13 @@ export async function sendTurnoReminderEmail(
 export async function sendCuotaPorVencerEmail(
   email: string,
   nombre: string,
-  data: { vence: Date; importe: number; mes: string; diasRestantes: number }
+  data: { vence: Date; importe: number; mes: string; fechaInicio?: Date | null; fechaFin?: Date | null; diasRestantes: number }
 ): Promise<void> {
   const displayName = escapeHtml(nombre?.trim() || "crack");
   const frontendUrl = process.env.FRONTEND_URL ?? "#";
   const venceStr = `${String(data.vence.getUTCDate()).padStart(2, "0")}/${String(data.vence.getUTCMonth() + 1).padStart(2, "0")}/${data.vence.getUTCFullYear()}`;
+  const feeDate = (date: Date) => `${String(date.getUTCDate()).padStart(2, "0")}/${String(date.getUTCMonth() + 1).padStart(2, "0")}/${date.getUTCFullYear()}`;
+  const periodo = data.fechaInicio && data.fechaFin ? `${feeDate(data.fechaInicio)} al ${feeDate(data.fechaFin)}` : data.mes;
   const dias = data.diasRestantes;
   const subject = `⏰ Tu cuota vence en ${dias} día${dias === 1 ? "" : "s"}`;
 
@@ -451,7 +453,7 @@ export async function sendCuotaPorVencerEmail(
     <p>Te avisamos que tu cuota <strong>vence el ${venceStr}</strong> (en ${dias} día${dias === 1 ? "" : "s"}).</p>
     <p style="margin:0 0 6px;">Detalle:</p>
     <ul style="margin:0 0 14px; padding-left:18px; color:#444;">
-      <li>Período: <strong>${escapeHtml(data.mes)}</strong></li>
+      <li>Período: <strong>${escapeHtml(periodo)}</strong></li>
       <li>Importe: <strong>${money(data.importe)}</strong></li>
     </ul>
     <p>Renová a tiempo y seguí entrenando sin interrupciones. 💪</p>
