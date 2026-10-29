@@ -56,8 +56,10 @@ model Tenant {
   updatedAt               DateTime                  @updatedAt
   trialEndsAt             DateTime?
   paidUntil               DateTime?
+  billingCreditArs        Int                       @default(0)
   billingExempt           Boolean                   @default(false)
   billingOrders           TenantBillingOrder[]
+  planChanges             TenantPlanChange[]
   lastActivityAt          DateTime?
   suspendedAt             DateTime?
   suspensionReason        String?                   @db.VarChar(500)
@@ -116,11 +118,41 @@ model TenantBillingOrder {
   rebillPaymentId      String?                  @unique @db.VarChar(100)
   rebillSubscriptionId String?                  @unique @db.VarChar(100)
   rebillSubscriptionStatus String?                @db.VarChar(40)
+  rebillLatestPaymentId String?                    @db.VarChar(100)
+  currentPeriodStart   DateTime?
+  creditUsedArs        Int                       @default(0)
   paidAt               DateTime?
   paidUntil            DateTime?
   createdAt            DateTime                 @default(now())
   tenant               Tenant                   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
+  @@index([tenantId, createdAt])
+}
+
+enum TenantPlanChangeStatus {
+  PENDING
+  PAYMENT_CONFIRMED
+  APPLIED
+  FAILED
+}
+
+model TenantPlanChange {
+  id              String                 @id @default(cuid())
+  tenantId        Int
+  orderId         String                 @db.VarChar(191)
+  fromPlanCode    String                 @db.VarChar(64)
+  toPlanCode      String                 @db.VarChar(64)
+  amountArs       Int
+  periodStart     DateTime
+  periodEnd       DateTime
+  status          TenantPlanChangeStatus @default(PENDING)
+  rebillPaymentId String?                @unique @db.VarChar(100)
+  rebillRefundId  String?                @db.VarChar(100)
+  createdAt       DateTime               @default(now())
+  appliedAt       DateTime?
+  tenant          Tenant                 @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, orderId, periodStart, periodEnd])
   @@index([tenantId, createdAt])
 }
 

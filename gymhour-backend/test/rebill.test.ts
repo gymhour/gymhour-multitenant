@@ -1,7 +1,7 @@
 import crypto from 'node:crypto';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { BILLING_CATALOG } from '../src/services/billingCatalog.service.js';
-import { fetchRebillPayment, fetchRebillSubscription, findOrCreateRebillPlan, rebillSubscriptionMatchesOrder, validRebillSignature } from '../src/services/rebill.service.js';
+import { ALL_BILLING_PLANS } from '../src/services/billingCatalog.service.js';
+import { changeRebillSubscriptionPlan, fetchRebillPayment, fetchRebillSubscription, findOrCreateRebillPlan, rebillSubscriptionMatchesOrder, validRebillSignature } from '../src/services/rebill.service.js';
 
 describe('Rebill configuration and webhook signature', () => {
   afterEach(() => {
@@ -41,6 +41,16 @@ describe('Rebill configuration and webhook signature', () => {
     }) }));
     const payment = await fetchRebillPayment('test_pay_transfer');
     expect(payment).toMatchObject({ orderId: 'order_123', subscriptionId: null });
+  });
+
+  it('changes the recurring plan without charging the current cycle', async () => {
+    process.env.REBILL_SECRET_KEY = 'sk_test';
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ id: 'rfd_123' }) });
+    vi.stubGlobal('fetch', fetchMock);
+    await changeRebillSubscriptionPlan('test_sub_123', 'test_pln_pro');
+    expect(fetchMock.mock.calls[0][0]).toBe('https://api.rebill.com/v3/subscriptions/test_sub_123/plan');
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({ planId: 'test_pln_pro' });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
   it('checks the recurring amount, cadence and plan name', async () => {
@@ -110,7 +120,7 @@ describe('Rebill configuration and webhook signature', () => {
 
   it('reuses a matching sandbox plan without creating another', async () => {
     process.env.REBILL_SECRET_KEY = 'sk_test';
-    const plan = BILLING_CATALOG.find(item => item.code === 'UP_TO_100_QUARTERLY')!;
+    const plan = ALL_BILLING_PLANS.find(item => item.code === 'UP_TO_100_QUARTERLY')!;
     const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ records: [{
       id: 'test_pln_existing', status: 'active', name: [{ language: 'es', text: 'Gymhour 1–100 Trimestral' }],
       frequency: { period: 'month', count: 3 }, prices: [{ amount: 135000, currency: 'ARS', isDefault: true }],
@@ -122,7 +132,7 @@ describe('Rebill configuration and webhook signature', () => {
 
   it('creates a missing recurring plan automatically', async () => {
     process.env.REBILL_SECRET_KEY = 'sk_test';
-    const plan = BILLING_CATALOG.find(item => item.code === 'UP_TO_100_ANNUAL')!;
+    const plan = ALL_BILLING_PLANS.find(item => item.code === 'UP_TO_100_ANNUAL')!;
     const fetchMock = vi.fn()
       .mockResolvedValueOnce({ ok: true, json: async () => ({ records: [] }) })
       .mockResolvedValueOnce({ ok: true, json: async () => ({

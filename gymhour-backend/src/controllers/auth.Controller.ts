@@ -6,7 +6,7 @@ import { authServices } from '../services/auth.service.js';
 import { sendResetPasswordEmail, sendWelcomeEmail } from '../services/email.service.js';
 import { comparePassword, hashPassword } from '../services/password.service.js';
 import { getTenantLogoUrl } from '../services/cloudinary.service.js';
-import { getBillingAccess } from '../services/billing.service.js';
+import { tenantPlanAccess } from '../services/planAccess.service.js';
 
 const TIMEZONE = process.env.TIMEZONE || 'America/Argentina/Cordoba';
 const normalizeEmail = (value: unknown): string => String(value ?? '').trim().toLowerCase();
@@ -240,12 +240,10 @@ export const me = async (req: Request, res: Response): Promise<void> => {
     enrichedSettings = { ...settings, logoUrl: getTenantLogoUrl(settings.logoPublicId) };
   }
   const tenant = await systemPrisma.tenant.findUniqueOrThrow({ where: { id: req.tenant.id } });
-  const lastPaidOrder = await systemPrisma.tenantBillingOrder.findFirst({
-    where: { tenantId: tenant.id, status: 'PAID' }, orderBy: { paidAt: 'desc' }, select: { method: true },
-  });
+  const billing = await tenantPlanAccess(tenant.id);
   res.setHeader('Cache-Control', 'no-store');
   res.json({ user: req.user, tenant: { ...req.tenant, settings: enrichedSettings,
-    billing: { ...getBillingAccess(tenant), paymentMethod: lastPaidOrder?.method ?? null } } });
+    billing } });
 };
 
 export const forgotPassword = async (req: Request, res: Response): Promise<void> => {

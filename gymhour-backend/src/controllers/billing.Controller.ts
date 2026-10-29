@@ -1,9 +1,10 @@
 import type { Request, Response } from 'express';
 import { systemPrisma } from '../models/Prisma.js';
 import { BILLING_CATALOG, BILLING_TIERS, billingOfferForActiveStudentCount, paidUntilFromPurchase } from '../services/billingCatalog.service.js';
-import { getBillingAccess } from '../services/billing.service.js';
 import { fetchRebillPayment, fetchRebillSubscription, findOrCreateRebillPlan, rebillSubscriptionMatchesOrder, validRebillSignature } from '../services/rebill.service.js';
 import { tenantBillingTier } from '../services/tenantBilling.service.js';
+import { tenantPlanAccess } from '../services/planAccess.service.js';
+import { confirmPaidPlanChangePayment } from './billingChange.Controller.js';
 
 const findPlan = (code: unknown) => BILLING_CATALOG.find(plan => plan.code === code);
 const latestOrder = (tenantId: number) => systemPrisma.tenantBillingOrder.findFirst({
@@ -16,12 +17,20 @@ export async function catalog(req: Request, res: Response): Promise<void> {
   const tenant = await systemPrisma.tenant.findUniqueOrThrow({ where: { id: req.user!.tenantId } });
   res.setHeader('Cache-Control', 'no-store');
   res.json({ activeStudents, offer, tiers: BILLING_TIERS, plans: offer.kind === 'SELF_SERVICE'
-    ? BILLING_CATALOG.filter(plan => plan.tierCode === offer.tier.code).map(plan => ({
+    ? BILLING_CATALOG.filter(plan => activeStudents <= plan.maxUsers).map(plan => ({
       ...plan, cardAvailable: Boolean(process.env.REBILL_PUBLIC_KEY && process.env.REBILL_SECRET_KEY),
       transferAvailable: Boolean(process.env.REBILL_PUBLIC_KEY && process.env.REBILL_SECRET_KEY),
     })) : [],
     rebillPublicKey: process.env.REBILL_PUBLIC_KEY || null,
-    billing: getBillingAccess(tenant), order: await latestOrder(tenant.id),
+    billing: await tenantPlanAccess(tenant.id), billingCreditArs: tenant.billingCreditArs,
+    order: await latestOrder(tenant.id),
+    planChange: await systemPrisma.tenantPlanChange.findFirst({ where: {
+      tenantId: tenant.id, periodEnd: { gt: new Date() },
+      OR: [
+        { status: { in: ['PENDING', 'PAYMENT_CONFIRMED'] } },
+        { status: 'FAILED', OR: [{ rebillRefundId: null }, { rebillRefundId: { notIn: ['CANCELLING_DOWNGRADE', 'CANCELLED_DOWNGRADE'] } }] },
+      ],
+    }, orderBy: { createdAt: 'desc' } }),
   });
 }
 
@@ -30,9 +39,20 @@ export async function createOrder(req: Request, res: Response): Promise<void> {
   const method = req.body?.method;
   const { activeStudents } = await tenantBillingTier(req.user!.tenantId);
   const offer = billingOfferForActiveStudentCount(activeStudents);
-  if (!plan || offer.kind !== 'SELF_SERVICE' || plan.tierCode !== offer.tier.code
+  if (!plan || offer.kind !== 'SELF_SERVICE' || activeStudents > plan.maxUsers
     || !['CARD', 'TRANSFER'].includes(method)) {
     res.status(400).json({ message: 'El plan seleccionado no corresponde a tu gimnasio.' }); return;
+  }
+  const access = await tenantPlanAccess(req.user!.tenantId);
+  if (access.state === 'PAID') {
+    res.status(409).json({ message: 'Tu suscripción sigue activa. Elegí el nuevo plan desde Mi suscripción.' }); return;
+  }
+  if (access.scheduledPlanCode && plan.code !== access.scheduledPlanCode) {
+    res.status(409).json({ message: 'Tenés un cambio a Esencial programado. La próxima cuota corresponde a ese plan.' }); return;
+  }
+  const tenantCredit = await systemPrisma.tenant.findUniqueOrThrow({ where: { id: req.user!.tenantId }, select: { billingCreditArs: true } });
+  if (method === 'CARD' && tenantCredit.billingCreditArs > 0) {
+    res.status(409).json({ message: 'Tenés saldo a favor de una transferencia. Usalo en la próxima cuota por transferencia antes de activar la tarjeta.' }); return;
   }
   if (method === 'TRANSFER' && (!process.env.REBILL_PUBLIC_KEY || !process.env.REBILL_SECRET_KEY)) {
     res.status(503).json({ message: 'El pago por transferencia todavía no está configurado en Rebill.' }); return;
@@ -54,8 +74,11 @@ export async function createOrder(req: Request, res: Response): Promise<void> {
     tenantId: req.user!.tenantId, status: 'PENDING', method, planCode: plan.code,
     ...(method === 'TRANSFER' ? { rebillPaymentId: null } : {}),
   }, orderBy: { createdAt: 'desc' } });
+  const tenant = await systemPrisma.tenant.findUniqueOrThrow({ where: { id: req.user!.tenantId } });
+  const creditUsedArs = method === 'TRANSFER' ? Math.min(tenant.billingCreditArs, plan.amountArs - 1) : 0;
   const order = pending ?? await systemPrisma.tenantBillingOrder.create({ data: {
-    tenantId: req.user!.tenantId, planCode: plan.code, method, amountArs: plan.amountArs, months: plan.months,
+    tenantId: req.user!.tenantId, planCode: plan.code, method,
+    amountArs: plan.amountArs - creditUsedArs, creditUsedArs, months: plan.months,
   } });
   res.status(pending ? 200 : 201).json({ order, planId });
 }
@@ -94,11 +117,14 @@ export async function confirmCard(req: Request, res: Response): Promise<void> {
     const changed = await tx.tenantBillingOrder.updateMany({ where: { id: order.id, status: 'PENDING' }, data: {
       status: 'PAID', rebillPaymentId: paymentId, rebillSubscriptionId: subscriptionId,
       rebillSubscriptionStatus: subscription.status,
+      rebillLatestPaymentId: paymentId, currentPeriodStart: payment.createdAt,
       paidAt: payment.createdAt, paidUntil,
     } });
     if (changed.count) {
       await tx.rebillProcessedPayment.create({ data: { paymentId } });
-      await tx.tenant.update({ where: { id: order.tenantId }, data: { paidUntil, billingExempt: false } });
+      const tenant = await tx.tenant.updateMany({ where: { id: order.tenantId, billingCreditArs: { gte: order.creditUsedArs } },
+        data: { paidUntil, billingExempt: false, billingCreditArs: { decrement: order.creditUsedArs } } });
+      if (!tenant.count) throw new Error('BILLING_CREDIT_CHANGED');
     }
   });
   res.json({ paidUntil });
@@ -134,11 +160,14 @@ export async function confirmTransfer(req: Request, res: Response): Promise<void
   const paidUntil = paidUntilFromPurchase(payment.createdAt, order.months);
   await systemPrisma.$transaction(async tx => {
     const changed = await tx.tenantBillingOrder.updateMany({ where: { id: order.id, status: 'PENDING' }, data: {
-      status: 'PAID', rebillPaymentId: paymentId, paidAt: payment.createdAt, paidUntil,
+      status: 'PAID', rebillPaymentId: paymentId, currentPeriodStart: payment.createdAt,
+      paidAt: payment.createdAt, paidUntil,
     } });
     if (changed.count) {
       await tx.rebillProcessedPayment.create({ data: { paymentId } });
-      await tx.tenant.update({ where: { id: order.tenantId }, data: { paidUntil, billingExempt: false } });
+      const tenant = await tx.tenant.updateMany({ where: { id: order.tenantId, billingCreditArs: { gte: order.creditUsedArs } },
+        data: { paidUntil, billingExempt: false, billingCreditArs: { decrement: order.creditUsedArs } } });
+      if (!tenant.count) throw new Error('BILLING_CREDIT_CHANGED');
     }
   });
   res.json({ paidUntil });
@@ -167,6 +196,11 @@ export async function rebillWebhook(req: Request & { rawBody?: Buffer }, res: Re
   }
   if (['payment.created', 'payment.updated'].includes(event) && typeof paymentId === 'string' && !subscriptionId) {
     const payment = await fetchRebillPayment(paymentId);
+    if (payment.status === 'approved' && payment.changeId && payment.customerEmail) {
+      await confirmPaidPlanChangePayment(payment.changeId, paymentId, payment.customerEmail);
+      await systemPrisma.rebillWebhookEvent.create({ data: { logId, event } });
+      res.status(204).end(); return;
+    }
     if (payment.status === 'approved' && payment.orderId && !payment.subscriptionId) {
       const order = await systemPrisma.tenantBillingOrder.findUnique({ where: { id: payment.orderId } });
       const admin = order && payment.customerEmail ? await systemPrisma.user.findFirst({ where: {
@@ -180,11 +214,14 @@ export async function rebillWebhook(req: Request & { rawBody?: Buffer }, res: Re
           if (await tx.rebillWebhookEvent.findUnique({ where: { logId } })) return;
           const paidUntil = paidUntilFromPurchase(payment.createdAt, order.months);
           const changed = await tx.tenantBillingOrder.updateMany({ where: { id: order.id, status: 'PENDING' }, data: {
-            status: 'PAID', rebillPaymentId: paymentId, paidAt: payment.createdAt, paidUntil,
+            status: 'PAID', rebillPaymentId: paymentId, currentPeriodStart: payment.createdAt,
+            paidAt: payment.createdAt, paidUntil,
           } });
           if (changed.count) {
             await tx.rebillProcessedPayment.create({ data: { paymentId } });
-            await tx.tenant.update({ where: { id: order.tenantId }, data: { paidUntil, billingExempt: false } });
+            const tenant = await tx.tenant.updateMany({ where: { id: order.tenantId, billingCreditArs: { gte: order.creditUsedArs } },
+              data: { paidUntil, billingExempt: false, billingCreditArs: { decrement: order.creditUsedArs } } });
+            if (!tenant.count) throw new Error('BILLING_CREDIT_CHANGED');
           }
           await tx.rebillWebhookEvent.create({ data: { logId, event } });
         });
@@ -195,14 +232,25 @@ export async function rebillWebhook(req: Request & { rawBody?: Buffer }, res: Re
   if (event === 'payment.created' && typeof subscriptionId === 'string' && typeof paymentId === 'string') {
     const order = await systemPrisma.tenantBillingOrder.findUnique({ where: { rebillSubscriptionId: subscriptionId } });
     if (order?.status === 'PAID' && order.rebillPaymentId !== paymentId) {
-      const [payment, subscription] = await Promise.all([
+      const [payment, subscription, scheduled, cancelling] = await Promise.all([
         fetchRebillPayment(paymentId), fetchRebillSubscription(subscriptionId),
+        systemPrisma.tenantPlanChange.findFirst({ where: {
+          tenantId: order.tenantId, orderId: order.id, status: 'APPLIED', amountArs: 0,
+          fromPlanCode: order.planCode, toPlanCode: 'ESSENTIAL_MONTHLY',
+        }, orderBy: { createdAt: 'desc' } }),
+        systemPrisma.tenantPlanChange.findFirst({ where: { tenantId: order.tenantId, orderId: order.id,
+          status: 'FAILED', rebillRefundId: 'CANCELLING_DOWNGRADE' } }),
       ]);
+      if (cancelling) { res.status(503).end(); return; }
+      const nextPlan = scheduled ? findPlan(scheduled.toPlanCode) : null;
+      // Rebill already has the new recurring plan; Gymhour changes the entitlement with this renewal.
+      const expectedOrder = nextPlan ? { ...order, planCode: nextPlan.code,
+        amountArs: nextPlan.amountArs, months: nextPlan.months } : order;
       if (payment.id !== paymentId || payment.status !== 'approved' || subscription.id !== subscriptionId
         || (payment.subscriptionId && payment.subscriptionId !== subscriptionId)
-        || !rebillSubscriptionMatchesOrder(subscription, order)
+        || !rebillSubscriptionMatchesOrder(subscription, expectedOrder)
         || (subscription.orderId && subscription.orderId !== order.id)
-        || payment.amount !== order.amountArs || payment.currency !== 'ARS'
+        || payment.amount !== expectedOrder.amountArs || payment.currency !== 'ARS'
         || !Number.isFinite(payment.createdAt.getTime())) {
         res.status(409).end(); return;
       }
@@ -212,9 +260,21 @@ export async function rebillWebhook(req: Request & { rawBody?: Buffer }, res: Re
           await tx.rebillWebhookEvent.create({ data: { logId, event } }); return;
         }
         const tenant = await tx.tenant.findUniqueOrThrow({ where: { id: order.tenantId } });
+        if (scheduled && tenant.paidUntil?.getTime() !== scheduled.periodEnd.getTime()) {
+          throw new Error('SCHEDULED_DOWNGRADE_PERIOD_CHANGED');
+        }
+        if (scheduled) {
+          const locked = await tx.tenantPlanChange.updateMany({ where: { id: scheduled.id, status: 'APPLIED' },
+            data: { appliedAt: scheduled.appliedAt } });
+          if (!locked.count) throw new Error('SCHEDULED_DOWNGRADE_CHANGED');
+        }
         const start = tenant.paidUntil && tenant.paidUntil > payment.createdAt ? tenant.paidUntil : payment.createdAt;
-        const paidUntil = paidUntilFromPurchase(start, order.months);
+        const paidUntil = paidUntilFromPurchase(start, expectedOrder.months);
         await tx.tenant.update({ where: { id: order.tenantId }, data: { paidUntil } });
+        await tx.tenantBillingOrder.update({ where: { id: order.id }, data: {
+          currentPeriodStart: start, paidUntil, rebillLatestPaymentId: paymentId,
+          ...(nextPlan ? { planCode: nextPlan.code, amountArs: nextPlan.amountArs, months: nextPlan.months } : {}),
+        } });
         await tx.rebillProcessedPayment.create({ data: { paymentId } });
         await tx.rebillWebhookEvent.create({ data: { logId, event } });
       });

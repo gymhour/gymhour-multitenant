@@ -1,9 +1,10 @@
 import crypto from 'node:crypto';
-import { BILLING_CATALOG } from './billingCatalog.service.js';
+import { ALL_BILLING_PLANS } from './billingCatalog.service.js';
 
-type BillingPlan = (typeof BILLING_CATALOG)[number];
+type BillingPlan = (typeof ALL_BILLING_PLANS)[number];
 
 const tierNames: Record<string, string> = {
+  ESSENTIAL: 'Esencial', PRO: 'Pro',
   UP_TO_100: '1–100', UP_TO_300: '101–300', UP_TO_1000: '301–1000',
 };
 
@@ -20,6 +21,7 @@ export type RebillPayment = {
   subscriptionId: string | null;
   planId: string | null;
   orderId: string | null;
+  changeId: string | null;
   createdAt: Date;
 };
 
@@ -36,6 +38,13 @@ async function rebillRequest(path: string, method = 'GET', payload?: unknown): P
 }
 
 const rebillGet = (path: string) => rebillRequest(path);
+
+export async function changeRebillSubscriptionPlan(subscriptionId: string, planId: string): Promise<void> {
+  if (!/^(test_)?sub_[\w-]+$/.test(subscriptionId) || !/^(test_)?pln_[\w-]+$/.test(planId)) {
+    throw new Error('INVALID_REBILL_IDENTIFIER');
+  }
+  await rebillRequest(`subscriptions/${encodeURIComponent(subscriptionId)}/plan`, 'PATCH', { planId });
+}
 
 function planMatches(plan: any, expected: BillingPlan): boolean {
   const terms = subscriptionTerms(plan, plan);
@@ -85,6 +94,7 @@ export async function fetchRebillPayment(id: string): Promise<RebillPayment> {
     subscriptionId: payment.subscriptionId ?? payment.subscription?.id ?? body.subscriptionId ?? null,
     planId: payment.planId ?? payment.plan?.id ?? body.planId ?? null,
     orderId: payment.metadata?.gymhourOrderId ?? body.metadata?.gymhourOrderId ?? null,
+    changeId: payment.metadata?.gymhourPlanChangeId ?? body.metadata?.gymhourPlanChangeId ?? null,
     createdAt: new Date(payment.createdAt),
   };
 }
@@ -134,7 +144,7 @@ export function rebillSubscriptionMatchesOrder(
   subscription: { terms: SubscriptionTerms | null; planTerms: SubscriptionTerms | null; planName: string | null },
   order: { amountArs: number; months: number; planCode: string },
 ): boolean {
-  const expected = BILLING_CATALOG.find(plan => plan.code === order.planCode);
+  const expected = ALL_BILLING_PLANS.find(plan => plan.code === order.planCode);
   if (!expected) return false;
   const matches = (terms: SubscriptionTerms | null) => Boolean(terms
     && terms.amount === order.amountArs && terms.currency === 'ARS'

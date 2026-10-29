@@ -59,6 +59,10 @@ app.use(cors({
             process.env.FRONTEND_URL || 'http://localhost:3001',
             process.env.PLATFORM_FRONTEND_URL || 'http://localhost:3001',
         ]);
+        if (process.env.NODE_ENV === 'development') {
+            allowed.add('http://localhost:3000');
+            allowed.add('http://127.0.0.1:3000');
+        }
         callback(null, allowed.has(origin));
     },
     credentials: true,
