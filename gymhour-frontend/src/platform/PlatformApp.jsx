@@ -227,4 +227,4 @@ function PlatformRoutes() {
   return <Routes><Route path="/login" element={<Login/>}/><Route path="/*" element={<Guard><Shell><Routes><Route path="/dashboard" element={<Dashboard/>}/><Route path="/tenants" element={<Tenants/>}/><Route path="/tenants/:id" element={<TenantDetail/>}/><Route path="/audit" element={<Audit/>}/><Route path="*" element={<Navigate to="/dashboard" replace/>}/></Routes></Shell></Guard>}/></Routes>;
 }
 
-export default function PlatformApp() { return <PlatformProvider><ToastContainer position="top-right" theme="light"/><PlatformRoutes/></PlatformProvider>; }
+export default function PlatformApp() { return <PlatformProvider><ToastContainer position="top-right" theme="light" autoClose={3000} closeButton pauseOnFocusLoss={false} pauseOnHover={false}/><PlatformRoutes/></PlatformProvider>; }

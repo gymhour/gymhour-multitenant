@@ -1097,6 +1097,14 @@
   transform: none;
 }
 
+.fee-cycle-row-actions {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
 [data-theme="dark"] .fee-cycle-page .accion-button.pay { color: #77e97b; }
 [data-theme="dark"] .fee-cycle-page .accion-button.pay:hover:not(:disabled) { color: #a4f1a6; }
 

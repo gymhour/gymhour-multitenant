@@ -30,7 +30,8 @@ import {
   Sparkles,
   ChevronLeft,
   ChevronRight,
-  KeyRound
+  KeyRound,
+  CreditCard
 } from 'lucide-react';
 
 
@@ -594,9 +595,14 @@ const SidebarMenu = ({ isAdmin, isEntrenador }) => {
             <h3 className="profile-title">Perfil</h3>
             <ul className="menu-list">
               {isAdmin && (
-                <Link to="/admin/configuracion" className={`menu-link ${location.pathname === "/admin/configuracion" ? "active" : ""}`}>
-                  <li className="menu-item"><Settings className="icon" /> Configuración del gym</li>
-                </Link>
+                <>
+                  <Link to="/admin/configuracion" className={`menu-link ${location.pathname === "/admin/configuracion" ? "active" : ""}`}>
+                    <li className="menu-item"><Settings className="icon" /> Configuración del gym</li>
+                  </Link>
+                  <Link to="/admin/suscripcion" className={`menu-link ${location.pathname === '/admin/suscripcion' ? 'active' : ''}`}>
+                    <li className="menu-item"><CreditCard className="icon" /> Mi suscripción</li>
+                  </Link>
+                </>
               )}
               <Link
                 to={changePasswordPath}

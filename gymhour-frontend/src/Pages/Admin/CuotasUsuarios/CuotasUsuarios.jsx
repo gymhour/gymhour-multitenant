@@ -4,6 +4,7 @@ import { toast } from 'react-toastify';
 import SidebarMenu from '../../../Components/SidebarMenu/SidebarMenu';
 import apiClient from '../../../axiosConfig';
 import apiService from '../../../services/apiService';
+import ConfirmationPopup from '../../../Components/utils/ConfirmationPopUp/ConfirmationPopUp';
 import '../../../App.css';
 import './CuotasUsuarios.css';
 
@@ -31,6 +32,8 @@ export default function CuotasUsuarios({ fromAdmin }) {
   const [paying, setPaying] = useState(null);
   const [payMethod, setPayMethod] = useState('Efectivo');
   const [payDate, setPayDate] = useState(dateInput());
+  const [deleting, setDeleting] = useState(null);
+  const [deleteSaving, setDeleteSaving] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -103,6 +106,19 @@ export default function CuotasUsuarios({ fromAdmin }) {
     finally { setSaving(false); }
   };
 
+  const deleteFee = async () => {
+    if (!deleting || deleteSaving) return;
+    setDeleteSaving(true);
+    try {
+      await apiClient.delete(`/cuotas/${deleting.ID_Cuota}`);
+      toast.success('Cuota eliminada.');
+      setDeleting(null);
+      if (rows.length === 1 && page > 1) setPage(page - 1);
+      else setRefresh(value => value + 1);
+    } catch (error) { toast.error(message(error, 'No pudimos eliminar la cuota.')); }
+    finally { setDeleteSaving(false); }
+  };
+
   return <div className="page-layout">
     <SidebarMenu isAdmin={fromAdmin} />
     <main className="content-layout fee-cycle-page">
@@ -121,7 +137,10 @@ export default function CuotasUsuarios({ fromAdmin }) {
         <td data-label="Importe">{money(fee.importe)}</td>
         <td data-label="Estado"><span className={`badge ${fee.pagada ? 'paid' : fee.vencida ? 'expired' : 'pending'}`}>{fee.pagada ? 'Pagada' : fee.vencida ? 'Vencida' : 'Pendiente'}</span></td>
         <td data-label="Pago">{fee.pagada ? `${formatDate(fee.fechaPago)} · ${fee.formaPago || '—'}` : '—'}</td>
-        <td data-label="Acción">{!fee.pagada && <button type="button" className="accion-button pay" onClick={() => { setPaying(fee); setPayDate(dateInput()); }}>Registrar pago</button>}</td>
+        <td data-label="Acción"><div className="fee-cycle-row-actions">
+          {!fee.pagada && <button type="button" className="accion-button pay" onClick={() => { setPaying(fee); setPayDate(dateInput()); }}>Registrar pago</button>}
+          <button type="button" className="accion-button delete" onClick={() => setDeleting(fee)} aria-label={`Eliminar cuota de ${fee.User?.nombre || 'socio'} ${fee.User?.apellido || ''}`}>Eliminar</button>
+        </div></td>
       </tr>)}</tbody></table></div>}
       <div className="fee-cycle-pagination"><span>{meta.totalItems} cuotas</span><button type="button" disabled={page <= 1} onClick={() => setPage(page - 1)}>Anterior</button><span>{page} / {Math.max(1, meta.totalPages)}</span><button type="button" disabled={page >= meta.totalPages} onClick={() => setPage(page + 1)}>Siguiente</button></div>
     </main>
@@ -139,5 +158,13 @@ export default function CuotasUsuarios({ fromAdmin }) {
     </div></div>}
 
     {paying && <div className="fee-cycle-overlay"><form className="fee-cycle-dialog" role="dialog" aria-modal="true" aria-label="Registrar pago" onSubmit={pay}><div className="fee-cycle-dialog-head"><h2>Registrar pago</h2><button type="button" onClick={() => setPaying(null)} aria-label="Cerrar">×</button></div><p>{paying.User?.nombre} {paying.User?.apellido} · {money(paying.importe)}</p><label>Medio de pago<input required value={payMethod} onChange={e => setPayMethod(e.target.value)} /></label><label>Fecha de pago<input type="date" required max={dateInput()} value={payDate} onChange={e => setPayDate(e.target.value)} /></label><div className="fee-cycle-actions"><button type="button" onClick={() => setPaying(null)}>Cancelar</button><button className="primary-button" disabled={saving}>{saving ? 'Guardando…' : 'Registrar pago'}</button></div></form></div>}
+    <ConfirmationPopup
+      isOpen={Boolean(deleting)}
+      message={`¿Eliminar la cuota de ${deleting?.User?.nombre || 'este socio'} ${deleting?.User?.apellido || ''} por ${money(deleting?.importe)}? Esta acción no se puede deshacer.`}
+      confirmText="Eliminar cuota"
+      isLoading={deleteSaving}
+      onClose={() => setDeleting(null)}
+      onConfirm={deleteFee}
+    />
   </div>;
 }

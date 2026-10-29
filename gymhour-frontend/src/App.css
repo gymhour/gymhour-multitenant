@@ -117,6 +117,15 @@
     justify-content: start;
 }
 
+.Toastify__close-button {
+    min-width: 28px;
+    min-height: 28px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: auto;
+}
+
 .content-layout {
     background-color: var(--background-color);
     color: var(--text-color);

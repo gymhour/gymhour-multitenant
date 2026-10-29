@@ -92,10 +92,11 @@ function App() {
         hideProgressBar={false}
         newestOnTop={false}
         closeOnClick
+        closeButton
         rtl={false}
-        pauseOnFocusLoss
+        pauseOnFocusLoss={false}
         draggable
-        pauseOnHover
+        pauseOnHover={false}
         theme={theme}
       />}
       {showTrial && <TrialStatusBar billing={tenant.billing} />}
@@ -119,6 +120,7 @@ function App() {
 
         {/* Rutas protegidas */}
         {/* Admin */}
+        <Route path="/admin/suscripcion" element={<ProtectedRoute roles={['ADMIN']}><SubscriptionExpired plansPage /></ProtectedRoute>} />
         <Route path="/admin/inicio"
           element={
             <ProtectedRoute>
