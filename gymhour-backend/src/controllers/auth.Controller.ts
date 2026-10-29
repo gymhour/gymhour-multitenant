@@ -240,8 +240,12 @@ export const me = async (req: Request, res: Response): Promise<void> => {
     enrichedSettings = { ...settings, logoUrl: getTenantLogoUrl(settings.logoPublicId) };
   }
   const tenant = await systemPrisma.tenant.findUniqueOrThrow({ where: { id: req.tenant.id } });
+  const lastPaidOrder = await systemPrisma.tenantBillingOrder.findFirst({
+    where: { tenantId: tenant.id, status: 'PAID' }, orderBy: { paidAt: 'desc' }, select: { method: true },
+  });
   res.setHeader('Cache-Control', 'no-store');
-  res.json({ user: req.user, tenant: { ...req.tenant, settings: enrichedSettings, billing: getBillingAccess(tenant) } });
+  res.json({ user: req.user, tenant: { ...req.tenant, settings: enrichedSettings,
+    billing: { ...getBillingAccess(tenant), paymentMethod: lastPaidOrder?.method ?? null } } });
 };
 
 export const forgotPassword = async (req: Request, res: Response): Promise<void> => {

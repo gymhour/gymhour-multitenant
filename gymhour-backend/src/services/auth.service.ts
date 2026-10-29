@@ -93,7 +93,9 @@ export async function authenticateToken(req: Request, res: Response, next: NextF
     }
 
     const billing = getBillingAccess(tenant);
-    if (billing.state === 'EXPIRED' && !(req.method === 'GET' && req.baseUrl === '/auth' && req.path === '/me')) {
+    const billingRoute = req.baseUrl === '/billing' && user.role === 'ADMIN';
+    if (billing.state === 'EXPIRED' && !billingRoute
+      && !(req.method === 'GET' && req.baseUrl === '/auth' && req.path === '/me')) {
       res.status(403).json({ code: 'SUBSCRIPTION_REQUIRED', message: 'La suscripción del gimnasio venció.', billing });
       return;
     }

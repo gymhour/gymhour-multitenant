@@ -178,6 +178,23 @@ function BillingDialog({ tenant, onClose, onDone }) {
   </form></div>;
 }
 
+function BillingOrders({ tenant }) {
+  const [items, setItems] = useState([]);
+  useEffect(() => {
+    platformApi.get(`/platform/tenants/${tenant.id}/billing-orders`)
+      .then(({ data }) => setItems(data.items)).catch(error => toast.error(errorMessage(error)));
+  }, [tenant.id]);
+  return <section className="platform-panel platform-billing-orders">
+    <h2>Solicitudes de pago</h2>
+    {items.length === 0 && <p>No hay solicitudes todavía.</p>}
+    {items.map(item => <div className="platform-billing-order" key={item.id}>
+      <div><strong>{item.method === 'TRANSFER' ? 'Transferencia' : 'Tarjeta'} · {item.planCode}</strong>
+        <small>{new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 }).format(item.amountArs)} · {date(item.createdAt)} · {item.status}</small>
+        <small>Referencia: {item.id}</small></div>
+    </div>)}
+  </section>;
+}
+
 function TenantDetail() {
   const { id } = useParams(); const navigate = useNavigate();
   const [tenant, setTenant] = useState(null); const [dialog, setDialog] = useState(null);
@@ -192,6 +209,7 @@ function TenantDetail() {
     {tenant.status === 'SUSPENDED' && <div className="platform-warning"><strong>Suspendido:</strong> {tenant.suspensionReason} · {date(tenant.suspendedAt)}</div>}
     <div className="platform-grid"><section className="platform-panel"><h2>Contacto y configuración</h2><dl><dt>Email</dt><dd>{tenant.settings?.contactEmail || '—'}</dd><dt>Teléfono</dt><dd>{tenant.settings?.contactPhone || '—'}</dd><dt>Ubicación</dt><dd>{tenant.settings?.location || '—'}</dd><dt>Onboarding</dt><dd>{tenant.settings?.onboardingCompleted ? 'Completo' : 'Pendiente'}</dd></dl></section><section className="platform-panel"><h2>Administradores del gimnasio</h2>{tenant.users.map(admin => <div className="platform-event" key={admin.ID_Usuario}><strong>{[admin.nombre, admin.apellido].filter(Boolean).join(' ') || 'Sin nombre'}</strong><span>{admin.email}</span><small>{admin.estado ? 'Activo' : 'Inactivo'}</small></div>)}</section></div>
     <section className="platform-panel platform-billing-panel"><div><h2>Suscripción</h2><p>Estado: {BILLING_LABELS[tenant.billing?.state] || 'Sin estado'}</p><p>Fin de prueba: {billingDate(tenant.billing?.trialEndsAt)}</p><p>Acceso pago hasta: {billingDate(tenant.billing?.paidUntil)}</p></div><button onClick={() => setDialog('billing')}>Registrar período pago</button></section>
+    <BillingOrders tenant={tenant} />
     <section className="platform-danger-zone"><div><h2>Administración del estado</h2><p>Estas acciones afectan inmediatamente el acceso del gimnasio.</p></div><div>{tenant.status === 'ACTIVE' ? <button onClick={() => setDialog('suspend')}>Suspender</button> : <button onClick={() => setDialog('activate')}>Reactivar</button>}<button className="danger-button" onClick={() => setDialog('delete')}><Trash2 size={17}/>Eliminar definitivamente</button></div></section>
     {dialog === 'billing' && <BillingDialog tenant={tenant} onClose={() => setDialog(null)} onDone={() => done(false)} />}
     {dialog && dialog !== 'billing' && <ConfirmDialog tenant={tenant} action={dialog} onClose={() => setDialog(null)} onDone={done}/>}

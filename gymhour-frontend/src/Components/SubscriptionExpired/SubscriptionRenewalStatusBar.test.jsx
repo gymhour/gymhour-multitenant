@@ -11,6 +11,7 @@ it('muestra la barra solamente durante los últimos tres días del período pago
   expect(renewalDaysRemaining(billing('2026-10-21T12:00:00.000Z'))).toBeNull();
   expect(renewalDaysRemaining(billing('2026-10-17T12:00:00.000Z'))).toBeNull();
   expect(renewalDaysRemaining({ ...billing('2026-10-20T12:00:00.000Z'), state: 'TRIAL' })).toBeNull();
+  expect(renewalDaysRemaining({ ...billing('2026-10-20T12:00:00.000Z'), paymentMethod: 'CARD' })).toBeNull();
 });
 
 it('muestra los días restantes con la barra de suscripción', () => {

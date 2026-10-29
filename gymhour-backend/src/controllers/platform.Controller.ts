@@ -202,6 +202,15 @@ export async function updateTenantBilling(req: Request, res: Response): Promise<
   res.json({ id, billing: getBillingAccess(updated) });
 }
 
+export async function listTenantBillingOrders(req: Request, res: Response): Promise<void> {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id)) { res.status(400).end(); return; }
+  const items = await systemPrisma.tenantBillingOrder.findMany({ where: { tenantId: id },
+    orderBy: { createdAt: 'desc' }, take: 30 });
+  res.setHeader('Cache-Control', 'no-store');
+  res.json({ items });
+}
+
 export async function changeTenantStatus(req: Request, res: Response): Promise<void> {
   const id = Number(req.params.id);
   const status = req.body?.status;
@@ -273,5 +282,6 @@ export async function auditList(req: Request, res: Response): Promise<void> {
 }
 
 export const platformMethods = {
-  login, verifyMfa, me, logout, dashboard, listTenants, tenantDetail, updateTenantBilling, changeTenantStatus, purgeTenant, auditList,
+  login, verifyMfa, me, logout, dashboard, listTenants, tenantDetail, updateTenantBilling,
+  listTenantBillingOrders, changeTenantStatus, purgeTenant, auditList,
 };

@@ -57,6 +57,7 @@ model Tenant {
   trialEndsAt             DateTime?
   paidUntil               DateTime?
   billingExempt           Boolean                   @default(false)
+  billingOrders           TenantBillingOrder[]
   lastActivityAt          DateTime?
   suspendedAt             DateTime?
   suspensionReason        String?                   @db.VarChar(500)
@@ -91,6 +92,47 @@ model Tenant {
   aiMessages              AiMessage[]
 
   @@index([status, createdAt])
+}
+
+enum TenantBillingMethod {
+  TRANSFER
+  CARD
+}
+
+enum TenantBillingOrderStatus {
+  PENDING
+  PAID
+  REJECTED
+}
+
+model TenantBillingOrder {
+  id                   String                   @id @default(cuid())
+  tenantId             Int
+  planCode             String                   @db.VarChar(64)
+  amountArs            Int
+  months               Int
+  method               TenantBillingMethod
+  status               TenantBillingOrderStatus @default(PENDING)
+  rebillPaymentId      String?                  @unique @db.VarChar(100)
+  rebillSubscriptionId String?                  @unique @db.VarChar(100)
+  rebillSubscriptionStatus String?                @db.VarChar(40)
+  paidAt               DateTime?
+  paidUntil            DateTime?
+  createdAt            DateTime                 @default(now())
+  tenant               Tenant                   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, createdAt])
+}
+
+model RebillWebhookEvent {
+  logId       String   @id @db.VarChar(100)
+  event       String   @db.VarChar(80)
+  receivedAt  DateTime @default(now())
+}
+
+model RebillProcessedPayment {
+  paymentId   String   @id @db.VarChar(100)
+  processedAt DateTime @default(now())
 }
 
 model TenantSettings {

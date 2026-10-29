@@ -6,7 +6,7 @@ import './SubscriptionRenewalStatusBar.css';
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 export const renewalDaysRemaining = billing => {
-  if (billing?.state !== 'PAID') return null;
+  if (billing?.state !== 'PAID' || billing.paymentMethod === 'CARD') return null;
   const end = Date.parse(billing.paidUntil || '');
   const now = Date.parse(billing.serverNow || '');
   if (!Number.isFinite(end) || !Number.isFinite(now)) return null;

@@ -62,7 +62,7 @@ function App() {
   const { pathname } = useLocation();
   const expired = tenant?.billing?.state === 'EXPIRED';
   const appContentRef = useRef(null);
-  const appPath = pathname === '/onboarding' || /^\/(admin|entrenador|alumno)(\/|$)/.test(pathname);
+  const appPath = /^\/(admin|entrenador|alumno)(\/|$)/.test(pathname);
   const reminderDays = renewalDaysRemaining(tenant?.billing);
   const showRenewalBar = Boolean(user?.role === 'ADMIN' && appPath && reminderDays !== null);
   const showTrial = Boolean(user && tenant?.billing?.state === 'TRIAL'
