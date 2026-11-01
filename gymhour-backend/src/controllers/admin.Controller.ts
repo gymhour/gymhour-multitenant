@@ -63,41 +63,42 @@ export const getDashboardStats = async (req: Request, res: Response): Promise<vo
         const year = now.getUTCFullYear();
         const month = String(now.getUTCMonth() + 1).padStart(2, '0');
         const monthStr = `${year}-${month}`; // e.g. "2025-05"
+        const monthStart = new Date(Date.UTC(year, now.getUTCMonth(), 1));
+        const monthEnd = new Date(Date.UTC(year, now.getUTCMonth() + 1, 1));
 
         // 3) Cuotas pagadas y pendientes en el mes actual (conteo)
         const [paidCount, pendingCount] = await Promise.all([
             prismaC.count({
-                where: { mes: monthStr, pagada: true }
+                where: { fechaPago: { gte: monthStart, lt: monthEnd }, pagada: true }
             }),
             prismaC.count({
-                where: { mes: monthStr, pagada: false }
+                where: { vence: { gte: monthStart, lt: monthEnd }, pagada: false }
             })
         ]);
 
         // 4) Suma de importes de cuotas pagadas y pendientes en el mes actual
         const [paidSum, pendingSum] = await Promise.all([
             prismaC.aggregate({
-                where: { mes: monthStr, pagada: true },
+                where: { fechaPago: { gte: monthStart, lt: monthEnd }, pagada: true },
                 _sum: { importe: true }
             }),
             prismaC.aggregate({
-                where: { mes: monthStr, pagada: false },
+                where: { vence: { gte: monthStart, lt: monthEnd }, pagada: false },
                 _sum: { importe: true }
             })
         ]);
 
         // 5) Histórico mensual de importes pagados
-        const monthlySums = await prismaC.groupBy({
-            by: ['mes'],
-            where: { pagada: true },
-            _sum: { importe: true },
-            orderBy: { mes: 'asc' }
+        const paidHistory = await prismaC.findMany({
+            where: { pagada: true, fechaPago: { not: null } },
+            select: { fechaPago: true, importe: true },
         });
-
-        const monthlyPaidAmounts = monthlySums.map(entry => ({
-            mes: entry.mes,
-            totalPagado: entry._sum.importe ?? 0
-        }));
+        const monthlyPaidMap = new Map<string, number>();
+        for (const fee of paidHistory) {
+            const key = fee.fechaPago!.toISOString().slice(0, 7);
+            monthlyPaidMap.set(key, (monthlyPaidMap.get(key) || 0) + fee.importe);
+        }
+        const monthlyPaidAmounts = Array.from(monthlyPaidMap, ([mes, totalPagado]) => ({ mes, totalPagado }));
 
         // -----------------------------
         // Cuotas vencidas (por flag `vencida: true`)

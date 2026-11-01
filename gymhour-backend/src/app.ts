@@ -30,6 +30,7 @@ import turnoRoutes from './routes/turno.Routes.js';
 import userRouter from './routes/user.Routes.js';
 import tenantRouter from './routes/tenant.Routes.js';
 import platformRouter from './routes/platform.Routes.js';
+import billingRouter from './routes/billing.Routes.js';
 
 // :=)
 const app = express();
@@ -48,7 +49,9 @@ app.use(
         },
     })
 );
-app.use(express.json());
+app.use(express.json({ verify: (req, _res, buffer) => {
+    if (req.url?.startsWith('/billing/webhooks/rebill')) (req as express.Request & { rawBody?: Buffer }).rawBody = Buffer.from(buffer);
+} }));
 app.use(cors({
     origin: (origin, callback) => {
         if (!origin) { callback(null, true); return; }
@@ -56,6 +59,10 @@ app.use(cors({
             process.env.FRONTEND_URL || 'http://localhost:3001',
             process.env.PLATFORM_FRONTEND_URL || 'http://localhost:3001',
         ]);
+        if (process.env.NODE_ENV === 'development') {
+            allowed.add('http://localhost:3000');
+            allowed.add('http://127.0.0.1:3000');
+        }
         callback(null, allowed.has(origin));
     },
     credentials: true,
@@ -108,6 +115,7 @@ app.use('/ai', aiRoutes);
 app.use('/auth', authRoutes);
 app.use('/tenant', tenantRouter);
 app.use('/platform', platformRouter);
+app.use('/billing', billingRouter);
 app.use('/clase', claseRoutes);
 app.use('/turnos', turnoRoutes);
 app.use('/rutinas', rutinaRoutes);

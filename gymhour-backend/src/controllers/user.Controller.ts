@@ -8,6 +8,8 @@ import { deleteImage, getImageUrl, getMedicalRecordUrl, uploadImageBuffer } from
 import { sendWelcomeEmail } from "../services/email.service.js";
 import { hashPassword } from "../services/password.service.js";
 import { isForbiddenSelfRoleChange } from "../services/userRole.service.js";
+import { feeDateString, feeNextDay, parseFeeDate } from '../services/feeDates.service.js';
+import { localFeeToday } from '../services/feeCycle.service.js';
 
 // Parsea la fecha de cumpleaños del import masivo. Acepta DD/MM/AAAA (formato del Excel) e ISO AAAA-MM-DD.
 // Devuelve { date } (mediodía UTC para evitar drift de día), { date: null } si viene vacío, o { error }.
@@ -336,12 +338,12 @@ export const createUser = async (req: Request, res: Response): Promise<void> => 
         const {
             email, password, dni, nombre, apellido,
             profesion, direc, tel, role,
-            fechaCumple, ID_Plan: rawPlanId, usaTurnosFijos,
+            fechaCumple, ID_Plan: rawPlanId, usaTurnosFijos, fechaInicioCobro,
             observacionesSalud, fichaMedicaUrl, motivoAlta
         } = req.body;
 
-        if (!email || !password) {
-            res.status(400).json({ message: 'Ingresá tu email y tu contraseña.' });
+        if (!String(email || '').trim() || !String(nombre || '').trim() || !String(apellido || '').trim() || !String(password || '').trim()) {
+            res.status(400).json({ message: 'Completá el email, nombre, apellido y contraseña.' });
             return;
         }
         // Convertir ID_Plan a número
@@ -351,6 +353,11 @@ export const createUser = async (req: Request, res: Response): Promise<void> => 
         if (rawPlanId !== undefined && (!Number.isInteger(planId) || planId! < 1)) {
             res.status(400).json({ message: 'Elegí un plan válido.' });
             return;
+        }
+        const isStudentWithPlan = normalizeTenantRole(role) === 'STUDENT' && Boolean(planId);
+        const cycleStart = fechaInicioCobro ? parseFeeDate(fechaInicioCobro) : await localFeeToday();
+        if (isStudentWithPlan && !cycleStart) {
+            res.status(400).json({ message: 'Elegí una fecha de inicio de cobro válida.' }); return;
         }
         // 1) Crear usuario sin imagen
         const hashedPassword = await hashPassword(password);
@@ -387,6 +394,12 @@ export const createUser = async (req: Request, res: Response): Promise<void> => 
                 // Registra el ALTA en el log de movimientos de socios
                 movimientos: { create: { tipo: 'ALTA', esReactivacion: false, fecha: new Date() } },
                 ID_Plan: planId,
+                ...(isStudentWithPlan && cycleStart ? {
+                    fechaInicioCobro: cycleStart,
+                    proximoInicioCuota: cycleStart,
+                    diaAnclaCobro: cycleStart.getUTCDate(),
+                    cobroAutomaticoActivo: false,
+                } : {}),
                 usaTurnosFijos: parseBoolean(usaTurnosFijos),
                 ...(parseBoolean(usaTurnosFijos) && turnosFijosIds.length > 0 ? {
                     TurnosFijos: {
@@ -546,7 +559,7 @@ export const getAllUsers = async (req: Request, res: Response): Promise<void> =>
             direc: true, tel: true, profesion: true, role: true,
             fechaCumple: true, estado: true, imagenUsuario: true,
             observacionesSalud: true, fichaMedicaUrl: true,
-            fechaRegistro: true,
+            fechaRegistro: true, fechaInicioCobro: true, proximoInicioCuota: true, cobroAutomaticoActivo: true,
             usaTurnosFijos: true,
             plan: { select: { ID_Plan: true, nombre: true, precio: true, duracion: true, sesionesPorSemana: true, sesionesGracia: true, requiereTurno: true } },
             TurnosFijos: {
@@ -829,7 +842,10 @@ export const updateUser = async (req: Request, res: Response): Promise<void> => 
         // En la autoedición, el rol se conserva aunque el cliente reenvíe el valor actual.
         if (requestedRole && !isSelfUpdate) data.role = requestedRole;
         if (fechaCumple) data.fechaCumple = new Date(fechaCumple);
-        if (estado !== undefined) data.estado = estado;
+        if (estado !== undefined) {
+            data.estado = estado;
+            if (estado === false) data.cobroAutomaticoActivo = false;
+        }
         if (usaTurnosFijos !== undefined) data.usaTurnosFijos = parseBoolean(usaTurnosFijos);
         if (observacionesSalud !== undefined) data.observacionesSalud = normalizeOptionalText(observacionesSalud);
         if (fichaMedicaUrl !== undefined) data.fichaMedicaUrl = normalizeOptionalText(fichaMedicaUrl);
@@ -842,6 +858,29 @@ export const updateUser = async (req: Request, res: Response): Promise<void> => 
                 return;
             }
             data.ID_Plan = planId;
+            if (!planId) data.cobroAutomaticoActivo = false;
+            if (planId) {
+                const previous = await prisma.user.findUnique({ where: { ID_Usuario: id }, select: { ID_Plan: true, fechaInicioCobro: true } });
+                if (previous && (!previous.ID_Plan || !previous.fechaInicioCobro)) {
+                    const start = await localFeeToday();
+                    data.fechaInicioCobro = start;
+                    data.proximoInicioCuota = start;
+                    data.diaAnclaCobro = start.getUTCDate();
+                    data.cobroAutomaticoActivo = false;
+                }
+            }
+        }
+        if (estado === true) {
+            const previous = await prisma.user.findUnique({ where: { ID_Usuario: id }, select: { estado: true, role: true, ID_Plan: true } });
+            if (previous && !previous.estado && previous.role === 'STUDENT' && (data.ID_Plan || previous.ID_Plan)) {
+                let start = await localFeeToday();
+                const lastFee = await prisma.cuota.findFirst({ where: { ID_Usuario: id }, orderBy: { fechaFin: 'desc' }, select: { fechaFin: true } });
+                if (lastFee?.fechaFin && lastFee.fechaFin >= start) start = feeNextDay(parseFeeDate(feeDateString(lastFee.fechaFin))!);
+                data.fechaInicioCobro = start;
+                data.proximoInicioCuota = start;
+                data.diaAnclaCobro = start.getUTCDate();
+                data.cobroAutomaticoActivo = false;
+            }
         }
 
         if (password) {
@@ -1023,7 +1062,7 @@ const estadoUser = async (req: Request, res: Response): Promise<void> => {
         // 3) Lee el estado actual para registrar el movimiento sólo si realmente cambia
         const actual = await prisma.user.findUnique({
             where: { ID_Usuario },
-            select: { estado: true }
+            select: { estado: true, role: true, ID_Plan: true }
         });
         if (!actual) {
             res.status(404).json({ message: "No encontramos ese usuario." });
@@ -1037,6 +1076,7 @@ const estadoUser = async (req: Request, res: Response): Promise<void> => {
         if (estado === false && actual.estado !== false) {
             // BAJA: guarda fecha y motivo (validado contra whitelist)
             data.fechaBaja = ahora;
+            data.cobroAutomaticoActivo = false;
             const motivo = typeof motivoBaja === 'string' && (MOTIVOS_BAJA as readonly string[]).includes(motivoBaja)
                 ? motivoBaja
                 : MOTIVO_BAJA_DEFAULT;
@@ -1044,6 +1084,19 @@ const estadoUser = async (req: Request, res: Response): Promise<void> => {
         } else if (estado === true && actual.estado !== true) {
             // ALTA por reactivación (con su motivo, validado contra MOTIVOS_ALTA)
             data.fechaBaja = null;
+            if (actual.role === 'STUDENT' && actual.ID_Plan) {
+                let start = await localFeeToday();
+                const lastFee = await prisma.cuota.findFirst({
+                    where: { ID_Usuario }, orderBy: { fechaFin: 'desc' }, select: { fechaFin: true },
+                });
+                if (lastFee?.fechaFin && lastFee.fechaFin >= start) {
+                    start = feeNextDay(parseFeeDate(feeDateString(lastFee.fechaFin))!);
+                }
+                data.fechaInicioCobro = start;
+                data.proximoInicioCuota = start;
+                data.diaAnclaCobro = start.getUTCDate();
+                data.cobroAutomaticoActivo = false;
+            }
             evento = {
                 tipo: 'ALTA',
                 esReactivacion: true,

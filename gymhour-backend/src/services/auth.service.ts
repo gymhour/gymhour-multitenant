@@ -3,6 +3,7 @@ import type { PlatformUser, TenantRole, User } from '@prisma/client';
 import jwt from 'jsonwebtoken';
 import prisma, { systemPrisma } from '../models/Prisma.js';
 import { runWithTenantContext } from './tenantContext.service.js';
+import { getBillingAccess } from './billing.service.js';
 
 const JWT_SECRET = process.env.JWT_SECRET ?? '';
 if (!JWT_SECRET) throw new Error('FATAL: la variable de entorno JWT_SECRET no está definida.');
@@ -88,6 +89,14 @@ export async function authenticateToken(req: Request, res: Response, next: NextF
     const tenant = await systemPrisma.tenant.findUnique({ where: { id: user.tenantId } });
     if (!tenant || tenant.status !== 'ACTIVE') {
       res.status(403).json({ error: 'El gimnasio no está habilitado.' });
+      return;
+    }
+
+    const billing = getBillingAccess(tenant);
+    const billingRoute = req.baseUrl === '/billing' && user.role === 'ADMIN';
+    if (billing.state === 'EXPIRED' && !billingRoute
+      && !(req.method === 'GET' && req.baseUrl === '/auth' && req.path === '/me')) {
+      res.status(403).json({ code: 'SUBSCRIPTION_REQUIRED', message: 'La suscripción del gimnasio venció.', billing });
       return;
     }
 

@@ -164,10 +164,10 @@ const AlumnoInicio = () => {
     ? { borderColor: 'rgba(229, 72, 77, 0.45)' }
     : undefined;
 
-  const tituloReminder = esRojo ? 'Cuotas vencidas' : 'Cuotas por vencer';
+  const tituloReminder = esRojo ? 'Pagos de cuotas vencidos' : 'Pagos de cuotas por vencer';
   const mensajeReminder = cuotaReminder?.message || (esRojo
-    ? `Tienes ${cuotasVencidas.length} cuota(s) vencida(s).`
-    : `Tienes ${cuotasPorVencer.length} cuota(s) próxima(s) a vencer.`);
+    ? `Tenés ${cuotasVencidas.length} pago(s) de cuotas vencidos.`
+    : `Tenés ${cuotasPorVencer.length} pago(s) de cuotas próximos a vencer.`);
 
   const itemsReminder = esRojo ? cuotasVencidas : cuotasPorVencer;
 
@@ -220,7 +220,7 @@ const AlumnoInicio = () => {
                   </div>
                   <div className="cuota-reminder__item-row">
                     <span>
-                      <strong>Vence:</strong> {formatISO(r.vence)}
+                      <strong>Vencimiento del pago:</strong> {formatISO(r.vence)}
                       {typeof r.daysLeft === 'number' && (
                         <> ({r.daysLeft >= 0 ? `${r.daysLeft} día${r.daysLeft === 1 ? '' : 's'} restante${r.daysLeft === 1 ? '' : 's'}` : `hace ${Math.abs(r.daysLeft)} día${Math.abs(r.daysLeft) === 1 ? '' : 's'}`})</>
                       )}

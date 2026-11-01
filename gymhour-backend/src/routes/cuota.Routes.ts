@@ -1,5 +1,6 @@
 import express from 'express';
 import { cuotaMethods } from '../controllers/cuota.Controller.js';
+import { createManualCycleFee, previewCycleFee } from '../controllers/cycleFee.Controller.js';
 import { authenticateToken, isAdmin, isAdminOrEntrenador } from '../services/auth.service.js';
 
 const cuotaRouter = express.Router();
@@ -15,17 +16,10 @@ cuotaRouter.get("/me/reminder", authenticateToken, (req, res) => {
   return cuotaMethods.getCuotasVencenPronto(req, res);
 });
 cuotaRouter.get("/usuario/:idUsuario/cuotas", authenticateToken, isAdminOrEntrenador, cuotaMethods.getAllCuotasByUsuario);
-cuotaRouter.get("/usuario/:idUsuario/preview", authenticateToken, isAdmin, cuotaMethods.getCuotaManualPreview);
+cuotaRouter.get("/usuario/:idUsuario/preview", authenticateToken, isAdmin, previewCycleFee);
 cuotaRouter.get("/reminder/:idUsuario", authenticateToken, isAdminOrEntrenador, cuotaMethods.getCuotasVencenPronto);
-cuotaRouter.post("/usuario/:idUsuario", authenticateToken, isAdmin, cuotaMethods.createCuota);
-cuotaRouter.post("/usuario/:idUsuario/preparar-lotes", authenticateToken, isAdmin, cuotaMethods.prepararCuotaUsuarioLotes);
-cuotaRouter.post("/usuario/:idUsuario/turnos-fijos/lote", authenticateToken, isAdmin, cuotaMethods.generarTurnosCuotaUsuarioLote);
+cuotaRouter.post("/usuario/:idUsuario", authenticateToken, isAdmin, createManualCycleFee);
 cuotaRouter.post("/usuario/:idUsuario/regenerate-turnos-fijos", authenticateToken, isAdmin, cuotaMethods.regenerateTurnosFijosByUsuario);
-cuotaRouter.post("/generate-cuotas", authenticateToken, isAdmin, cuotaMethods.generateMonthlyCuotas);
-cuotaRouter.post("/generate-cuotas/preparar", authenticateToken, isAdmin, cuotaMethods.prepararCuotasMasivas);
-cuotaRouter.post("/generate-cuotas/lote", authenticateToken, isAdmin, cuotaMethods.generarCuotasLote);
-cuotaRouter.post("/delete-cuotas/preparar", authenticateToken, isAdmin, cuotaMethods.prepararEliminacionCuotasByMes);
-cuotaRouter.post("/delete-cuotas/lote", authenticateToken, isAdmin, cuotaMethods.eliminarCuotasByMesLote);
 cuotaRouter.put("/:id", authenticateToken, isAdmin, cuotaMethods.updateCuota);
 cuotaRouter.put("/:id/pay", authenticateToken, isAdmin, cuotaMethods.payCuota);
 cuotaRouter.delete("/:id", authenticateToken, isAdmin, cuotaMethods.deleteCuota);

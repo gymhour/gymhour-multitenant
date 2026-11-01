@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Check, ChevronDown, X } from 'lucide-react';
+import { Check, ChevronDown } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import './AdminSetupGuide.css';
 
@@ -29,22 +29,21 @@ const STEP_DEFINITIONS = [
   },
 ];
 
-const AdminSetupGuide = ({ guide, onDismiss, dismissing = false }) => {
+const AdminSetupGuide = ({ guide }) => {
   const [expanded, setExpanded] = useState(false);
   const firstPending = STEP_DEFINITIONS.find(step => !guide?.steps?.[step.key])?.key;
   const progress = Math.round(((guide?.completedSteps || 0) / (guide?.totalSteps || 5)) * 100);
 
   return (
-    <section className="admin-setup-guide" aria-labelledby="admin-setup-title">
+    <section id="admin-setup-guide" className="admin-setup-guide" aria-labelledby="admin-setup-title">
       <div className="admin-setup-guide__header">
         <div>
           <span className="admin-setup-guide__eyebrow">Primeros pasos</span>
           <h2 id="admin-setup-title">Dejá Gymhour listo para trabajar</h2>
-          <p>Completá esta guía para empezar a administrar socios, rutinas y cobros.</p>
+          <p>{guide?.isComplete
+            ? 'Ya completaste la configuración inicial. Podés consultar los pasos cuando quieras.'
+            : 'Completá esta guía para empezar a administrar socios, rutinas y cobros.'}</p>
         </div>
-        <button type="button" className="admin-setup-guide__dismiss" onClick={onDismiss} disabled={dismissing}>
-          <X size={15} /> {dismissing ? 'Ocultando…' : 'Ocultar guía'}
-        </button>
       </div>
 
       <div className="admin-setup-guide__progress-row">

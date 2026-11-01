@@ -3,6 +3,7 @@ import { rateLimit } from 'express-rate-limit';
 import { asistenciaMethods } from '../controllers/asistencia.Controller.js';
 import { authServices } from '../services/auth.service.js';
 import { authenticateKiosk, authenticatePublicTenant } from '../services/kioskAuth.service.js';
+import { requirePaidFeature } from '../services/planAccess.service.js';
 
 const asistenciaRoutes = express.Router();
 
@@ -19,14 +20,15 @@ const registrarLimiter = rateLimit({
 });
 
 // Staff usa JWT; el kiosco usa una credencial opaca que resuelve el tenant.
-asistenciaRoutes.post('/registrar', authServices.authenticateToken, authServices.isAdminOrEntrenador, asistenciaMethods.registrarAsistencia);
-asistenciaRoutes.post('/kiosk/registrar', registrarLimiter, authenticateKiosk, asistenciaMethods.registrarAsistencia);
-asistenciaRoutes.post('/public/:slug/registrar', registrarLimiter, authenticatePublicTenant, asistenciaMethods.registrarAsistencia);
+asistenciaRoutes.post('/registrar', authServices.authenticateToken, authServices.isAdminOrEntrenador, requirePaidFeature('CHECK_IN'), asistenciaMethods.registrarAsistencia);
+asistenciaRoutes.post('/kiosk/registrar', registrarLimiter, authenticateKiosk, requirePaidFeature('CHECK_IN'), asistenciaMethods.registrarAsistencia);
+asistenciaRoutes.post('/public/:slug/registrar', registrarLimiter, authenticatePublicTenant, requirePaidFeature('CHECK_IN'), asistenciaMethods.registrarAsistencia);
 
 // 2. Obtener asistencias del usuario autenticado
 asistenciaRoutes.get(
   '/mis-asistencias',
   authServices.authenticateToken,
+  requirePaidFeature('ATTENDANCE'),
   asistenciaMethods.obtenerMisAsistencias
 );
 
@@ -35,6 +37,7 @@ asistenciaRoutes.get(
   '/historial',
   authServices.authenticateToken,
   authServices.isAdminOrEntrenador,
+  requirePaidFeature('ATTENDANCE'),
   asistenciaMethods.obtenerHistorialAsistencias
 );
 

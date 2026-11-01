@@ -1,6 +1,7 @@
 import React from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { HOME_BY_ROLE, useAuth } from './context/AuthContext';
+import PlanFeatureGate, { featureForPath } from './Components/PlanFeatureGate/PlanFeatureGate';
 
 const ROLES_BY_PREFIX = [
   { prefix: '/admin', roles: ['ADMIN'] },
@@ -26,7 +27,7 @@ const ProtectedRoute = ({ children, roles }) => {
   if (requiredRoles?.length && !requiredRoles.includes(user.role)) {
     return <Navigate to={HOME_BY_ROLE[user.role] || '/'} replace />;
   }
-  return children;
+  return <PlanFeatureGate feature={featureForPath(location.pathname)} billing={tenant?.billing} role={user.role}>{children}</PlanFeatureGate>;
 };
 
 export default ProtectedRoute;

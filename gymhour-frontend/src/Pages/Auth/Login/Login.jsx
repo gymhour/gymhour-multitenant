@@ -19,7 +19,7 @@ const Login = () => {
   const [tenantSelection, setTenantSelection] = useState(null);
   const [tenantBranding, setTenantBranding] = useState(null);
   const [brandingLoading, setBrandingLoading] = useState(Boolean(routeSlug));
-  const [brandingError, setBrandingError] = useState(false);
+  const [brandingError, setBrandingError] = useState(null);
 
   const [showBirthdayModal, setShowBirthdayModal] = useState(false);
   const [pendingRedirect, setPendingRedirect] = useState(null);
@@ -29,14 +29,14 @@ const Login = () => {
     if (!routeSlug) {
       setTenantBranding(null);
       setBrandingLoading(false);
-      setBrandingError(false);
+      setBrandingError(null);
       return () => { active = false; };
     }
     setBrandingLoading(true);
-    setBrandingError(false);
+    setBrandingError(null);
     authClient.get(`/auth/tenants/${routeSlug}/branding`)
       .then(({ data }) => { if (active) setTenantBranding(data); })
-      .catch(() => { if (active) setBrandingError(true); })
+      .catch(error => { if (active) setBrandingError(error.response?.status === 404 ? 'NOT_FOUND' : 'CONNECTION'); })
       .finally(() => { if (active) setBrandingLoading(false); });
     return () => { active = false; };
   }, [routeSlug]);
@@ -135,8 +135,8 @@ const Login = () => {
         ) : brandingError ? (
           <div className="auth-card__heading">
             <span className="auth-card__kicker">Enlace no disponible</span>
-            <h2>Gimnasio no encontrado</h2>
-            <p>Revisá la dirección o pedile al gimnasio su enlace de acceso.</p>
+            <h2>{brandingError === 'NOT_FOUND' ? 'Gimnasio no encontrado' : 'No pudimos conectar con el gimnasio'}</h2>
+            <p>{brandingError === 'NOT_FOUND' ? 'Revisá la dirección o pedile al gimnasio su enlace de acceso.' : 'Revisá tu conexión e intentá de nuevo.'}</p>
           </div>
         ) : <>
         <div className="auth-card__heading">

@@ -3,14 +3,25 @@ import SidebarMenu from '../../../Components/SidebarMenu/SidebarMenu'
 import apiService from '../../../services/apiService'
 import './PlanesAdmin.css'
 import PrimaryButton from '../../../Components/utils/PrimaryButton/PrimaryButton'
-import { Copy, Edit, Trash2, X } from 'lucide-react'
+import { ChevronDown, Copy, Edit, Trash2, X } from 'lucide-react'
 import CustomInput from '../../../Components/utils/CustomInput/CustomInput'
-import CustomDropdown from '../../../Components/utils/CustomDropdown/CustomDropdown'
 import LoaderFullScreen from '../../../Components/utils/LoaderFullScreen/LoaderFullScreen'
 import ConfirmationPopup from '../../../Components/utils/ConfirmationPopUp/ConfirmationPopUp'
 import { toast } from 'react-toastify'
 import EmptyState from '../../../Components/utils/EmptyState/EmptyState'
 import { useSearchParams } from 'react-router-dom'
+
+const parseDuration = value => {
+  const legacy = { SEMANAL: ['WEEKS', 1], MENSUAL: ['MONTHS', 1], BIMESTRAL: ['MONTHS', 2], TRIMESTRAL: ['MONTHS', 3], SEMESTRAL: ['MONTHS', 6], ANUAL: ['MONTHS', 12] }
+  const match = /^(WEEKS|MONTHS):(\d+)$/.exec(value || '')
+  const [unit, count] = match ? [match[1], Number(match[2])] : (legacy[value] || legacy.MENSUAL)
+  return { unit, count }
+}
+
+const durationLabel = value => {
+  const { unit, count } = parseDuration(value)
+  return `${count} ${unit === 'WEEKS' ? (count === 1 ? 'semana' : 'semanas') : (count === 1 ? 'mes' : 'meses')}`
+}
 
 const PlanesAdmin = () => {
   const [searchParams, setSearchParams] = useSearchParams()
@@ -20,7 +31,8 @@ const PlanesAdmin = () => {
   const [nuevoNombre, setNuevoNombre] = useState('')
   const [nuevoPrecio, setNuevoPrecio] = useState('')
   const [nuevaDesc, setNuevaDesc] = useState('')
-  const [duracion, setDuracion] = useState('MENSUAL')
+  const [duracionUnidad, setDuracionUnidad] = useState('MONTHS')
+  const [duracionCantidad, setDuracionCantidad] = useState(1)
   const [sesionesTotales, setSesionesTotales] = useState('')
   const [sesionesGracia, setSesionesGracia] = useState('')
   const [requiereTurno, setRequiereTurno] = useState(true)
@@ -50,7 +62,8 @@ const PlanesAdmin = () => {
     setNuevoNombre('')
     setNuevoPrecio('')
     setNuevaDesc('')
-    setDuracion('MENSUAL')
+    setDuracionUnidad('MONTHS')
+    setDuracionCantidad(1)
     setSesionesTotales('')
     setSesionesGracia('')
     setRequiereTurno(true)
@@ -73,7 +86,9 @@ const PlanesAdmin = () => {
     setNuevoNombre(plan.nombre)
     setNuevoPrecio(plan.precio)
     setNuevaDesc(plan.desc || '')
-    setDuracion(plan.duracion || 'MENSUAL')
+    const duration = parseDuration(plan.duracion)
+    setDuracionUnidad(duration.unit)
+    setDuracionCantidad(duration.count)
     setSesionesTotales(plan.sesionesTotales ?? '')
     setSesionesGracia(plan.sesionesGracia ?? '')
     setRequiereTurno(plan.requiereTurno !== false)
@@ -86,7 +101,8 @@ const PlanesAdmin = () => {
     setNuevoNombre('')
     setNuevoPrecio('')
     setNuevaDesc('')
-    setDuracion('MENSUAL')
+    setDuracionUnidad('MONTHS')
+    setDuracionCantidad(1)
     setSesionesTotales('')
     setSesionesGracia('')
     setRequiereTurno(true)
@@ -101,7 +117,8 @@ const PlanesAdmin = () => {
       nombre: nuevoNombre,
       precio: Number(nuevoPrecio),
       desc: nuevaDesc,
-      duracion,
+      duracionUnidad,
+      duracionCantidad: Number(duracionCantidad),
       sesionesTotales: Number(sesionesTotales || 0),
       sesionesGracia: Number(sesionesGracia || 0),
       requiereTurno
@@ -166,47 +183,58 @@ const PlanesAdmin = () => {
         </div>
 
         {!loading && (
-          <div className="planes-grid">
-            {planes.length === 0 ? (
-              <EmptyState
-                title="Todavía no hay planes"
-                description="Creá el primer plan para definir precios, duración y cantidad de sesiones."
-                actionLabel="Crear primer plan"
-                onAction={handleCreate}
-              />
-            ) : planes.map((plan) => (
-              <div key={plan.ID_Plan} className="plan-card">
-                <div className="plan-card-header">
-                  <h2 className="plan-name">{plan.nombre}</h2>
-                  <div className="plan-id-wrap">
-                    <span className="plan-id">ID: {plan.ID_Plan}</span>
-                    <button
-                      type="button"
-                      className="plan-copy-id"
-                      onClick={() => handleCopyPlanId(plan.ID_Plan)}
-                      aria-label={`Copiar ID del plan ${plan.nombre}`}
-                      title="Copiar ID"
-                    >
-                      <Copy size={15} />
-                    </button>
-                  </div>
-                </div>
-                <p className="plan-desc">{plan.desc || 'Sin descripción'}</p>
-                <p className="plan-price">${plan.precio.toLocaleString()}</p>
-                <p className="plan-desc">
-                  {plan.duracion || 'MENSUAL'} · {plan.sesionesTotales || 0} ses. totales · {plan.sesionesGracia || 0} gracia
-                </p>
-                <div className="plan-actions">
-                  <div onClick={() => handleEdit(plan)} style={{ cursor: 'pointer' }}>
-                    <Edit width={20} height={20} />
-                  </div>
-                  <div onClick={() => openDeletePopup(plan)} style={{ cursor: 'pointer' }}>
-                    <Trash2 width={20} height={20} />
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
+          planes.length === 0 ? (
+            <EmptyState
+              title="Todavía no hay planes"
+              description="Creá el primer plan para definir precios, duración y cantidad de sesiones."
+              actionLabel="Crear primer plan"
+              onAction={handleCreate}
+            />
+          ) : (
+            <div className="planes-table-wrapper">
+              <table className="planes-table">
+                <thead>
+                  <tr>
+                    <th scope="col">ID</th>
+                    <th scope="col">Plan</th>
+                    <th scope="col">Precio</th>
+                    <th scope="col">Duración</th>
+                    <th scope="col">Sesiones</th>
+                    <th scope="col">Gracia</th>
+                    <th scope="col">Acciones</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {planes.map((plan) => (
+                    <tr key={plan.ID_Plan}>
+                      <td>
+                        <div className="plan-id-wrap">
+                          <span className="plan-id">{plan.ID_Plan}</span>
+                          <button type="button" className="plan-copy-id" onClick={() => handleCopyPlanId(plan.ID_Plan)} aria-label={`Copiar ID del plan ${plan.nombre}`} title="Copiar ID">
+                            <Copy size={14} />
+                          </button>
+                        </div>
+                      </td>
+                      <td>
+                        <div className="plan-table-name">{plan.nombre}</div>
+                        <div className="plan-table-description">{plan.desc || 'Sin descripción'}</div>
+                      </td>
+                      <td className="plan-table-price">${plan.precio.toLocaleString()}</td>
+                      <td>{durationLabel(plan.duracion)}</td>
+                      <td>{plan.sesionesTotales || 0}</td>
+                      <td>{plan.sesionesGracia || 0}</td>
+                      <td>
+                        <div className="plan-table-actions">
+                          <button type="button" onClick={() => handleEdit(plan)} aria-label={`Editar plan ${plan.nombre}`} title="Editar plan"><Edit size={17} /></button>
+                          <button type="button" onClick={() => openDeletePopup(plan)} aria-label={`Eliminar plan ${plan.nombre}`} title="Eliminar plan"><Trash2 size={17} /></button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )
         )}
 
         {/* Modal de crear/editar */}
@@ -235,6 +263,7 @@ const PlanesAdmin = () => {
                     <label>Nombre</label>
                     <CustomInput
                       type="text"
+                      placeholder="Plan Mensual"
                       value={nuevoNombre}
                       onChange={(e) => setNuevoNombre(e.target.value)}
                       required
@@ -245,6 +274,7 @@ const PlanesAdmin = () => {
                     <label>Precio</label>
                     <CustomInput
                       type="number"
+                      placeholder="50000"
                       value={nuevoPrecio}
                       onChange={(e) => setNuevoPrecio(e.target.value)}
                       required
@@ -254,34 +284,31 @@ const PlanesAdmin = () => {
                   <div className="plan-form-input-container plan-form-field-wide">
                     <label>Descripción</label>
                     <CustomInput
-                      placeholder="Descripción (opcional)"
+                      placeholder="Plan estándar de los socios mensuales"
                       value={nuevaDesc}
                       onChange={(e) => setNuevaDesc(e.target.value)}
                       width="100%"
                     />
                   </div>
                   <div className="plan-form-input-container">
-                    <label>Duración</label>
-                    <CustomDropdown
-                      options={[
-                        { value: 'SEMANAL', label: 'Semanal' },
-                        { value: 'MENSUAL', label: 'Mensual' },
-                        { value: 'TRIMESTRAL', label: 'Trimestral' },
-                        { value: 'SEMESTRAL', label: 'Semestral' },
-                        { value: 'ANUAL', label: 'Anual' },
-                      ]}
-                      value={duracion}
-                      onChange={(e) => setDuracion(e.target.value)}
-                      placeholderOption={null}
-                      name="duracion"
-                      id="duracion"
-                    />
+                    <label htmlFor="duracionCantidad">Duración del ciclo</label>
+                    <div className="plan-duration-fields">
+                      <input id="duracionCantidad" type="number" min="1" max={duracionUnidad === 'WEEKS' ? '52' : '24'} value={duracionCantidad} onChange={e => setDuracionCantidad(e.target.value)} required />
+                      <div className="plan-duration-select">
+                        <select value={duracionUnidad} onChange={e => { setDuracionUnidad(e.target.value); setDuracionCantidad(1) }} aria-label="Unidad de duración">
+                          <option value="WEEKS">Semanas</option>
+                          <option value="MONTHS">Meses</option>
+                        </select>
+                        <ChevronDown size={18} aria-hidden="true" />
+                      </div>
+                    </div>
                   </div>
                   <div className="plan-form-input-container">
                     <label>Sesiones totales</label>
                     <CustomInput
                       type="number"
                       min="0"
+                      placeholder="30"
                       value={sesionesTotales}
                       onChange={(e) => setSesionesTotales(e.target.value)}
                       width="100%"
@@ -292,6 +319,7 @@ const PlanesAdmin = () => {
                     <CustomInput
                       type="number"
                       min="0"
+                      placeholder="3"
                       value={sesionesGracia}
                       onChange={(e) => setSesionesGracia(e.target.value)}
                       width="100%"

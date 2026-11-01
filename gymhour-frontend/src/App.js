@@ -1,9 +1,10 @@
 import './App.css';
-import { Route, Routes } from 'react-router-dom';
+import { Route, Routes, useLocation } from 'react-router-dom';
 import { ToastContainer } from 'react-toastify'; // Importa el ToastContainer
 import ProtectedRoute from './ProtectedRoute';
 import Login from './Pages/Auth/Login/Login';
 import SignUp from './Pages/Auth/SignUp/SignUp';
+import VerifyEmail from './Pages/Auth/SignUp/VerifyEmail';
 import Onboarding from './Pages/Auth/Onboarding/Onboarding';
 import NotFound from './Pages/NotFound/NotFound';
 import AlumnoInicio from './Pages/Alumno/Inicio/AlumnoInicio';
@@ -50,9 +51,23 @@ import UserMyAttendancesPage from './Pages/Alumno/MisAsistencias/UserMyAttendanc
 import PublicCheckInPage from './Pages/Public/CheckIn/PublicCheckInPage';
 import TenantSettings from './Pages/Admin/TenantSettings/TenantSettings';
 import AIAssistant from './Pages/Shared/AIAssistant/AIAssistant';
-import React, { useState, useEffect } from 'react';
+import SupportWhatsAppButton from './Components/utils/SupportWhatsAppButton/SupportWhatsAppButton';
+import { useAuth } from './context/AuthContext';
+import SubscriptionExpired from './Components/SubscriptionExpired/SubscriptionExpired';
+import SubscriptionRenewalStatusBar, { renewalDaysRemaining } from './Components/SubscriptionExpired/SubscriptionRenewalStatusBar';
+import TrialStatusBar from './Components/TrialStatusBar/TrialStatusBar';
+import React, { useState, useEffect, useRef } from 'react';
 
 function App() {
+  const { user, tenant } = useAuth();
+  const { pathname } = useLocation();
+  const expired = tenant?.billing?.state === 'EXPIRED';
+  const appContentRef = useRef(null);
+  const appPath = /^\/(admin|entrenador|alumno)(\/|$)/.test(pathname);
+  const reminderDays = renewalDaysRemaining(tenant?.billing);
+  const showRenewalBar = Boolean(user?.role === 'ADMIN' && appPath && reminderDays !== null);
+  const showTrial = Boolean(user && tenant?.billing?.state === 'TRIAL'
+    && appPath);
 
 
   // Theme logic
@@ -63,31 +78,38 @@ function App() {
     localStorage.setItem('theme', theme);
   }, [theme]);
 
+  useEffect(() => {
+    if (appContentRef.current) appContentRef.current.inert = expired;
+  }, [expired]);
+
   // Expose toggle function globally for temporary testing or pass down if needed
   window.toggleTheme = () => setTheme(prev => prev === 'dark' ? 'light' : 'dark');
 
-
-
   return (
     <>
-      <ToastContainer
+      {!expired && <ToastContainer
         position="top-right"
         autoClose={1500}
         hideProgressBar={false}
         newestOnTop={false}
         closeOnClick
+        closeButton
         rtl={false}
-        pauseOnFocusLoss
+        pauseOnFocusLoss={false}
         draggable
-        pauseOnHover
+        pauseOnHover={false}
         theme={theme}
-      />
+      />}
+      {showTrial && <TrialStatusBar billing={tenant.billing} />}
+      {showRenewalBar && <SubscriptionRenewalStatusBar days={reminderDays} />}
+      <div ref={appContentRef} aria-hidden={expired} className={showTrial || showRenewalBar ? 'trial-app-shell' : undefined}>
       <Routes>
         {/* Rutas públicas */}
         <Route path="/" element={<Login />} />
         <Route path="/:slug/login" element={<Login />} />
         <Route path="/g/:slug/login" element={<Login />} />
         <Route path="/sign-up" element={<SignUp />} />
+        <Route path="/verify-email" element={<VerifyEmail />} />
         <Route path="/onboarding" element={<ProtectedRoute roles={['ADMIN']}><Onboarding /></ProtectedRoute>} />
         <Route path='/forgot-password' element={<ForgotPassword />} />
         <Route path='/:slug/forgot-password' element={<ForgotPassword />} />
@@ -100,6 +122,7 @@ function App() {
 
         {/* Rutas protegidas */}
         {/* Admin */}
+        <Route path="/admin/suscripcion" element={<ProtectedRoute roles={['ADMIN']}><SubscriptionExpired plansPage /></ProtectedRoute>} />
         <Route path="/admin/inicio"
           element={
             <ProtectedRoute>
@@ -594,6 +617,9 @@ function App() {
         {/* Ruta de error */}
         <Route path="*" element={<NotFound />} />
       </Routes>
+      {!expired && <SupportWhatsAppButton />}
+      </div>
+      {expired && <SubscriptionExpired />}
     </>
   );
 }

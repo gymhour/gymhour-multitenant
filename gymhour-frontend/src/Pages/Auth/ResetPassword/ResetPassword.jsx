@@ -67,7 +67,7 @@ const ResetPassword = () => {
         } else {
           clearInterval(intervalRef.current);
           intervalRef.current = null;
-          toast.update(toastIdRef.current, { render: 'Redirigiendo...', autoClose: 800, progress: 1 });
+          toast.dismiss(toastIdRef.current);
           navigate(slug ? `/${slug}/login` : '/', { replace: true });
         }
       }, 1000);

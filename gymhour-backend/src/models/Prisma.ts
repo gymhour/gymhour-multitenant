@@ -43,7 +43,7 @@ export const TENANT_MODELS = new Set([
     'GrupoUsuario', 'GrupoUsuarioMiembro', 'RutinaAsignacionUsuario',
     'RutinaAsignacionGrupo', 'RutinaDia', 'Semana', 'Bloque', 'Ejercicio',
     'BloqueEjercicio', 'EjercicioMedicion', 'HistoricoEjercicio', 'Asistencia',
-    'MediaAsset', 'TenantKioskCredential', 'TenantSettings', 'AiConversation',
+    'MediaAsset', 'TenantKioskCredential', 'TenantSettings', 'TenantBillingOrder', 'AiConversation',
     'AiMessage'
 ]);
 

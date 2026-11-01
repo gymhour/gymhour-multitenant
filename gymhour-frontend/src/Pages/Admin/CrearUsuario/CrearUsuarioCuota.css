@@ -1,0 +1,41 @@
+.first-fee-overlay{position:fixed;inset:0;z-index:3000;display:grid;place-items:center;padding:18px;background:rgba(8,12,19,.7)}
+.first-fee-dialog{width:min(100%,520px);max-height:calc(100vh - 36px);overflow:auto;padding:30px;border:1px solid var(--border-color);border-radius:18px;background:var(--background-color);color:var(--text-color);box-shadow:0 24px 70px rgba(0,0,0,.3)}
+.first-fee-dialog h3{margin:0 0 12px;font-size:22px;font-weight:500}
+.first-fee-dialog p{margin:0 0 20px;color:var(--text-color-distinct);font-size:14px;line-height:1.5}
+.first-fee-dialog .first-fee-period{padding:12px;border-radius:10px;background:var(--background-color-distinct);color:var(--text-color)}
+.first-fee-dialog label{display:grid;gap:6px;margin:12px 0;font-size:13px;font-weight:500}
+.first-fee-dialog label small{color:var(--text-color-distinct);font-size:12px;font-weight:400;line-height:1.4}
+.first-fee-dialog input:disabled{opacity:1;color:var(--text-color-distinct);cursor:not-allowed}
+.first-fee-dialog input,.first-fee-dialog select{width:100%;min-height:42px;padding:8px 10px;border:1px solid var(--border-color);border-radius:8px;background:var(--background-color-distinct);color:var(--text-color);font:inherit}
+.first-fee-actions{display:flex;gap:10px;margin-top:24px}
+.first-fee-actions button{flex:1;min-height:44px;border:1px solid var(--border-color);border-radius:9px;background:var(--background-color-distinct);color:var(--text-color);font:inherit;font-weight:500;cursor:pointer}
+.first-fee-actions button[type=submit]{border-color:var(--primary-color);background:var(--primary-color);color:#fff}
+.first-fee-actions button:disabled{opacity:.6;cursor:wait}
+.first-fee-dialog .first-fee-error{color:#b42318;margin:0}
+
+.usuario-create-heading{margin:18px 0 24px}
+.usuario-create-heading h2{margin:0 0 8px}
+.usuario-create-heading p{margin:0;color:var(--text-color-distinct);font-size:14px;line-height:1.5}
+.usuario-create-form{display:flex;flex-direction:column;gap:18px;padding-bottom:110px}
+.usuario-create-section{padding:26px 28px;border:1px solid var(--border-color);border-radius:16px;background:var(--background-color)}
+.usuario-create-section-heading{margin-bottom:24px}
+.usuario-create-section-heading h3{margin:0 0 6px;color:var(--text-color);font-size:19px;font-weight:500}
+.usuario-create-section-heading p{margin:0;color:var(--text-color-distinct);font-size:13px;line-height:1.5}
+.usuario-create-section--collapsible{padding-top:21px;padding-bottom:21px}
+.usuario-create-disclosure{display:flex;align-items:center;justify-content:space-between;gap:20px;cursor:pointer;list-style:none;border-radius:8px}
+.usuario-create-disclosure::-webkit-details-marker{display:none}
+.usuario-create-disclosure .usuario-create-section-heading{margin:0}
+.usuario-create-disclosure svg{flex:none;color:var(--text-color-distinct);transition:transform .18s ease}
+.usuario-create-section--collapsible[open] .usuario-create-disclosure svg{transform:rotate(180deg)}
+.usuario-create-disclosure:focus-visible{outline:2px solid var(--primary-color);outline-offset:5px}
+.usuario-create-section--collapsible .usuario-create-grid{margin-top:22px}
+.usuario-create-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:20px 22px}
+.usuario-create-grid .usuario-form-field--full,.usuario-create-grid .usuario-form-preview{grid-column:1/-1}
+.usuario-create-grid .usuario-form-field label{font-size:13px}
+.usuario-required{color:var(--primary-color)}
+.usuario-create-form .usuario-form-actions{margin:4px 0 0}
+.usuario-create-form .usuario-form-toggle{margin:0;align-self:flex-start}
+.usuario-create-form .toggle-switch input{width:100%;min-height:0;padding:0;border:0}
+.usuario-create-form .usuario-turnos-fijos{margin-top:0;padding:18px;border:1px solid var(--border-color);border-radius:10px;background:var(--background-color-distinct)}
+.usuario-create-form .usuario-turno-fijo-row .custom-dropdown,.usuario-create-form .usuario-turno-fijo-row .turno-fijo-select{min-height:42px}
+@media(max-width:700px){.usuario-create-section{padding:20px}.usuario-create-grid{grid-template-columns:1fr;gap:18px}}

@@ -17,92 +17,97 @@
     line-height: 1.2;
 }
 
-.planes-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
-    gap: 16px;
-}
-
-.plan-card {
-    background: var(--background-color-distinct);
-    border-radius: 8px;
-    /* box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1); */
-    padding: 16px;
-    display: flex;
-    flex-direction: column;
-    justify-content: space-between;
+.planes-table-wrapper {
+    width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
     border: 1px solid var(--border-color);
+    border-radius: 10px;
+    background: var(--background-color-distinct);
 }
 
-.plan-card-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    gap: 12px;
-    margin-bottom: 12px;
+.planes-table {
+    width: 100%;
+    min-width: 760px;
+    border-collapse: collapse;
+    text-align: left;
 }
 
-.plan-name {
-    font-size: 1.25rem;
-    font-weight: 600;
-}
-
-.plan-id {
-    font-size: 0.875rem;
+.planes-table th {
+    padding: 14px 18px;
+    background: var(--background-color);
     color: var(--text-color-distinct);
+    font-size: 12px;
+    font-weight: 500;
+    white-space: nowrap;
+}
+
+.planes-table td {
+    padding: 10px 18px;
+    border-top: 1px solid var(--border-color);
+    color: var(--text-color);
+    font-size: 14px;
+    vertical-align: middle;
+}
+
+.planes-table tbody tr { transition: background-color 150ms ease; }
+.planes-table tbody tr:hover { background: var(--background-hover-color); }
+.planes-table th:nth-child(2) { width: 32%; }
+.planes-table th:last-child { text-align: right; }
+
+.plan-table-name {
+    font-size: 15px;
+    font-weight: 600;
+    overflow-wrap: anywhere;
+}
+
+.plan-table-description {
+    margin-top: 2px;
+    color: var(--text-color-distinct);
+    font-size: 13px;
+    line-height: 1.4;
+    overflow-wrap: anywhere;
 }
 
 .plan-id-wrap {
     display: inline-flex;
     align-items: center;
-    gap: 6px;
-    flex-shrink: 0;
+    gap: 5px;
 }
 
-.plan-copy-id {
-    width: 30px;
-    height: 30px;
+.plan-id { color: var(--text-color-distinct); font-size: 12px; }
+
+.plan-copy-id,
+.plan-table-actions button {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    border: 1px solid var(--border-color);
-    border-radius: 8px;
-    background: var(--background-color);
+    border: 1px solid transparent;
+    border-radius: 7px;
+    background: transparent;
     color: var(--text-color-distinct);
     cursor: pointer;
-    transition: border-color .18s ease, color .18s ease, background .18s ease;
+    transition: border-color 150ms ease, color 150ms ease, background-color 150ms ease;
 }
 
-.plan-copy-id:hover {
-    border-color: var(--primary-color);
+.plan-copy-id { width: 26px; height: 26px; }
+.plan-table-actions button { width: 34px; height: 34px; }
+
+.plan-copy-id:hover,
+.plan-table-actions button:hover {
+    border-color: var(--border-color);
+    background: var(--background-color);
     color: var(--primary-color);
-    background: var(--background-hover-color);
 }
 
-.plan-desc {
-    flex: 1;
-    font-size: 0.95rem;
-    color: var(--text-color);
-    margin-bottom: 12px;
+.plan-copy-id:focus-visible,
+.plan-table-actions button:focus-visible {
+    outline: 2px solid var(--primary-color);
+    outline-offset: 2px;
 }
 
-.plan-price {
-    font-size: 1.1rem;
-    font-weight: 500;
-    color: var(--text-color);
-    margin-bottom: 16px;
-}
-
-.plan-actions {
-    display: flex;
-    justify-content: flex-end;
-    gap: 20px;
-}
-
-.btn-sm {
-    padding: 6px 12px;
-    font-size: 0.85rem;
-}
+.plan-table-price { font-weight: 600; white-space: nowrap; }
+.plan-table-actions { display: flex; justify-content: flex-end; gap: 4px; }
 
 .plan-form {
     display: flex;
@@ -235,6 +240,59 @@
     box-shadow: 0 0 0 3px rgba(218, 70, 50, 0.12);
 }
 
+.plan-duration-fields {
+    display: flex;
+    gap: 8px;
+    min-width: 0;
+}
+
+.plan-duration-fields input,
+.plan-duration-select select {
+    box-sizing: border-box;
+    min-height: 44px;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    background: var(--background-color-distinct);
+    color: var(--text-color);
+    font: inherit;
+    font-size: 14px;
+    transition: border-color 150ms ease, box-shadow 150ms ease;
+}
+
+.plan-duration-fields input {
+    width: 82px;
+    padding: 0 12px;
+}
+
+.plan-duration-select {
+    position: relative;
+    flex: 1;
+    min-width: 0;
+}
+
+.plan-duration-select select {
+    width: 100%;
+    padding: 0 38px 0 12px;
+    appearance: none;
+    cursor: pointer;
+}
+
+.plan-duration-select svg {
+    position: absolute;
+    top: 50%;
+    right: 12px;
+    color: var(--text-color-distinct);
+    pointer-events: none;
+    transform: translateY(-50%);
+}
+
+.plan-duration-fields input:focus,
+.plan-duration-select select:focus {
+    outline: none;
+    border-color: rgba(218, 70, 50, 0.48);
+    box-shadow: 0 0 0 3px rgba(218, 70, 50, 0.12);
+}
+
 .plan-toggle-row {
     display: flex;
     align-items: center;
@@ -317,10 +375,6 @@
 
     .planes-header .primary-button {
         width: 100%;
-    }
-
-    .planes-grid {
-        grid-template-columns: 1fr;
     }
 
     .plan-modal-overlay {

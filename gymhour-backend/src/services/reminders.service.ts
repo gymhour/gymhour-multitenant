@@ -72,6 +72,7 @@ async function sendCuotaPorVencer3Dias(): Promise<number> {
   const cuotas = await prisma.cuota.findMany({
     where: {
       pagada: false,
+      recordatorioVenceEnviado: null,
       vence: { gte: dia3, lt: dia4 },
       User: { is: { estado: true } },
     },
@@ -82,14 +83,22 @@ async function sendCuotaPorVencer3Dias(): Promise<number> {
   for (const c of cuotas) {
     if (!c.User?.email) continue;
     try {
+      const claim = await prisma.cuota.updateMany({
+        where: { ID_Cuota: c.ID_Cuota, pagada: false, recordatorioVenceEnviado: null },
+        data: { recordatorioVenceEnviado: new Date() },
+      });
+      if (!claim.count) continue;
       await sendCuotaPorVencerEmail(c.User.email, c.User.nombre ?? "", {
         vence: c.vence,
         importe: c.importe,
         mes: c.mes,
+        fechaInicio: c.fechaInicio,
+        fechaFin: c.fechaFin,
         diasRestantes: 3,
       });
       sent += 1;
     } catch (e) {
+      await prisma.cuota.updateMany({ where: { ID_Cuota: c.ID_Cuota, pagada: false }, data: { recordatorioVenceEnviado: null } });
       console.error("[reminders] cuota ->", c.ID_Cuota, e);
     }
   }

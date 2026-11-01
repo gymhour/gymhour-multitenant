@@ -14,6 +14,13 @@
   gap: 6px;
 }
 
+.admin-inicio-topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
 .download-pdf-btn {
   display: inline-flex;
   align-items: center;

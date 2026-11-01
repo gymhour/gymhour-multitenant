@@ -23,7 +23,7 @@ const Cuotas = () => {
   const cuil = settings.paymentTaxId || CLIENT_SETUP.payment.cuil;
   const whatsapp = {
     phoneNumber: settings.paymentWhatsapp || CLIENT_SETUP.payment.whatsapp.phoneNumber,
-    message: `¡Hola, ${tenant?.name || 'Gymhour'}! Les comparto el comprobante de pago de este mes:`,
+    message: `¡Hola, ${tenant?.name || 'Gymhour'}! Les comparto el comprobante de pago de mi cuota:`,
   };
   const whatsappHref = `https://wa.me/${whatsapp.phoneNumber}?text=${encodeURIComponent(whatsapp.message)}`;
   const isConfigured = value => value && !String(value).startsWith('COMPLETAR_');
@@ -152,9 +152,9 @@ const Cuotas = () => {
             <table className="cuotas-table cuotas-table-usuario">
               <thead>
                 <tr>
-                  <th>Mes</th>
+                  <th>Período cubierto</th>
                   <th>Importe</th>
-                  <th>Vence</th>
+                  <th>Vencimiento del pago</th>
                   <th>Plan</th>
                   <th>Estado</th>
                   <th>Forma de Pago</th>
@@ -164,13 +164,13 @@ const Cuotas = () => {
               <tbody>
                 {cuotas.map((c) => (
                   <tr key={c.ID_Cuota}>
-                    <td data-label="Mes" style={{ textTransform: 'uppercase' }}>
-                      {formatMonth(c.mes)}
+                    <td data-label="Período">
+                      {c.fechaInicio && c.fechaFin ? `${formatDate(c.fechaInicio)} – ${formatDate(c.fechaFin)}` : formatMonth(c.mes)}
                     </td>
                     <td data-label="Importe" className="col-importe">
                       {formatCurrency(c.importe)}
                     </td>
-                    <td data-label="Vence" className="col-vence">
+                    <td data-label="Vencimiento del pago" className="col-vence">
                       {formatDate(c.vence)}
                     </td>
                     <td data-label="Plan" className="col-plan">

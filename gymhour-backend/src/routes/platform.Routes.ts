@@ -37,6 +37,8 @@ platformRouter.post('/auth/logout', requirePlatformCsrf, safe(platformMethods.lo
 platformRouter.get('/dashboard', safe(platformMethods.dashboard));
 platformRouter.get('/tenants', safe(platformMethods.listTenants));
 platformRouter.get('/tenants/:id', safe(platformMethods.tenantDetail));
+platformRouter.patch('/tenants/:id/billing', requirePlatformCsrf, safe(platformMethods.updateTenantBilling));
+platformRouter.get('/tenants/:id/billing-orders', safe(platformMethods.listTenantBillingOrders));
 platformRouter.patch('/tenants/:id/status', requirePlatformCsrf, safe(platformMethods.changeTenantStatus));
 platformRouter.post('/tenants/:id/purge', requirePlatformCsrf, safe(platformMethods.purgeTenant));
 platformRouter.get('/audit', safe(platformMethods.auditList));

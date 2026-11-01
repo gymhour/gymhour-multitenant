@@ -65,15 +65,16 @@ export const buildStudentSearchFilter = (value: unknown) => {
   };
 };
 
-type FeeSummary = { mes: string; pagada: boolean; vencida: boolean; vence: Date; fechaPago?: Date | null };
+type FeeSummary = { mes: string; fechaInicio?: Date | null; fechaFin?: Date | null; pagada: boolean; vencida: boolean; vence: Date; fechaPago?: Date | null };
 
 export const summarizeFeeStatus = (fees: FeeSummary[], now = new Date()) => {
   const month = `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, '0')}`;
-  const current = fees.find(fee => fee.mes === month);
+  const current = fees.find(fee => fee.fechaInicio && fee.fechaFin && fee.fechaInicio <= now && fee.fechaFin >= now)
+    || fees.find(fee => !fee.fechaInicio && fee.mes === month);
   const overdueCount = fees.filter(fee => !fee.pagada && (fee.vencida || fee.vence < now)).length;
-  if (!current) return { mes: month, estado: overdueCount ? 'SIN_CUOTA_DEL_MES_CON_DEUDA' : 'SIN_CUOTA_DEL_MES', cuotasVencidas: overdueCount };
+  if (!current) return { mes: month, estado: overdueCount ? 'SIN_CUOTA_VIGENTE_CON_DEUDA' : 'SIN_CUOTA_VIGENTE', cuotasVencidas: overdueCount };
   const estado = current.pagada ? 'PAGADA' : (current.vencida || current.vence < now) ? 'VENCIDA' : 'PENDIENTE';
-  return { mes: current.mes, estado, vence: current.vence, fechaPago: current.fechaPago ?? null, cuotasVencidas: overdueCount };
+  return { mes: current.mes, fechaInicio: current.fechaInicio ?? null, fechaFin: current.fechaFin ?? null, estado, vence: current.vence, fechaPago: current.fechaPago ?? null, cuotasVencidas: overdueCount };
 };
 
 const routineDraftTool = {
@@ -133,7 +134,7 @@ const commonTools: any[] = [
   },
   {
     type: 'function', name: 'search_students', strict: true,
-    description: 'Busca socios por nombre completo (en cualquier orden), nombre parcial, apellido o DNI. Con query vacío lista socios. Devuelve estado del socio y de su cuota del mes.',
+    description: 'Busca socios por nombre completo (en cualquier orden), nombre parcial, apellido o DNI. Con query vacío lista socios. Devuelve estado del socio y de su cuota vigente.',
     parameters: {
       type: 'object', additionalProperties: false,
       properties: { query: { type: 'string' }, overdueOnly: { type: 'boolean' }, limit: { type: 'integer', minimum: 1, maximum: 20 } },
@@ -184,7 +185,7 @@ const commonTools: any[] = [
 
 const financeTool = {
   type: 'function', name: 'get_financial_summary', strict: true,
-  description: 'Obtiene ingresos por cuotas pagadas, pendientes, vencidas, gastos y resultado para un mes YYYY-MM. Solo Admin.',
+  description: 'Obtiene ingresos según fecha real de pago, cuotas pendientes según vencimiento, deuda vencida, gastos y resultado para un mes YYYY-MM. Solo Admin.',
   parameters: {
     type: 'object', additionalProperties: false,
     properties: { month: { type: ['string', 'null'], pattern: '^\\d{4}-\\d{2}$' } },
@@ -218,7 +219,7 @@ export async function executeAiTool(name: string, args: any, role: TenantRole): 
         select: {
           ID_Usuario: true, nombre: true, apellido: true, dni: true, estado: true,
           plan: { select: { nombre: true } },
-          Cuotas: { orderBy: { vence: 'desc' }, take: 24, select: { mes: true, pagada: true, vencida: true, vence: true, fechaPago: true } },
+          Cuotas: { orderBy: { vence: 'desc' }, take: 24, select: { mes: true, fechaInicio: true, fechaFin: true, pagada: true, vencida: true, vence: true, fechaPago: true } },
           Asistencias: { where: { permitido: true }, orderBy: { fechaIngreso: 'desc' }, take: 1, select: { fechaIngreso: true } },
         },
       });
@@ -236,7 +237,7 @@ export async function executeAiTool(name: string, args: any, role: TenantRole): 
           ID_Usuario: true, nombre: true, apellido: true, estado: true,
           observacionesSalud: Boolean(args.includeHealthSummary),
           plan: { select: { nombre: true, sesionesTotales: true } },
-          Cuotas: { orderBy: { vence: 'desc' }, take: 12, select: { mes: true, vence: true, vencida: true, pagada: true, fechaPago: true } },
+          Cuotas: { orderBy: { vence: 'desc' }, take: 12, select: { mes: true, fechaInicio: true, fechaFin: true, vence: true, vencida: true, pagada: true, fechaPago: true } },
           Asistencias: { where: { permitido: true }, orderBy: { fechaIngreso: 'desc' }, take: 10, select: { fechaIngreso: true } },
           asignacionesRutina: { orderBy: { createdAt: 'desc' }, take: 3, select: { rutina: { select: { ID_Rutina: true, nombre: true, updatedAt: true } } } },
         },
@@ -288,8 +289,8 @@ export async function executeAiTool(name: string, args: any, role: TenantRole): 
       if (role !== 'ADMIN') return { error: 'Esta información está disponible únicamente para administradores.' };
       const month = typeof args.month === 'string' && /^\d{4}-\d{2}$/.test(args.month) ? args.month : currentMonth();
       const [paid, pending, overdue, expenses] = await Promise.all([
-        prisma.cuota.aggregate({ where: { mes: month, pagada: true }, _sum: { importe: true }, _count: true }),
-        prisma.cuota.aggregate({ where: { mes: month, pagada: false }, _sum: { importe: true }, _count: true }),
+        prisma.cuota.aggregate({ where: { fechaPago: { gte: new Date(`${month}-01T00:00:00.000Z`), lt: new Date(Date.UTC(Number(month.slice(0, 4)), Number(month.slice(5, 7)), 1)) }, pagada: true }, _sum: { importe: true }, _count: true }),
+        prisma.cuota.aggregate({ where: { vence: { gte: new Date(`${month}-01T00:00:00.000Z`), lt: new Date(Date.UTC(Number(month.slice(0, 4)), Number(month.slice(5, 7)), 1)) }, pagada: false }, _sum: { importe: true }, _count: true }),
         prisma.cuota.aggregate({ where: { pagada: false, OR: [{ vencida: true }, { vence: { lt: new Date() } }] }, _sum: { importe: true }, _count: true }),
         prisma.gasto.aggregate({ where: { mes: month }, _sum: { monto: true }, _count: true }),
       ]);

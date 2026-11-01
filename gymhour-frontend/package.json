@@ -26,6 +26,7 @@
     "react-scripts": "5.0.1",
     "react-select": "^5.10.1",
     "react-toastify": "^11.0.2",
+    "rebill": "^1.17.43",
     "recharts": "^2.15.1",
     "web-vitals": "^2.1.4",
     "xlsx": "^0.18.5"

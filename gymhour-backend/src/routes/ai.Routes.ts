@@ -2,9 +2,10 @@ import express from 'express';
 import { aiMethods } from '../controllers/ai.Controller.js';
 import { rutinaMethods } from '../controllers/rutina.Controller.js';
 import { authenticateToken, isAdminOrEntrenador } from '../services/auth.service.js';
+import { requirePaidFeature } from '../services/planAccess.service.js';
 
 const router = express.Router();
-router.use(authenticateToken, isAdminOrEntrenador);
+router.use(authenticateToken, isAdminOrEntrenador, requirePaidFeature('AI'));
 router.get('/home', aiMethods.home);
 router.get('/conversations', aiMethods.conversations);
 router.post('/conversations', aiMethods.create);

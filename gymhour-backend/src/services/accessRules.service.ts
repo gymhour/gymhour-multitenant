@@ -1,5 +1,6 @@
 import prisma from "../models/Prisma.js";
 import { runSerializableTransaction } from "./transaction.service.js";
+import { nextFeeStart, parseFeeDuration } from './feeDates.service.js';
 
 type TurnoOmitido = {
   ID_HorarioClase: number;
@@ -99,7 +100,7 @@ export const getArgentinaDate = (): Date => new Date(Date.now() - 3 * 60 * 60 * 
 
 export const normalizePlanDuration = (value: unknown): string => {
   const normalized = String(value || "MENSUAL").trim().toUpperCase();
-  return ["SEMANAL", "MENSUAL", "TRIMESTRAL", "SEMESTRAL", "ANUAL"].includes(normalized)
+  return parseFeeDuration(normalized)
     ? normalized
     : "MENSUAL";
 };
@@ -116,25 +117,7 @@ export const getWeekRange = (date: Date): { start: Date; end: Date } => {
 };
 
 export const calculatePeriodEnd = (start: Date, duration: string): Date => {
-  const end = new Date(start);
-  switch (normalizePlanDuration(duration)) {
-    case "SEMANAL":
-      end.setDate(end.getDate() + 7);
-      break;
-    case "TRIMESTRAL":
-      end.setMonth(end.getMonth() + 3);
-      break;
-    case "SEMESTRAL":
-      end.setMonth(end.getMonth() + 6);
-      break;
-    case "ANUAL":
-      end.setFullYear(end.getFullYear() + 1);
-      break;
-    case "MENSUAL":
-    default:
-      end.setMonth(end.getMonth() + 1);
-      break;
-  }
+  const end = nextFeeStart(start, duration);
   end.setMilliseconds(end.getMilliseconds() - 1);
   return end;
 };
@@ -260,14 +243,8 @@ export const getTotalSessionLimit = (cuota: any): number => (
 
 // Máximo de sesiones cargables según la duración (1 turno por día como máximo).
 export const getMaxSessionsForDuration = (duration: unknown): number => {
-  switch (normalizePlanDuration(duration)) {
-    case "SEMANAL": return 7;
-    case "MENSUAL": return 31;
-    case "TRIMESTRAL": return 92;
-    case "SEMESTRAL": return 184;
-    case "ANUAL": return 366;
-    default: return 31;
-  }
+  const parsed = parseFeeDuration(duration) ?? { unit: 'MONTHS', count: 1 };
+  return parsed.unit === 'WEEKS' ? parsed.count * 7 : parsed.count * 31;
 };
 
 export const requiresTurno = (cuota: any): boolean => (

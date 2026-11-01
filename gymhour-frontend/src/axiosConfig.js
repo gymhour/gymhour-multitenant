@@ -44,6 +44,9 @@ apiClient.interceptors.response.use(
       localStorage.removeItem('token');
       window.location.href = '/';
     }
+    if (err.response?.status === 403 && err.response?.data?.code === 'SUBSCRIPTION_REQUIRED') {
+      window.dispatchEvent(new Event('gymhour:subscription-required'));
+    }
     return Promise.reject(err);
   }
 );
