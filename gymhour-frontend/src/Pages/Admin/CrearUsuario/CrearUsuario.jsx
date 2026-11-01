@@ -5,6 +5,7 @@ import apiClient from '../../../axiosConfig';
 import apiService from '../../../services/apiService';
 import { toast } from 'react-toastify';
 import { ROLE_OPTIONS } from '../../../utils/roleLabels';
+import { feeDurationLabel } from '../../../utils/feeDuration';
 import LoaderFullScreen from '../../../Components/utils/LoaderFullScreen/LoaderFullScreen';
 import { useNavigate } from 'react-router-dom';
 import CustomInput from '../../../Components/utils/CustomInput/CustomInput';
@@ -74,7 +75,7 @@ const CrearUsuario = ({fromAdmin, fromTRAINER}) => {
   const [firstFeePreviewError, setFirstFeePreviewError] = useState('');
   const [firstFeeStart, setFirstFeeStart] = useState(new Date().toLocaleDateString('sv-SE'));
   const [firstFeeBusy, setFirstFeeBusy] = useState(false);
-  const [firstFeeForm, setFirstFeeForm] = useState({ fechaFin: '', importe: '', pagada: false, formaPago: 'Efectivo', fechaPago: new Date().toLocaleDateString('sv-SE') });
+  const [firstFeeForm, setFirstFeeForm] = useState({ fechaFin: '', vence: '', importe: '', pagada: false, formaPago: 'Efectivo', fechaPago: new Date().toLocaleDateString('sv-SE') });
   const [planOptions, setPlanOptions] = useState([]);
   const [clases, setClases] = useState([]);
   const [turnosFijos, setTurnosFijos] = useState([]);
@@ -324,7 +325,7 @@ const CrearUsuario = ({fromAdmin, fromTRAINER}) => {
     apiClient.get(`/cuotas/usuario/${createdUser.id}/preview`, { params: { fechaInicioCobro: firstFeeStart } }).then(({ data }) => {
       if (!active) return;
       setFirstFeePreview(data);
-      setFirstFeeForm(form => ({ ...form, fechaFin: data.fechaFinSugerida, importe: String(data.importeSugerido) }));
+      setFirstFeeForm(form => ({ ...form, fechaFin: data.fechaFinSugerida, vence: data.vence, importe: String(data.importeSugerido) }));
     }).catch(error => {
       if (active) setFirstFeePreviewError(error?.response?.data?.message || 'No se pudo preparar la primera cuota.');
     });
@@ -339,6 +340,7 @@ const CrearUsuario = ({fromAdmin, fromTRAINER}) => {
       await apiClient.post(`/cuotas/usuario/${createdUser.id}`, {
         fechaInicioCobro: firstFeeStart,
         fechaFin: firstFeeForm.fechaFin,
+        vence: firstFeeForm.vence,
         importe: Number(firstFeeForm.importe),
         pagada: firstFeeForm.pagada,
         ...(firstFeeForm.pagada ? { formaPago: firstFeeForm.formaPago, fechaPago: firstFeeForm.fechaPago } : {}),
@@ -366,10 +368,11 @@ const CrearUsuario = ({fromAdmin, fromTRAINER}) => {
         <form className="first-fee-dialog" role="dialog" aria-modal="true" aria-labelledby="first-fee-title" onSubmit={saveFirstFee}>
           <h3 id="first-fee-title">¿Crear la primera cuota?</h3>
           <p>{createdUser.nombre || createdUser.email} ya tiene su cuenta. Elegí cuándo comienza su cobro y cómo registrar la primera cuota. Si la omitís, el cobro automático quedará pausado.</p>
-          <label>Inicio de cobro<input type="date" required value={firstFeeStart} onChange={e => setFirstFeeStart(e.target.value)} /></label>
+          <label>Inicio del período<input type="date" min={new Date().toLocaleDateString('sv-SE')} required value={firstFeeStart} onChange={e => setFirstFeeStart(e.target.value)} /></label>
           {firstFeePreviewError ? <p className="first-fee-error" role="alert">{firstFeePreviewError}</p> : !firstFeePreview ? <p>Calculando período…</p> : <>
-            <p className="first-fee-period">Cubre del {formatDay(firstFeePreview.fechaInicio)} al {formatDay(firstFeePreview.fechaFinSugerida)}. Vence el {formatDay(firstFeePreview.vence)}.</p>
-            <label>Fin del período<input type="date" value={firstFeeForm.fechaFin} min={firstFeePreview.fechaInicio} onChange={e => setFirstFeeForm({ ...firstFeeForm, fechaFin: e.target.value })} required /></label>
+            <p className="first-fee-period">El período cubre del {formatDay(firstFeePreview.fechaInicio)} al {formatDay(firstFeePreview.fechaFinSugerida)}. Vencimiento del pago sugerido: {formatDay(firstFeePreview.vence)}.</p>
+            <label>Fin del período<input type="date" value={firstFeeForm.fechaFin} disabled aria-describedby="first-fee-end-explanation" /><small id="first-fee-end-explanation">Este plan cubre {feeDurationLabel(firstFeePreview.plan.duracion)}. Por eso, el fin se calcula automáticamente. Para cambiarlo, modificá el plan del socio.</small></label>
+            <label>Vencimiento del pago<input type="date" value={firstFeeForm.vence} min={firstFeePreview.fechaInicio} max={firstFeeForm.fechaFin} onChange={e => setFirstFeeForm({ ...firstFeeForm, vence: e.target.value })} required /></label>
             <label>Importe<input type="number" min="0" step="0.01" value={firstFeeForm.importe} onChange={e => setFirstFeeForm({ ...firstFeeForm, importe: e.target.value })} required /></label>
             <label>Estado<select value={firstFeeForm.pagada ? 'pagada' : 'pendiente'} onChange={e => setFirstFeeForm({ ...firstFeeForm, pagada: e.target.value === 'pagada' })}><option value="pendiente">Pendiente</option><option value="pagada">Pagada</option></select></label>
             {firstFeeForm.pagada && <>

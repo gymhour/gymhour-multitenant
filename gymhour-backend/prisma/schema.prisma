@@ -334,6 +334,9 @@ model User {
   tenantId              Int                       @default(0)
   role                  TenantRole                @default(STUDENT)
   authVersion           Int                       @default(0)
+  emailVerifiedAt       DateTime?                 @default(now())
+  emailVerificationHash String?                   @unique
+  emailVerificationExpiry DateTime?
   setupGuideDismissedAt DateTime?
   tenant                Tenant                    @relation(fields: [tenantId], references: [id], onDelete: Restrict)
   fechaRegistro         DateTime?                 @default(now())

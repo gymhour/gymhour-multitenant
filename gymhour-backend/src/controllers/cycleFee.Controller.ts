@@ -20,7 +20,9 @@ export async function createManualCycleFee(req: Request, res: Response): Promise
     if (!Number.isInteger(id) || id < 1) { res.status(400).json({ message: 'Alumno inválido.' }); return; }
     const result = await createCycleFee(id, {
       fechaInicioCobro: req.body?.fechaInicioCobro,
+      fechaInicio: req.body?.fechaInicio,
       fechaFin: req.body?.fechaFin,
+      vence: req.body?.vence,
       importe: req.body?.importe,
       pagada: req.body?.pagada,
       formaPago: req.body?.formaPago,

@@ -18,9 +18,20 @@ export async function localFeeToday(): Promise<Date> {
   return feeToday(settings?.timezone || DEFAULT_TIMEZONE);
 }
 
-function proposedStart(user: any, today: Date): Date {
+async function proposedStart(user: any, today: Date, client: any = prisma): Promise<Date> {
   if (!user.plan) throw new FeeCycleError(409, 'El alumno necesita un plan para crear una cuota.');
-  if (user.cobroAutomaticoActivo && user.proximoInicioCuota) return user.proximoInicioCuota;
+  if (user.cobroAutomaticoActivo && user.proximoInicioCuota) {
+    const latestFee = await client.cuota.findFirst({
+      where: { ID_Usuario: user.ID_Usuario },
+      orderBy: [{ fechaInicio: 'desc' }, { ID_Cuota: 'desc' }],
+      select: { fechaFin: true },
+    });
+    const restoredStart = latestFee?.fechaFin
+      ? feeNextDay(parseFeeDate(feeDateString(latestFee.fechaFin))!)
+      : !latestFee ? user.fechaInicioCobro : null;
+    return restoredStart && restoredStart < user.proximoInicioCuota
+      ? restoredStart : user.proximoInicioCuota;
+  }
   if (!user.fechaInicioCobro) throw new FeeCycleError(409, 'Definí la fecha de inicio de cobro del alumno.');
   return nextUnbilledAnniversary(user.fechaInicioCobro, user.plan.duracion,
     user.diaAnclaCobro || user.fechaInicioCobro.getUTCDate(), today);
@@ -48,18 +59,37 @@ export async function getNextFeePreview(userId: number, requestedStart?: string)
   const anchorDay = selectedStart?.getUTCDate() || user.diaAnclaCobro || today.getUTCDate();
   const start = selectedStart
     ? nextUnbilledAnniversary(selectedStart, user.plan!.duracion, anchorDay, today)
-    : proposedStart(user, today);
+    : await proposedStart(user, today);
   const period = feePeriod(start, user.plan!.duracion, anchorDay);
+  const occupied = await prisma.cuota.findMany({
+    where: { ID_Usuario: userId },
+    select: { mes: true, fechaInicio: true, fechaFin: true },
+    orderBy: { fechaInicio: 'asc' },
+  });
   return {
     fechaInicio: feeDateString(start), fechaFinSugerida: feeDateString(period.end),
     vence: feeDateString(start), importeSugerido: user.plan!.precio,
     plan: user.plan, cobroAutomaticoActivo: user.cobroAutomaticoActivo,
+    diaAnclaCobro: anchorDay,
+    periodosOcupados: occupied.map(fee => {
+      if (fee.fechaInicio && fee.fechaFin) return {
+        fechaInicio: feeDateString(fee.fechaInicio), fechaFin: feeDateString(fee.fechaFin),
+      };
+      if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(fee.mes)) return null;
+      const [year, month] = fee.mes.split('-').map(Number);
+      return {
+        fechaInicio: `${fee.mes}-01`,
+        fechaFin: feeDateString(new Date(Date.UTC(year, month, 0))),
+      };
+    }).filter((period): period is { fechaInicio: string; fechaFin: string } => period !== null),
   };
 }
 
 type ManualFeeInput = {
   fechaInicioCobro?: string;
+  fechaInicio?: string;
   fechaFin: string;
+  vence?: string;
   importe: number;
   pagada: boolean;
   formaPago?: string | null;
@@ -70,7 +100,11 @@ export async function createCycleFee(userId: number, input: ManualFeeInput) {
   const today = await localFeeToday();
   const selectedStart = input.fechaInicioCobro ? parseFeeDate(input.fechaInicioCobro) : null;
   if (input.fechaInicioCobro && !selectedStart) throw new FeeCycleError(400, 'Elegí una fecha de inicio de cobro válida.');
+  const requestedStart = input.fechaInicio ? parseFeeDate(input.fechaInicio) : null;
+  if (input.fechaInicio && !requestedStart) throw new FeeCycleError(400, 'Elegí una fecha de inicio del período válida.');
   const endDay = parseFeeDate(input.fechaFin);
+  const dueDay = input.vence ? parseFeeDate(input.vence) : null;
+  if (input.vence && !dueDay) throw new FeeCycleError(400, 'Elegí una fecha de vencimiento del pago válida.');
   const importe = Number(input.importe);
   const paymentDay = input.pagada ? parseFeeDate(input.fechaPago) : null;
   if (!endDay || !Number.isFinite(importe) || importe < 0 || typeof input.pagada !== 'boolean') {
@@ -90,36 +124,48 @@ export async function createCycleFee(userId: number, input: ManualFeeInput) {
       if (user.cobroAutomaticoActivo || existingFees > 0) throw new FeeCycleError(409, 'El inicio de cobro solo puede definirse al crear la primera cuota.');
     }
     const anchorDay = selectedStart?.getUTCDate() || user.diaAnclaCobro || today.getUTCDate();
-    const start = selectedStart
+    const suggestedStart = selectedStart
       ? nextUnbilledAnniversary(selectedStart, user.plan.duracion, anchorDay, today)
-      : proposedStart(user, today);
+      : await proposedStart(user, today, tx);
+    const start = requestedStart ?? suggestedStart;
+    const effectiveAnchorDay = requestedStart && requestedStart.getTime() !== suggestedStart.getTime()
+      ? requestedStart.getUTCDate() : anchorDay;
+    if (start < suggestedStart) {
+      throw new FeeCycleError(400, `El período no puede comenzar antes del ${feeDateString(suggestedStart)}.`);
+    }
+    const expectedPeriod = feePeriod(start, user.plan.duracion, effectiveAnchorDay);
+    if (feeDateString(endDay) !== feeDateString(expectedPeriod.end)) {
+      throw new FeeCycleError(400, `El fin del período lo determina la duración del plan: ${feeDateString(expectedPeriod.end)}. Para cambiarlo, modificá el plan del alumno.`);
+    }
     if (endDay < start || endDay.getTime() - start.getTime() > 731 * 86_400_000) {
       throw new FeeCycleError(400, 'La fecha de fin debe ser posterior al inicio y estar dentro de dos años.');
     }
     const end = feeDayEnd(endDay);
+    const due = dueDay ?? start;
+    if (due < start || due > endDay) {
+      throw new FeeCycleError(400, 'El vencimiento del pago debe estar dentro del período de la cuota.');
+    }
     const existing = await tx.cuota.findFirst({ where: {
       ID_Usuario: userId,
       OR: [{ fechaInicio: { lte: end }, fechaFin: { gte: start } },
         { mes: feeMonth(start), OR: [{ fechaInicio: null }, { fechaFin: null }] }],
     } });
     if (existing) throw new FeeCycleError(409, 'Ya existe una cuota para ese período. Registrá el pago sobre la cuota existente.');
-    const suggested = feePeriod(start, user.plan.duracion, anchorDay);
     const nextStart = feeNextDay(endDay);
     const free = Number(user.plan.precio) === 0;
     if (free && importe !== 0) throw new FeeCycleError(400, 'Las cuotas de un plan gratuito deben tener importe cero.');
     const cuota = await tx.cuota.create({ data: {
       ID_Usuario: userId, ID_Plan: user.ID_Plan, mes: feeMonth(start),
-      fechaInicio: start, fechaFin: end, vence: feeDayEnd(start), importe,
-      pagada: free || input.pagada, vencida: !free && !input.pagada && start < today,
+      fechaInicio: start, fechaFin: end, vence: feeDayEnd(due), importe,
+      pagada: free || input.pagada, vencida: !free && !input.pagada && due < today,
       fechaPago: free ? today : paymentDay,
       formaPago: free ? 'Plan gratuito' : input.pagada ? String(input.formaPago).trim() : null,
       origen: 'MANUAL', ...buildCuotaPlanSnapshot(user.plan),
     } });
     await tx.user.update({ where: { ID_Usuario: userId }, data: {
       cobroAutomaticoActivo: true, proximoInicioCuota: nextStart,
-      ...(selectedStart ? { fechaInicioCobro: selectedStart } : {}),
-      diaAnclaCobro: end.getTime() === suggested.end.getTime()
-        ? anchorDay : nextStart.getUTCDate(),
+      ...(!user.cobroAutomaticoActivo ? { fechaInicioCobro: start } : {}),
+      diaAnclaCobro: effectiveAnchorDay,
     } });
     return cuota;
   });

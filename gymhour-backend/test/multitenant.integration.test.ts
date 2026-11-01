@@ -1,4 +1,5 @@
 import { execFileSync } from 'node:child_process';
+import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import request from 'supertest';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -28,18 +29,36 @@ async function cleanTenants() {
   await systemPrisma.platformUser.deleteMany({ where: { email: 'platform-admin@gymhour.test' } });
 }
 
-async function register(slug: string) {
+async function register(slug: string, email = 'same-admin@gymhour.test', completeOnboarding = true) {
   const response = await request(app).post('/auth/tenants').send({
-    email: 'same-admin@gymhour.test',
+    email,
     password: 'TestPassword123!',
   });
   if (response.status === 201) {
+    const user = await systemPrisma.user.findFirstOrThrow({ where: { email }, orderBy: { ID_Usuario: 'desc' } });
+    const tenant = await systemPrisma.tenant.findUniqueOrThrow({ where: { id: user.tenantId } });
+    expect(response.body.token).toBeTruthy();
+    expect(user.emailVerifiedAt).toBeNull();
+    const pendingSession = await request(app).get('/auth/me').set('Authorization', `Bearer ${response.body.token}`);
+    expect(pendingSession.status).toBe(200);
+    const pendingLogin = await request(app).post('/auth/login').send({ email, password: 'TestPassword123!' });
+    expect(pendingLogin.status).toBe(200);
+    const verificationToken = crypto.randomBytes(32).toString('base64url');
+    await systemPrisma.user.update({ where: { ID_Usuario: user.ID_Usuario }, data: {
+      emailVerificationHash: crypto.createHash('sha256').update(verificationToken).digest('hex'),
+      emailVerificationExpiry: new Date(Date.now() + 60_000),
+    } });
+    const verified = await request(app).post('/auth/verify-email').send({ token: verificationToken });
+    expect(verified.status).toBe(200);
+    expect(verified.body.token).toBeTruthy();
+    expect((await request(app).post('/auth/verify-email').send({ token: verificationToken })).status).toBe(400);
     const name = slug === slugs[0] ? 'Vitest Gym A' : 'Vitest Gym B';
-    await systemPrisma.tenant.update({ where: { id: response.body.tenant.id }, data: { name, slug } });
-    await systemPrisma.tenantSettings.update({
-      where: { tenantId: response.body.tenant.id }, data: { onboardingCompleted: true },
+    await systemPrisma.tenant.update({ where: { id: tenant.id }, data: { name, slug } });
+    if (completeOnboarding) await systemPrisma.tenantSettings.update({
+      where: { tenantId: tenant.id }, data: { onboardingCompleted: true },
     });
-    response.body.tenant = { ...response.body.tenant, name, slug };
+    response.body.user = { role: user.role };
+    response.body.tenant = { id: tenant.id, name, slug, onboardingCompleted: completeOnboarding };
   }
   return response;
 }
@@ -82,10 +101,7 @@ describe.runIf(hasTestDatabase)('API multi-tenant (MySQL aislada)', () => {
     expect(branding.body).not.toHaveProperty('id');
     expect((await request(app).get('/auth/tenants/no-existe/branding')).status).toBe(404);
 
-    const duplicatedName = await request(app).post('/auth/tenants').send({
-      email: 'other-admin@gymhour.test',
-      password: 'TestPassword123!',
-    });
+    const duplicatedName = await register(slugs[2], 'other-admin@gymhour.test', false);
     expect(duplicatedName.status).toBe(201);
     expect(duplicatedName.body.tenant.onboardingCompleted).toBe(false);
     await systemPrisma.tenant.update({

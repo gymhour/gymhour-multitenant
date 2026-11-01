@@ -1754,6 +1754,29 @@ export const getAllCuotasByUsuario = async (req: Request, res: Response): Promis
   }
 };
 
+// Al borrar cuotas, el próximo ciclo vuelve al primer período eliminado.
+// Se usa también en la eliminación por lotes para no dejar el cursor adelantado.
+const rewindFeeCycleAfterDeletion = async (
+  tx: { user: { updateMany: (args: any) => Promise<any> } },
+  deletedFees: Array<{ ID_Usuario: number; fechaInicio: Date | null }>,
+) => {
+  const firstDeletedStart = new Map<number, Date>();
+  for (const fee of deletedFees) {
+    if (!fee.fechaInicio) continue;
+    const previous = firstDeletedStart.get(fee.ID_Usuario);
+    if (!previous || fee.fechaInicio < previous) firstDeletedStart.set(fee.ID_Usuario, fee.fechaInicio);
+  }
+  for (const [userId, start] of firstDeletedStart) {
+    await tx.user.updateMany({
+      where: {
+        ID_Usuario: userId,
+        OR: [{ proximoInicioCuota: null }, { proximoInicioCuota: { gt: start } }],
+      },
+      data: { proximoInicioCuota: start },
+    });
+  }
+};
+
 // 5. Eliminar cuota
 const deleteCuota = async (req: Request, res: Response): Promise<void> => {
   try {
@@ -1765,7 +1788,7 @@ const deleteCuota = async (req: Request, res: Response): Promise<void> => {
     const result = await prisma.$transaction(async (tx) => {
       const cuota = await tx.cuota.findUnique({
         where: { ID_Cuota: id },
-        select: { ID_Cuota: true }
+        select: { ID_Cuota: true, ID_Usuario: true, fechaInicio: true }
       });
 
       if (!cuota) {
@@ -1777,6 +1800,7 @@ const deleteCuota = async (req: Request, res: Response): Promise<void> => {
       });
 
       await tx.cuota.delete({ where: { ID_Cuota: id } });
+      await rewindFeeCycleAfterDeletion(tx, [cuota]);
 
       return { turnosEliminados: turnosEliminados.count };
     });
@@ -1886,7 +1910,7 @@ const eliminarCuotasByMesLote = async (req: Request, res: Response): Promise<voi
           mes,
           pagada: false,
         },
-        select: { ID_Cuota: true },
+        select: { ID_Cuota: true, ID_Usuario: true, fechaInicio: true },
       });
 
       const cuotaIds = cuotasLote.map(c => c.ID_Cuota);
@@ -1909,6 +1933,7 @@ const eliminarCuotasByMesLote = async (req: Request, res: Response): Promise<voi
           pagada: false,
         },
       });
+      if (cuotasEliminadas.count) await rewindFeeCycleAfterDeletion(tx, cuotasLote);
 
       return {
         cuotasEliminadas: cuotasEliminadas.count,
@@ -2142,15 +2167,15 @@ export const getCuotasVencenPronto = async (req: Request, res: Response): Promis
 
     let messageParts: string[] = [];
     if (totalRecordatorios > 0) {
-      messageParts.push(`Tienes ${totalRecordatorios} cuota(s) que vencen hoy o en los próximos 3 días`);
+      messageParts.push(`Tenés ${totalRecordatorios} pago(s) de cuotas que vencen hoy o en los próximos 3 días`);
     } else {
-      messageParts.push("No hay cuotas por vencer en los próximos 3 días");
+      messageParts.push("No hay pagos de cuotas por vencer en los próximos 3 días");
     }
 
     if (totalVencidas > 0) {
-      messageParts.push(`Además tienes ${totalVencidas} cuota(s) vencida(s)`);
+      messageParts.push(`Además tenés ${totalVencidas} pago(s) de cuotas vencidos`);
     } else {
-      messageParts.push("No tienes cuotas vencidas");
+      messageParts.push("No tenés pagos de cuotas vencidos");
     }
 
     const combinedMessage = messageParts.join(". ") + ".";

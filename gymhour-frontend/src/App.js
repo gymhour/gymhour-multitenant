@@ -4,6 +4,7 @@ import { ToastContainer } from 'react-toastify'; // Importa el ToastContainer
 import ProtectedRoute from './ProtectedRoute';
 import Login from './Pages/Auth/Login/Login';
 import SignUp from './Pages/Auth/SignUp/SignUp';
+import VerifyEmail from './Pages/Auth/SignUp/VerifyEmail';
 import Onboarding from './Pages/Auth/Onboarding/Onboarding';
 import NotFound from './Pages/NotFound/NotFound';
 import AlumnoInicio from './Pages/Alumno/Inicio/AlumnoInicio';
@@ -108,6 +109,7 @@ function App() {
         <Route path="/:slug/login" element={<Login />} />
         <Route path="/g/:slug/login" element={<Login />} />
         <Route path="/sign-up" element={<SignUp />} />
+        <Route path="/verify-email" element={<VerifyEmail />} />
         <Route path="/onboarding" element={<ProtectedRoute roles={['ADMIN']}><Onboarding /></ProtectedRoute>} />
         <Route path='/forgot-password' element={<ForgotPassword />} />
         <Route path='/:slug/forgot-password' element={<ForgotPassword />} />

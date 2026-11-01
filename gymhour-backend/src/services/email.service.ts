@@ -27,6 +27,17 @@ export async function sendEmail(to: string, subject: string, html: string): Prom
     rejected: info.rejected,
   });
 }
+export async function sendVerificationEmail(email: string, verificationUrl: string): Promise<void> {
+  const safeUrl = escapeHtml(verificationUrl);
+  await sendEmail(email, 'Confirmá tu email para activar Gymhour', `<!doctype html>
+<html lang="es"><head><meta charset="utf-8"></head>
+<body style="font-family:Arial,sans-serif;color:#202124;line-height:1.5">
+  <h1>Confirmá tu email</h1>
+  <p>Para continuar con la configuración de tu gimnasio, verificá esta dirección de correo.</p>
+  <p><a href="${safeUrl}" style="display:inline-block;background:#DA4632;color:#fff;padding:12px 20px;text-decoration:none;border-radius:6px">Verificar email</a></p>
+  <p>El enlace vence en 24 horas. Si no creaste esta cuenta, podés ignorar este mensaje.</p>
+</body></html>`);
+}
 export async function sendWelcomeEmail(email: string, nombre: string): Promise<void> {
   const displayName = escapeHtml(nombre.trim().length ? nombre.trim() : "amigo/a");
   const frontendUrl = process.env.FRONTEND_URL ?? "#";
@@ -446,11 +457,11 @@ export async function sendCuotaPorVencerEmail(
   const feeDate = (date: Date) => `${String(date.getUTCDate()).padStart(2, "0")}/${String(date.getUTCMonth() + 1).padStart(2, "0")}/${date.getUTCFullYear()}`;
   const periodo = data.fechaInicio && data.fechaFin ? `${feeDate(data.fechaInicio)} al ${feeDate(data.fechaFin)}` : data.mes;
   const dias = data.diasRestantes;
-  const subject = `⏰ Tu cuota vence en ${dias} día${dias === 1 ? "" : "s"}`;
+  const subject = `⏰ El pago de tu cuota vence en ${dias} día${dias === 1 ? "" : "s"}`;
 
   const body = `
     <p>¡Hola ${displayName}!</p>
-    <p>Te avisamos que tu cuota <strong>vence el ${venceStr}</strong> (en ${dias} día${dias === 1 ? "" : "s"}).</p>
+    <p>Te avisamos que el pago de tu cuota <strong>vence el ${venceStr}</strong> (en ${dias} día${dias === 1 ? "" : "s"}).</p>
     <p style="margin:0 0 6px;">Detalle:</p>
     <ul style="margin:0 0 14px; padding-left:18px; color:#444;">
       <li>Período: <strong>${escapeHtml(periodo)}</strong></li>
@@ -460,7 +471,7 @@ export async function sendCuotaPorVencerEmail(
     <div class="cta"><a class="btn" href="${escapeHtml(frontendUrl)}" target="_blank" rel="noopener noreferrer">Ver mi cuota</a></div>
   `;
 
-  await sendEmail(email, subject, emailShell("linear-gradient(90deg,#f59e0b 0%, #f97316 100%)", "Tu cuota está por vencer ⏰", `Vence el ${venceStr}`, body));
+  await sendEmail(email, subject, emailShell("linear-gradient(90deg,#f59e0b 0%, #f97316 100%)", "El pago de tu cuota está por vencer ⏰", `Fecha límite de pago: ${venceStr}`, body));
 }
 
 /** Recordatorio: el alumno hace ~15 días que no asiste. */

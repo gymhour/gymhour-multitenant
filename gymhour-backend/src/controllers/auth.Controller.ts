@@ -3,7 +3,7 @@ import type { Request, Response } from 'express';
 import { systemPrisma } from '../models/Prisma.js';
 import { respondUnexpected } from '../services/apiError.service.js';
 import { authServices } from '../services/auth.service.js';
-import { sendResetPasswordEmail, sendWelcomeEmail } from '../services/email.service.js';
+import { sendResetPasswordEmail, sendVerificationEmail, sendWelcomeEmail } from '../services/email.service.js';
 import { comparePassword, hashPassword } from '../services/password.service.js';
 import { getTenantLogoUrl } from '../services/cloudinary.service.js';
 import { tenantPlanAccess } from '../services/planAccess.service.js';
@@ -14,6 +14,13 @@ const normalizeSlug = (value: unknown): string => String(value ?? '')
   .trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
   .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 50);
 const hashOpaqueToken = (token: string): string => crypto.createHash('sha256').update(token).digest('hex');
+const verificationExpiry = (): Date => new Date(Date.now() + 24 * 60 * 60 * 1000);
+const sendSignupVerification = (email: string, token: string): Promise<void> => {
+  const baseUrl = process.env.FRONTEND_URL;
+  if (!baseUrl) throw new Error('FRONTEND_URL no está configurada.');
+  const url = `${baseUrl.replace(/\/$/, '')}/verify-email?token=${encodeURIComponent(token)}`;
+  return sendVerificationEmail(email, url);
+};
 
 const availableTenantSlug = async (gymName: string): Promise<string> => {
   const base = normalizeSlug(gymName) || 'gimnasio';
@@ -79,6 +86,7 @@ export const registerTenant = async (req: Request, res: Response): Promise<void>
 
   try {
     const passwordHash = await hashPassword(password);
+    const verificationToken = crypto.randomBytes(32).toString('base64url');
     const kioskToken = crypto.randomBytes(32).toString('base64url');
     const registeredAt = new Date();
     let result;
@@ -100,7 +108,9 @@ export const registerTenant = async (req: Request, res: Response): Promise<void>
           const user = await tx.user.create({
             data: {
               tenantId: tenant.id, email, password: passwordHash,
-              role: 'ADMIN', estado: true,
+              role: 'ADMIN', estado: true, emailVerifiedAt: null,
+              emailVerificationHash: hashOpaqueToken(verificationToken),
+              emailVerificationExpiry: verificationExpiry(),
             },
           });
           return { tenant, user };
@@ -112,11 +122,10 @@ export const registerTenant = async (req: Request, res: Response): Promise<void>
     if (!result) throw new Error('TENANT_CREATION_FAILED');
 
     if (process.env.NODE_ENV !== 'test') {
-      try { await sendWelcomeEmail(result.user.email, result.user.nombre ?? ''); } catch (error) {
-        console.error('No se pudo enviar el email de bienvenida:', error);
+      try { await sendSignupVerification(email, verificationToken); } catch (error) {
+        console.error('No se pudo enviar la verificación:', error);
       }
     }
-
     res.status(201).json({
       token: authServices.generateToken(result.user),
       user: { id: result.user.ID_Usuario, email: result.user.email, role: result.user.role },
@@ -130,6 +139,53 @@ export const registerTenant = async (req: Request, res: Response): Promise<void>
     }
     respondUnexpected(res, error, 'crear el gimnasio');
   }
+};
+
+export const verifyEmail = async (req: Request, res: Response): Promise<void> => {
+  const token = String(req.body?.token ?? '');
+  if (!/^[A-Za-z0-9_-]{43}$/.test(token)) {
+    res.status(400).json({ message: 'El enlace de verificación no es válido.' }); return;
+  }
+  try {
+    const user = await systemPrisma.user.findUnique({ where: { emailVerificationHash: hashOpaqueToken(token) } });
+    if (!user || user.emailVerifiedAt || !user.emailVerificationExpiry || user.emailVerificationExpiry <= new Date()) {
+      res.status(400).json({ message: 'El enlace venció o ya fue utilizado. Podés seguir usando tu cuenta normalmente.' }); return;
+    }
+    const updated = await systemPrisma.user.updateMany({
+      where: { ID_Usuario: user.ID_Usuario, emailVerifiedAt: null,
+        emailVerificationHash: hashOpaqueToken(token), emailVerificationExpiry: { gt: new Date() } },
+      data: { emailVerifiedAt: new Date(), emailVerificationHash: null, emailVerificationExpiry: null },
+    });
+    if (!updated.count) { res.status(400).json({ message: 'El enlace ya fue utilizado.' }); return; }
+    if (process.env.NODE_ENV !== 'test') {
+      try { await sendWelcomeEmail(user.email, user.nombre ?? ''); } catch (error) {
+        console.error('No se pudo enviar el email de bienvenida:', error);
+      }
+    }
+    res.json({ token: authServices.generateToken(user) });
+  } catch (error) { respondUnexpected(res, error, 'verificar el email'); }
+};
+
+export const resendVerification = async (req: Request, res: Response): Promise<void> => {
+  const email = normalizeEmail(req.body?.email);
+  const password = String(req.body?.password ?? '');
+  if (!email || !password) { res.status(400).json({ message: 'Ingresá tu email y contraseña.' }); return; }
+  try {
+    const candidates = await systemPrisma.user.findMany({
+      where: { email, emailVerifiedAt: null, role: 'ADMIN', estado: true,
+        tenant: { status: 'ACTIVE', settings: { onboardingCompleted: false } } },
+      orderBy: { ID_Usuario: 'desc' },
+    });
+    const matches = await Promise.all(candidates.map(user => comparePassword(password, user.password)));
+    const user = candidates.find((_candidate, index) => matches[index]);
+    if (!user) { res.status(404).json({ message: 'No encontramos una cuenta pendiente con esos datos.' }); return; }
+    const token = crypto.randomBytes(32).toString('base64url');
+    await systemPrisma.user.update({ where: { ID_Usuario: user.ID_Usuario }, data: {
+      emailVerificationHash: hashOpaqueToken(token), emailVerificationExpiry: verificationExpiry(),
+    } });
+    if (process.env.NODE_ENV !== 'test') await sendSignupVerification(email, token);
+    res.json({ message: 'Te enviamos un nuevo enlace de verificación.' });
+  } catch (error) { respondUnexpected(res, error, 'reenviar la verificación'); }
 };
 
 export const login = async (req: Request, res: Response): Promise<void> => {
@@ -309,5 +365,5 @@ export const changePassword = async (req: Request, res: Response): Promise<void>
 };
 
 export const authMethods = {
-  tenantBranding, registerTenant, login, loginWithoutTenant, selectLoginTenant, me, forgotPassword, resetPassword, changePassword,
+  tenantBranding, registerTenant, verifyEmail, resendVerification, login, loginWithoutTenant, selectLoginTenant, me, forgotPassword, resetPassword, changePassword,
 };

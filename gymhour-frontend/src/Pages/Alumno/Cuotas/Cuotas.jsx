@@ -154,7 +154,7 @@ const Cuotas = () => {
                 <tr>
                   <th>Período cubierto</th>
                   <th>Importe</th>
-                  <th>Vence</th>
+                  <th>Vencimiento del pago</th>
                   <th>Plan</th>
                   <th>Estado</th>
                   <th>Forma de Pago</th>
@@ -170,7 +170,7 @@ const Cuotas = () => {
                     <td data-label="Importe" className="col-importe">
                       {formatCurrency(c.importe)}
                     </td>
-                    <td data-label="Vence" className="col-vence">
+                    <td data-label="Vencimiento del pago" className="col-vence">
                       {formatDate(c.vence)}
                     </td>
                     <td data-label="Plan" className="col-plan">

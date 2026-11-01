@@ -4,6 +4,8 @@
 .first-fee-dialog p{margin:0 0 20px;color:var(--text-color-distinct);font-size:14px;line-height:1.5}
 .first-fee-dialog .first-fee-period{padding:12px;border-radius:10px;background:var(--background-color-distinct);color:var(--text-color)}
 .first-fee-dialog label{display:grid;gap:6px;margin:12px 0;font-size:13px;font-weight:500}
+.first-fee-dialog label small{color:var(--text-color-distinct);font-size:12px;font-weight:400;line-height:1.4}
+.first-fee-dialog input:disabled{opacity:1;color:var(--text-color-distinct);cursor:not-allowed}
 .first-fee-dialog input,.first-fee-dialog select{width:100%;min-height:42px;padding:8px 10px;border:1px solid var(--border-color);border-radius:8px;background:var(--background-color-distinct);color:var(--text-color);font:inherit}
 .first-fee-actions{display:flex;gap:10px;margin-top:24px}
 .first-fee-actions button{flex:1;min-height:44px;border:1px solid var(--border-color);border-radius:9px;background:var(--background-color-distinct);color:var(--text-color);font:inherit;font-weight:500;cursor:pointer}

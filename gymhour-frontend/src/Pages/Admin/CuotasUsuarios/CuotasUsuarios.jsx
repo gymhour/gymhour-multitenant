@@ -1,10 +1,15 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { toast } from 'react-toastify';
+import ReactDatePicker from 'react-datepicker';
+import { es } from 'date-fns/locale';
+import { CalendarDays, ChevronDown, CircleHelp, Search } from 'lucide-react';
+import 'react-datepicker/dist/react-datepicker.css';
 import SidebarMenu from '../../../Components/SidebarMenu/SidebarMenu';
 import apiClient from '../../../axiosConfig';
 import apiService from '../../../services/apiService';
 import ConfirmationPopup from '../../../Components/utils/ConfirmationPopUp/ConfirmationPopUp';
+import { feeDurationLabel, parseFeeDuration } from '../../../utils/feeDuration';
 import '../../../App.css';
 import './CuotasUsuarios.css';
 
@@ -12,6 +17,24 @@ const dateInput = (date = new Date()) => `${date.getFullYear()}-${String(date.ge
 const formatDate = value => value ? new Date(value).toLocaleDateString('es-AR', { timeZone: 'UTC' }) : '—';
 const money = value => new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(value ?? 0);
 const message = (error, fallback) => error?.response?.data?.message || error?.message || fallback;
+const monthDate = value => /^\d{4}-(0[1-9]|1[0-2])$/.test(value || '')
+  ? new Date(Number(value.slice(0, 4)), Number(value.slice(5, 7)) - 1, 1)
+  : null;
+const monthValue = date => date ? `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}` : '';
+const localDay = value => value ? new Date(Number(value.slice(0, 4)), Number(value.slice(5, 7)) - 1, Number(value.slice(8, 10))) : null;
+const occupiedDates = periods => (periods || []).map(period => ({ start: localDay(period.fechaInicio), end: localDay(period.fechaFin) }));
+const periodEndForStart = (startValue, preview) => {
+  const start = localDay(startValue);
+  if (!start || !preview?.plan) return '';
+  const { unit, count } = parseFeeDuration(preview.plan.duracion);
+  const anchor = startValue === preview.fechaInicio ? preview.diaAnclaCobro : start.getDate();
+  const next = unit === 'WEEKS'
+    ? new Date(start.getFullYear(), start.getMonth(), start.getDate() + count * 7)
+    : new Date(start.getFullYear(), start.getMonth() + count, Math.min(anchor, new Date(start.getFullYear(), start.getMonth() + count + 1, 0).getDate()));
+  next.setDate(next.getDate() - 1);
+  return dateInput(next);
+};
+const periodOverlaps = (start, end, periods) => (periods || []).some(period => start <= period.fechaFin && end >= period.fechaInicio);
 
 export default function CuotasUsuarios({ fromAdmin }) {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -27,7 +50,7 @@ export default function CuotasUsuarios({ fromAdmin }) {
   const [students, setStudents] = useState([]);
   const [student, setStudent] = useState(null);
   const [preview, setPreview] = useState(null);
-  const [form, setForm] = useState({ fechaFin: '', importe: '', pagada: false, formaPago: 'Efectivo', fechaPago: dateInput() });
+  const [form, setForm] = useState({ fechaInicio: '', fechaFin: '', vence: '', importe: '', pagada: false, formaPago: 'Efectivo', fechaPago: dateInput() });
   const [saving, setSaving] = useState(false);
   const [paying, setPaying] = useState(null);
   const [payMethod, setPayMethod] = useState('Efectivo');
@@ -65,7 +88,7 @@ export default function CuotasUsuarios({ fromAdmin }) {
     apiClient.get(`/cuotas/usuario/${student.ID_Usuario}/preview`).then(({ data }) => {
       if (!current) return;
       setPreview(data);
-      setForm({ fechaFin: data.fechaFinSugerida, importe: String(data.importeSugerido), pagada: false, formaPago: 'Efectivo', fechaPago: dateInput() });
+      setForm({ fechaInicio: data.fechaInicio, fechaFin: data.fechaFinSugerida, vence: data.vence, importe: String(data.importeSugerido), pagada: false, formaPago: 'Efectivo', fechaPago: dateInput() });
     }).catch(error => { if (current) toast.error(message(error, 'No pudimos calcular la próxima cuota.')); });
     return () => { current = false; };
   }, [student]);
@@ -86,7 +109,8 @@ export default function CuotasUsuarios({ fromAdmin }) {
     setSaving(true);
     try {
       await apiClient.post(`/cuotas/usuario/${student.ID_Usuario}`, {
-        fechaFin: form.fechaFin, importe: Number(form.importe), pagada: form.pagada,
+        fechaInicio: form.fechaInicio, fechaFin: form.fechaFin, vence: form.vence,
+        importe: Number(form.importe), pagada: form.pagada,
         ...(form.pagada ? { formaPago: form.formaPago, fechaPago: form.fechaPago } : {}),
       });
       toast.success('Cuota creada. El próximo ciclo se calculará desde el día siguiente al fin del período.');
@@ -119,20 +143,58 @@ export default function CuotasUsuarios({ fromAdmin }) {
     finally { setDeleteSaving(false); }
   };
 
+  const blocked = occupiedDates(preview?.periodosOcupados);
+  const canStartOn = date => {
+    if (!preview) return false;
+    const start = dateInput(date);
+    const end = periodEndForStart(start, preview);
+    return start >= preview.fechaInicio && !periodOverlaps(start, end, preview.periodosOcupados);
+  };
+
   return <div className="page-layout">
     <SidebarMenu isAdmin={fromAdmin} />
     <main className="content-layout fee-cycle-page">
-      <div className="fee-cycle-heading"><div><h1>Cuotas</h1><p>Cada socio tiene su propio período y día de cobro. Las próximas cuotas se crean automáticamente tres días antes del vencimiento.</p></div><button className="primary-button" onClick={() => setCreating(true)}>Crear próxima cuota</button></div>
+      <div className="fee-cycle-heading"><div><h1>Cuotas</h1><p>Cada socio tiene su propio período y día de cobro. Las próximas cuotas se crean automáticamente tres días antes de que comience el siguiente período.</p></div><button className="primary-button" onClick={() => setCreating(true)}>Crear próxima cuota</button></div>
       <form className="fee-cycle-filters" onSubmit={applyFilters}>
-        <label>Mes de vencimiento<input type="month" value={filters.mes} onChange={e => setFilters({ ...filters, mes: e.target.value })} /></label>
-        <label>Estado<select value={filters.estado} onChange={e => setFilters({ ...filters, estado: e.target.value })}><option value="">Todos</option><option value="pendiente">Pendiente</option><option value="pagada">Pagada</option><option value="vencida">Vencida</option></select></label>
-        <label>Socio<input value={filters.studentName} onChange={e => setFilters({ ...filters, studentName: e.target.value })} placeholder="Nombre o apellido" /></label>
-        <button className="secondary-button" type="submit">Filtrar</button>
+        <div className="fee-cycle-filter-field">
+          <label htmlFor="fee-cycle-month">Mes de vencimiento del pago</label>
+          <div className="fee-cycle-filter-control fee-cycle-filter-month">
+            <CalendarDays size={17} aria-hidden="true" />
+            <ReactDatePicker
+              id="fee-cycle-month"
+              selected={monthDate(filters.mes)}
+              onChange={date => setFilters(current => ({ ...current, mes: monthValue(date) }))}
+              dateFormat="MMMM yyyy"
+              showMonthYearPicker
+              locale={es}
+              placeholderText="Todos los meses"
+              isClearable
+              autoComplete="off"
+              calendarClassName="fee-cycle-month-calendar"
+              popperClassName="fee-cycle-month-popper"
+            />
+          </div>
+        </div>
+        <div className="fee-cycle-filter-field">
+          <label htmlFor="fee-cycle-status">Estado</label>
+          <div className="fee-cycle-filter-control fee-cycle-filter-select">
+            <select id="fee-cycle-status" value={filters.estado} onChange={e => setFilters(current => ({ ...current, estado: e.target.value }))}><option value="">Todos los estados</option><option value="pendiente">Pendiente</option><option value="pagada">Pagada</option><option value="vencida">Vencida</option></select>
+            <ChevronDown size={16} aria-hidden="true" />
+          </div>
+        </div>
+        <div className="fee-cycle-filter-field fee-cycle-filter-student">
+          <label htmlFor="fee-cycle-student">Socio</label>
+          <div className="fee-cycle-filter-control">
+            <Search size={17} aria-hidden="true" />
+            <input id="fee-cycle-student" value={filters.studentName} onChange={e => setFilters(current => ({ ...current, studentName: e.target.value }))} placeholder="Nombre o apellido" />
+          </div>
+        </div>
+        <button className="primary-button fee-cycle-filter-submit" type="submit">Aplicar filtros</button>
       </form>
-      {loading ? <p>Cargando cuotas…</p> : rows.length === 0 ? <p>No hay cuotas para mostrar.</p> : <div className="table-responsive"><table className="cuotas-table"><thead><tr><th>Socio</th><th>Período cubierto</th><th>Vence</th><th>Plan</th><th>Importe</th><th>Estado</th><th>Pago</th><th>Acción</th></tr></thead><tbody>{rows.map(fee => <tr key={fee.ID_Cuota}>
+      {loading ? <p>Cargando cuotas…</p> : rows.length === 0 ? <p>No hay cuotas para mostrar.</p> : <div className="table-responsive"><table className="cuotas-table"><thead><tr><th>Socio</th><th>Período cubierto</th><th>Vencimiento del pago</th><th>Plan</th><th>Importe</th><th>Estado</th><th>Pago</th><th>Acción</th></tr></thead><tbody>{rows.map(fee => <tr key={fee.ID_Cuota}>
         <td data-label="Socio">{fee.User ? `${fee.User.nombre} ${fee.User.apellido}` : '—'}</td>
         <td data-label="Período">{fee.fechaInicio && fee.fechaFin ? `${formatDate(fee.fechaInicio)} – ${formatDate(fee.fechaFin)}` : fee.mes}</td>
-        <td data-label="Vence">{formatDate(fee.vence)}</td>
+        <td data-label="Vencimiento del pago">{formatDate(fee.vence)}</td>
         <td data-label="Plan">{fee.planNombreSnapshot || fee.User?.plan?.nombre || '—'}</td>
         <td data-label="Importe">{money(fee.importe)}</td>
         <td data-label="Estado"><span className={`badge ${fee.pagada ? 'paid' : fee.vencida ? 'expired' : 'pending'}`}>{fee.pagada ? 'Pagada' : fee.vencida ? 'Vencida' : 'Pendiente'}</span></td>
@@ -145,14 +207,21 @@ export default function CuotasUsuarios({ fromAdmin }) {
       <div className="fee-cycle-pagination"><span>{meta.totalItems} cuotas</span><button type="button" disabled={page <= 1} onClick={() => setPage(page - 1)}>Anterior</button><span>{page} / {Math.max(1, meta.totalPages)}</span><button type="button" disabled={page >= meta.totalPages} onClick={() => setPage(page + 1)}>Siguiente</button></div>
     </main>
 
-    {creating && <div className="fee-cycle-overlay" role="presentation" onMouseDown={e => { if (e.target === e.currentTarget) { setCreating(false); setStudent(null); } }}><div className="fee-cycle-dialog" role="dialog" aria-modal="true" aria-label="Crear próxima cuota"><div className="fee-cycle-dialog-head"><h2>Crear próxima cuota</h2><button type="button" onClick={() => { setCreating(false); setStudent(null); }} aria-label="Cerrar">×</button></div><p>Elegí un socio. El período propuesto empieza donde terminó su última cuota, o en su próximo aniversario de cobro.</p>
-      <label>Buscar socio<input autoFocus value={search} onChange={e => { setSearch(e.target.value); setStudent(null); }} placeholder="Nombre, apellido o DNI" /></label>
+    {creating && <div className="fee-cycle-overlay" role="presentation" onMouseDown={e => { if (e.target === e.currentTarget) { setCreating(false); setStudent(null); } }}><div className="fee-cycle-dialog fee-cycle-create-dialog" role="dialog" aria-modal="true" aria-label="Crear próxima cuota"><div className="fee-cycle-dialog-head"><div><h2>Crear próxima cuota</h2><p>Elegí un socio y revisá los datos del nuevo período.</p></div><button type="button" onClick={() => { setCreating(false); setStudent(null); }} aria-label="Cerrar">×</button></div>
+      <label className="fee-cycle-student-search">Socio<input autoFocus value={search} onChange={e => { setSearch(e.target.value); setStudent(null); }} placeholder="Buscar por nombre, apellido o DNI" /></label>
       {!student && students.length > 0 && <div className="fee-cycle-students">{students.map(item => <button key={item.ID_Usuario} type="button" onClick={() => { setStudent(item); setSearch(`${item.nombre} ${item.apellido}`); setStudents([]); }}>{item.nombre} {item.apellido} {item.dni ? `· ${item.dni}` : ''}{item.plan && !item.cobroAutomaticoActivo ? ' · Primera cuota pendiente' : ''}</button>)}</div>}
-      {student && preview && <form onSubmit={createFee}><div className="fee-cycle-preview"><strong>{student.nombre} {student.apellido}</strong><span>Inicio y vencimiento: {formatDate(`${preview.fechaInicio}T00:00:00Z`)}</span><span>Plan: {preview.plan.nombre}</span></div>
-        <label>Fin del período<input type="date" min={preview.fechaInicio} required value={form.fechaFin} onChange={e => setForm({ ...form, fechaFin: e.target.value })} /></label>
-        <label>Importe<input type="number" min="0" step="0.01" required value={form.importe} onChange={e => setForm({ ...form, importe: e.target.value })} /></label>
-        <label>Estado<select value={form.pagada ? 'pagada' : 'pendiente'} onChange={e => setForm({ ...form, pagada: e.target.value === 'pagada' })}><option value="pendiente">Pendiente</option><option value="pagada">Pagada</option></select></label>
-        {form.pagada && <><label>Medio de pago<input required value={form.formaPago} onChange={e => setForm({ ...form, formaPago: e.target.value })} /></label><label>Fecha de pago<input type="date" max={dateInput()} required value={form.fechaPago} onChange={e => setForm({ ...form, fechaPago: e.target.value })} /></label></>}
+      {student && preview && <form className="fee-cycle-create-form" onSubmit={createFee}>
+        <p className="fee-cycle-plan-line">Plan de {student.nombre} {student.apellido}: <strong>{preview.plan.nombre}</strong></p>
+        <div className="fee-cycle-form-section"><h3>Período de la cuota</h3><div className="fee-cycle-field-grid">
+          <label>Inicio del período<ReactDatePicker selected={localDay(form.fechaInicio)} onChange={date => { const fechaInicio = dateInput(date); setForm(current => ({ ...current, fechaInicio, fechaFin: periodEndForStart(fechaInicio, preview), vence: fechaInicio })); }} minDate={localDay(preview.fechaInicio)} excludeDateIntervals={blocked} filterDate={canStartOn} dateFormat="dd/MM/yyyy" locale={es} required autoComplete="off" portalId="fee-cycle-date-portal" /></label>
+          <label>Fin del período<input type="date" value={form.fechaFin} disabled aria-describedby="fee-cycle-end-explanation" /><small id="fee-cycle-end-explanation">El plan cubre {feeDurationLabel(preview.plan.duracion)}. Para cambiar el fin, modificá el plan.</small></label>
+        </div></div>
+        <div className="fee-cycle-form-section"><h3>Pago</h3><div className="fee-cycle-field-grid">
+          <div className="fee-cycle-field"><div className="fee-cycle-field-title"><label htmlFor="fee-payment-due">Vencimiento del pago</label><span className="fee-cycle-help"><button type="button" aria-label="¿Para qué sirve el vencimiento del pago?" aria-describedby="fee-payment-due-tooltip"><CircleHelp size={16} aria-hidden="true" /></button><span id="fee-payment-due-tooltip" role="tooltip">Es el último día para pagar esta cuota. Si pasa sin registrar el pago, la cuota queda vencida y puede bloquear reservas e ingresos.</span></span></div><ReactDatePicker id="fee-payment-due" selected={localDay(form.vence)} onChange={date => setForm(current => ({ ...current, vence: dateInput(date) }))} minDate={localDay(form.fechaInicio)} maxDate={localDay(form.fechaFin)} dateFormat="dd/MM/yyyy" locale={es} required autoComplete="off" portalId="fee-cycle-date-portal" /></div>
+          <label>Importe<input type="number" min="0" step="0.01" required value={form.importe} onChange={e => setForm({ ...form, importe: e.target.value })} /></label>
+          <label>Estado<select value={form.pagada ? 'pagada' : 'pendiente'} onChange={e => setForm({ ...form, pagada: e.target.value === 'pagada' })}><option value="pendiente">Pendiente</option><option value="pagada">Pagada</option></select></label>
+          {form.pagada && <><label>Medio de pago<input required value={form.formaPago} onChange={e => setForm({ ...form, formaPago: e.target.value })} /></label><label>Fecha de pago<input type="date" max={dateInput()} required value={form.fechaPago} onChange={e => setForm({ ...form, fechaPago: e.target.value })} /></label></>}
+        </div></div>
         <div className="fee-cycle-actions"><button type="button" onClick={() => setCreating(false)}>Cancelar</button><button className="primary-button" disabled={saving}>{saving ? 'Guardando…' : 'Crear cuota'}</button></div>
       </form>}
     </div></div>}

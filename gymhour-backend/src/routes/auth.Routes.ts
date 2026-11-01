@@ -23,6 +23,8 @@ const forgotPasswordLimiter = rateLimit({
 });
 
 authRouter.post('/tenants', loginLimiter, authMethods.registerTenant);
+authRouter.post('/verify-email', loginLimiter, authMethods.verifyEmail);
+authRouter.post('/resend-verification', forgotPasswordLimiter, authMethods.resendVerification);
 authRouter.get('/tenants/:slug/branding', authMethods.tenantBranding);
 authRouter.post('/login', loginLimiter, authMethods.loginWithoutTenant);
 authRouter.post('/login/select-tenant', loginLimiter, authMethods.selectLoginTenant);

@@ -985,20 +985,187 @@
 .fee-cycle-heading p { max-width: 720px; color: var(--text-color-distinct); line-height: 1.5; }
 
 .fee-cycle-filters {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(190px, 1fr) minmax(180px, .9fr) minmax(220px, 1.25fr) auto;
   align-items: end;
-  flex-wrap: wrap;
-  gap: 12px;
+  gap: 14px;
   margin-bottom: 24px;
+  padding: 18px;
+  border: 1px solid var(--border-color);
+  border-radius: 16px;
+  background: var(--background-color);
+  box-shadow: 0 8px 28px rgba(0, 0, 0, .035);
 }
 
-.fee-cycle-filters label,
+.fee-cycle-filter-field {
+  min-width: 0;
+}
+
+.fee-cycle-filter-field label {
+  display: block;
+  margin-bottom: 8px;
+  color: var(--text-color-distinct);
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: .01em;
+}
+
+.fee-cycle-filter-control {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  padding: 0 13px;
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  background: var(--background-color-distinct);
+  color: var(--text-color-distinct);
+  transition: border-color 150ms ease, box-shadow 150ms ease, background-color 150ms ease;
+}
+
+.fee-cycle-filter-control:hover {
+  border-color: var(--text-color-distinct);
+}
+
+.fee-cycle-filter-control:focus-within {
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 3px var(--background-hover-color);
+  background: var(--background-color);
+}
+
+.fee-cycle-filter-control > svg {
+  flex: none;
+}
+
+.fee-cycle-filter-month .react-datepicker-wrapper,
+.fee-cycle-filter-month .react-datepicker__input-container {
+  width: 100%;
+  min-width: 0;
+}
+
+.fee-cycle-filters .fee-cycle-filter-control input,
+.fee-cycle-filters .fee-cycle-filter-control select {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  min-height: 42px;
+  padding: 0;
+  border: 0;
+  outline: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  color: var(--text-color);
+  font-size: 14px;
+}
+
+.fee-cycle-filters .fee-cycle-filter-control input::placeholder {
+  color: var(--text-color-distinct);
+  opacity: .8;
+}
+
+.fee-cycle-filters .fee-cycle-filter-month input {
+  padding-right: 22px;
+}
+
+.fee-cycle-filter-select select {
+  appearance: none;
+  cursor: pointer;
+}
+
+.fee-cycle-filter-select svg {
+  pointer-events: none;
+}
+
+.fee-cycle-filters .fee-cycle-filter-control input:focus-visible,
+.fee-cycle-filters .fee-cycle-filter-control select:focus-visible {
+  outline: 0;
+}
+
+.fee-cycle-page .fee-cycle-filter-month .react-datepicker__close-icon {
+  right: 0;
+  min-height: 42px;
+  padding: 0 2px;
+}
+
+.fee-cycle-filter-month .react-datepicker__close-icon::after {
+  width: 16px;
+  height: 16px;
+  background: var(--text-color-distinct);
+  font-size: 12px;
+  line-height: 16px;
+}
+
+.fee-cycle-filter-submit {
+  min-height: 44px !important;
+  padding-inline: 18px !important;
+}
+
+.fee-cycle-month-calendar {
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  overflow: hidden;
+  background: var(--background-color);
+  color: var(--text-color);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, .14);
+  font-family: inherit;
+}
+
+.fee-cycle-month-calendar .react-datepicker__header {
+  border-bottom: 1px solid var(--border-color);
+  background: var(--background-color-distinct);
+}
+
+.fee-cycle-page .fee-cycle-month-calendar .react-datepicker__navigation {
+  top: 6px;
+  width: 32px;
+  min-height: 32px;
+  padding: 0;
+}
+
+.fee-cycle-month-calendar .react-datepicker__current-month,
+.fee-cycle-month-calendar .react-datepicker__month-text {
+  color: var(--text-color);
+}
+
+.fee-cycle-month-calendar .react-datepicker__month-text:hover {
+  background: var(--background-hover-color);
+}
+
+.fee-cycle-month-calendar .react-datepicker__month-text--selected,
+.fee-cycle-month-calendar .react-datepicker__month-text--keyboard-selected {
+  background: var(--primary-color);
+  color: #fff;
+}
+
+.fee-cycle-month-calendar .react-datepicker__month-text--selected:hover,
+.fee-cycle-month-calendar .react-datepicker__month-text--keyboard-selected:hover {
+  background: var(--primary-color-hover);
+  color: #fff;
+}
+
+.fee-cycle-month-popper {
+  z-index: 20;
+}
+
 .fee-cycle-dialog label {
   display: grid;
   gap: 7px;
   font-size: 14px;
   font-weight: 400;
   color: var(--text-color);
+}
+.fee-cycle-dialog label small {
+  color: var(--text-color-distinct);
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.4;
+}
+.fee-cycle-dialog input:disabled {
+  opacity: 1;
+  background: var(--background-color-distinct);
+  color: var(--text-color-distinct);
+  cursor: not-allowed;
 }
 
 .fee-cycle-filters input,
@@ -1148,6 +1315,9 @@
 }
 
 .fee-cycle-dialog form { display: grid; gap: 15px; }
+.fee-cycle-dialog .react-datepicker-wrapper,
+.fee-cycle-dialog .react-datepicker__input-container { width: 100%; }
+#fee-cycle-date-portal { position: relative; z-index: 2100; }
 .fee-cycle-dialog p { margin: 0; color: var(--text-color-distinct); line-height: 1.5; }
 .fee-cycle-dialog-head { display: flex; justify-content: space-between; align-items: center; gap: 16px; }
 .fee-cycle-dialog-head h2 { margin: 0; }
@@ -1183,8 +1353,167 @@
 
 .fee-cycle-students button + button { border-top: 1px solid var(--border-color); }
 .fee-cycle-dialog .fee-cycle-students button:hover { background: var(--background-hover-color); }
-.fee-cycle-preview { display: grid; gap: 5px; padding: 13px; background: var(--background-color-distinct); border-radius: 9px; }
 .fee-cycle-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 8px; }
+
+.fee-cycle-create-dialog {
+  width: min(100%, 640px);
+  gap: 20px;
+  padding: 30px;
+  border-radius: 20px;
+}
+
+.fee-cycle-create-dialog .fee-cycle-dialog-head {
+  align-items: flex-start;
+  padding-bottom: 19px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.fee-cycle-create-dialog .fee-cycle-dialog-head h2 {
+  margin-bottom: 5px;
+  font-size: 22px;
+  line-height: 1.2;
+  font-weight: 600;
+}
+
+.fee-cycle-create-dialog .fee-cycle-dialog-head p {
+  font-size: 13px;
+}
+
+.fee-cycle-create-dialog .fee-cycle-student-search {
+  font-weight: 500;
+}
+
+.fee-cycle-create-dialog .fee-cycle-create-form {
+  gap: 22px;
+}
+
+.fee-cycle-create-dialog .fee-cycle-plan-line {
+  font-size: 14px;
+  color: var(--text-color-distinct);
+}
+
+.fee-cycle-plan-line strong {
+  color: var(--text-color);
+  font-weight: 600;
+}
+
+.fee-cycle-form-section {
+  display: grid;
+  gap: 12px;
+}
+
+.fee-cycle-form-section + .fee-cycle-form-section {
+  padding-top: 20px;
+  border-top: 1px solid var(--border-color);
+}
+
+.fee-cycle-form-section h3 {
+  margin: 0;
+  color: var(--text-color);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.fee-cycle-field-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
+  gap: 14px 16px;
+}
+
+.fee-cycle-field-grid > label,
+.fee-cycle-field-grid > .fee-cycle-field {
+  display: flex;
+  flex-direction: column;
+  align-self: start;
+  min-width: 0;
+  gap: 7px;
+  font-weight: 500;
+  line-height: 20px;
+}
+.fee-cycle-field-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 20px;
+}
+.fee-cycle-field-title label {
+  display: inline;
+  gap: 0;
+  line-height: 20px;
+}
+.fee-cycle-help { position: relative; display: inline-flex; }
+.fee-cycle-create-dialog .fee-cycle-help button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  min-width: 20px;
+  min-height: 20px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--text-color-distinct);
+  cursor: help;
+}
+.fee-cycle-create-dialog .fee-cycle-help button:hover { color: var(--primary-color); }
+.fee-cycle-create-dialog .fee-cycle-help button:focus-visible {
+  outline: 2px solid var(--primary-color);
+  outline-offset: 2px;
+}
+.fee-cycle-help [role="tooltip"] {
+  position: absolute;
+  bottom: calc(100% + 10px);
+  left: 50%;
+  z-index: 10;
+  width: min(290px, calc(100vw - 50px));
+  padding: 11px 13px;
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  background: var(--background-color);
+  color: var(--text-color);
+  box-shadow: 0 12px 30px rgba(0, 0, 0, .18);
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.5;
+  transform: translateX(-50%);
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+.fee-cycle-help:hover [role="tooltip"],
+.fee-cycle-help:focus-within [role="tooltip"] {
+  opacity: 1;
+  visibility: visible;
+}
+.fee-cycle-field-grid .react-datepicker-wrapper { display: block; }
+.fee-cycle-field-grid input,
+.fee-cycle-field-grid select {
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  height: 44px;
+  min-height: 44px;
+  margin: 0;
+}
+
+.fee-cycle-create-dialog .fee-cycle-actions {
+  margin-top: 0;
+  padding-top: 19px;
+  border-top: 1px solid var(--border-color);
+}
+
+@media (max-width: 1000px) {
+  .fee-cycle-filters {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .fee-cycle-filter-submit {
+    width: 100%;
+  }
+}
 
 @media (max-width: 700px) {
   .fee-cycle-heading { flex-direction: column; }
@@ -1195,7 +1524,10 @@
 
 @media (max-width: 480px) {
   .fee-cycle-heading .primary-button { width: 100%; }
-  .fee-cycle-filters label { width: 100%; }
-  .fee-cycle-filters .secondary-button { width: 100%; }
+  .fee-cycle-filters { grid-template-columns: minmax(0, 1fr); padding: 16px; }
   .fee-cycle-dialog { padding: 20px; }
+  .fee-cycle-create-dialog { gap: 16px; padding: 20px; }
+  .fee-cycle-field-grid { grid-template-columns: minmax(0, 1fr); gap: 12px; }
+  .fee-cycle-create-dialog .fee-cycle-actions { flex-direction: column-reverse; }
+  .fee-cycle-create-dialog .fee-cycle-actions button { width: 100%; }
 }

@@ -6,7 +6,6 @@ import {
   Users,
   BarChart3,
   ArrowRight,
-  Check,
 } from "lucide-react";
 import { authClient } from "../../../axiosConfig";
 import { useAuth } from "../../../context/AuthContext";
@@ -86,11 +85,7 @@ const SignUp = () => {
     try {
       const { data } = await authClient.post("/auth/tenants", form);
       await login(data.token);
-      if (data.kioskActivationToken)
-        sessionStorage.setItem(
-          "newKioskActivationToken",
-          data.kioskActivationToken,
-        );
+      if (data.kioskActivationToken) sessionStorage.setItem("newKioskActivationToken", data.kioskActivationToken);
       navigate("/onboarding", { replace: true });
     } catch (error) {
       setMessage(
@@ -139,7 +134,7 @@ const SignUp = () => {
           <div className="signup-card" id="crear-cuenta">
             <span className="signup-section-label">Empezá ahora</span>
             <h2>Creá tu cuenta gratis</h2>
-            <p>Probá Gymhour durante 14 días. Solo necesitás tu email.</p>
+            <p>Probá Gymhour durante 14 días. Te enviaremos un correo de confirmación y podrás completar la configuración enseguida.</p>
             <form className="signup-form" onSubmit={handleSubmit}>
               <label>
                 Email

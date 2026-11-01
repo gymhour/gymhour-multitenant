@@ -10,9 +10,9 @@ import './SubscriptionExpired.css';
 const money = amount => new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 }).format(amount);
 const planDetails = {
   ESSENTIAL: ['Rutinas y turnos', 'Cuotas de socios', 'Ingresos y salidas de dinero'],
-  PRO: ['Todo lo de Esencial', 'Ingreso por QR y DNI', 'Asistencias y predictor de bajas', 'Asistente con IA'],
+  PRO: ['Todo lo de Esencial', 'Ingreso por QR y DNI', 'Asistencias y predictor de bajas', 'Asistente con IA', 'Cobros automáticos a socios con Mercado Pago'],
 };
-const customDetails = ['Todo lo de Pro', 'Molinete o puerta', 'Cobros de socios y ARCA', 'Multisucursal y desarrollos a medida'];
+const customDetails = ['Todo lo de Pro', 'Molinete o puerta', 'Cobros de socios y ARCA', 'Cobros automáticos con bancos (Macro, Galicia y otros)', 'Multisucursal y desarrollos a medida'];
 
 export default function SubscriptionExpired({ plansPage = false }) {
   const { user, tenant, refresh } = useAuth();
@@ -235,7 +235,7 @@ export default function SubscriptionExpired({ plansPage = false }) {
           : order ? 'Finalizá el pago para activar tu plan.' : 'Elegí las funciones que necesitás para tu gimnasio.'
         : `La suscripción de ${tenant?.name || 'tu gimnasio'} venció. Contactá al administrador para volver a usar Gymhour.`}</p>
       {admin && <div className="subscription-checkout">
-        {catalog?.offer?.kind === 'ENTERPRISE' ? <div className="subscription-checkout__active"><strong>Plan A medida</strong><span>Tu gimnasio tiene más de 200 socios activos. Armamos una propuesta con capacidad ilimitada e integraciones según tus necesidades.</span><a href={subscriptionLink(tenant)} target="_blank" rel="noopener noreferrer">Solicitar propuesta →</a></div> : <>
+        {catalog?.offer?.kind === 'ENTERPRISE' ? <div className="subscription-checkout__active"><strong>Plan A medida</strong><span>Tu gimnasio tiene más de 200 socios activos. Armamos una propuesta con capacidad ilimitada, cobros automáticos con bancos como Macro y Galicia, e integraciones según tus necesidades.</span><a href={subscriptionLink(tenant)} target="_blank" rel="noopener noreferrer">Solicitar propuesta →</a></div> : <>
           {!order && !showingChange && catalog?.plans?.length > 0 && <>
             <div className="subscription-checkout__tier"><span>Planes mensuales</span><span>{catalog.activeStudents} socios activos</span></div>
             <div className="subscription-checkout__plans" role="group" aria-label="Plan de Gymhour">

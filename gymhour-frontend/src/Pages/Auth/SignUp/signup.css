@@ -5,6 +5,25 @@
     scroll-behavior: smooth
 }
 
+.signup-verification {
+    min-height: 100vh;
+    display: grid;
+    place-items: center;
+    padding: 24px;
+}
+
+.signup-verification .signup-card {
+    width: min(100%, 480px);
+    display: grid;
+    gap: 16px;
+}
+
+.signup-verification__logo {
+    width: 140px;
+    max-height: 60px;
+    object-fit: contain;
+}
+
 .signup-page * {
     box-sizing: border-box
 }
