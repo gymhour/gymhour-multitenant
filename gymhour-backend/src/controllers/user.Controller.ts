@@ -8,8 +8,8 @@ import { deleteImage, getImageUrl, getMedicalRecordUrl, uploadImageBuffer } from
 import { sendWelcomeEmail } from "../services/email.service.js";
 import { hashPassword } from "../services/password.service.js";
 import { isForbiddenSelfRoleChange } from "../services/userRole.service.js";
-import { feeDateString, feeNextDay, parseFeeDate } from '../services/feeDates.service.js';
-import { localFeeToday } from '../services/feeCycle.service.js';
+import { feeDateString, feeNextDay, feePeriod, parseFeeDate } from '../services/feeDates.service.js';
+import { buildImportedFeeCycle, localFeeToday } from '../services/feeCycle.service.js';
 
 // Parsea la fecha de cumpleaños del import masivo. Acepta DD/MM/AAAA (formato del Excel) e ISO AAAA-MM-DD.
 // Devuelve { date } (mediodía UTC para evitar drift de día), { date: null } si viene vacío, o { error }.
@@ -50,6 +50,18 @@ const parseImportPlanId = (value: unknown): { planId: number | null } | { error:
     }
     return { planId };
 };
+
+const parseCuotaPagaImport = (value: unknown): { paid: boolean } | { error: string } => {
+    const raw = String(value ?? '').trim().toUpperCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+    if (!raw || raw === 'NO') return { paid: false };
+    if (raw === 'SI') return { paid: true };
+    return { error: 'Usá SI o NO' };
+};
+
+// Las fechas de cuota van a medianoche UTC; parseFechaImport devuelve mediodía.
+const toFeeDay = (date: Date | null): Date | null => (
+    date && new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()))
+);
 
 const IMPORT_USERS_BATCH_SIZE = 100;
 
@@ -561,7 +573,7 @@ export const getAllUsers = async (req: Request, res: Response): Promise<void> =>
             observacionesSalud: true, fichaMedicaUrl: true,
             fechaRegistro: true, fechaInicioCobro: true, proximoInicioCuota: true, cobroAutomaticoActivo: true,
             usaTurnosFijos: true,
-            plan: { select: { ID_Plan: true, nombre: true, precio: true, duracion: true, sesionesPorSemana: true, sesionesGracia: true, requiereTurno: true } },
+            plan: { select: { ID_Plan: true, nombre: true, precio: true, duracion: true, sesionesPorSemana: true, requiereTurno: true } },
             TurnosFijos: {
                 where: { activo: true },
                 include: { HorarioClase: { include: { Clase: true } } }
@@ -672,7 +684,6 @@ export const getAllEntrenadores = async (req: Request, res: Response): Promise<v
                         precio: true,
                         duracion: true,
                         sesionesPorSemana: true,
-                        sesionesGracia: true,
                         requiereTurno: true
                     }
                 },
@@ -768,7 +779,6 @@ export const getUserById = async (req: Request, res: Response): Promise<void> =>
                         precio: true,
                         duracion: true,
                         sesionesPorSemana: true,
-                        sesionesGracia: true,
                         requiereTurno: true
                     }
                 },
@@ -1219,6 +1229,21 @@ export const importUsers = async (req: Request, res: Response): Promise<void> =>
             if ('error' in planParsed) {
                 errors.push({ fila, campo: 'ID_Plan', error: planParsed.error });
             }
+            const inicioParsed = parseFechaImport(u.inicioPeriodo);
+            if ('error' in inicioParsed) {
+                errors.push({ fila, campo: 'inicioPeriodo', error: inicioParsed.error });
+            }
+            const pagoParsed = parseCuotaPagaImport(u.cuotaPaga);
+            if ('error' in pagoParsed) {
+                errors.push({ fila, campo: 'cuotaPaga', error: pagoParsed.error });
+            }
+            const tieneInicio = 'date' in inicioParsed && inicioParsed.date !== null;
+            if (tieneInicio && 'planId' in planParsed && planParsed.planId === null) {
+                errors.push({ fila, campo: 'inicioPeriodo', error: 'Para indicar el inicio del período, el socio necesita un ID_Plan' });
+            }
+            if ('paid' in pagoParsed && pagoParsed.paid && !tieneInicio && !('error' in inicioParsed)) {
+                errors.push({ fila, campo: 'cuotaPaga', error: 'Para marcar la cuota como paga, indicá también inicioPeriodo' });
+            }
         });
         if (errors.length > 0) {
             res.status(400).json({ message: 'Algunos usuarios no se pudieron procesar. Revisá el detalle.', errors });
@@ -1277,14 +1302,23 @@ export const importUsers = async (req: Request, res: Response): Promise<void> =>
             .filter((parsed): parsed is { planId: number } => 'planId' in parsed && parsed.planId !== null)
             .map(parsed => parsed.planId))];
         const planes = planIds.length > 0
-            ? await prisma.plan.findMany({ where: { ID_Plan: { in: planIds } }, select: { ID_Plan: true } })
+            ? await prisma.plan.findMany({ where: { ID_Plan: { in: planIds } } })
             : [];
-        const existingPlanIds = new Set(planes.map(p => p.ID_Plan));
+        const planesById = new Map(planes.map(p => [p.ID_Plan, p]));
+        const today = await localFeeToday();
 
         usuarios.forEach((u: any, i: number) => {
             const planParsed = parseImportPlanId(u.ID_Plan);
-            if ('planId' in planParsed && planParsed.planId !== null && !existingPlanIds.has(planParsed.planId)) {
+            if (!('planId' in planParsed) || planParsed.planId === null) return;
+            const plan = planesById.get(planParsed.planId);
+            if (!plan) {
                 errors.push({ fila: i + 2, campo: 'ID_Plan', error: 'No existe un plan con ese ID' });
+                return;
+            }
+            const inicioParsed = parseFechaImport(u.inicioPeriodo);
+            const start = 'date' in inicioParsed ? toFeeDay(inicioParsed.date) : null;
+            if (start && feePeriod(start, plan.duracion).nextStart <= today) {
+                errors.push({ fila: i + 2, campo: 'inicioPeriodo', error: 'Ese período ya terminó. Indicá el inicio del período actual' });
             }
         });
         if (errors.length > 0) {
@@ -1297,13 +1331,23 @@ export const importUsers = async (req: Request, res: Response): Promise<void> =>
         // masivo no se cuelgue por el hasheo; el alumno debería cambiarlo igual.
         const BULK_SALT_ROUNDS = 10;
         const data: Prisma.UserCreateManyInput[] = [];
+        const cuotasPorEmail = new Map<string, NonNullable<ReturnType<typeof buildImportedFeeCycle>['fee']>>();
         for (const batch of chunkArray(usuarios, IMPORT_USERS_BATCH_SIZE)) {
             const batchData = await Promise.all(batch.map(async (u: any) => {
                 const fechaParsed = parseFechaImport(u.fechaCumple);
                 const fechaCumple = 'date' in fechaParsed ? fechaParsed.date : null;
                 const planParsed = parseImportPlanId(u.ID_Plan);
                 const ID_Plan = 'planId' in planParsed ? planParsed.planId : null;
+                const plan = ID_Plan ? planesById.get(ID_Plan) : null;
+                const inicioParsed = parseFechaImport(u.inicioPeriodo);
+                const start = 'date' in inicioParsed ? toFeeDay(inicioParsed.date) : null;
+                const pagoParsed = parseCuotaPagaImport(u.cuotaPaga);
+                const cycle = plan
+                    ? buildImportedFeeCycle(plan, start, 'paid' in pagoParsed && pagoParsed.paid, today)
+                    : null;
+                if (cycle?.fee) cuotasPorEmail.set(u.email.trim().toLowerCase(), cycle.fee);
                 return {
+                    ...(cycle?.user ?? {}),
                     email: u.email.trim().toLowerCase(),
                     password: await bcrypt.hash(u.dni.trim(), BULK_SALT_ROUNDS),
                     dni: u.dni.trim(),
@@ -1334,8 +1378,15 @@ export const importUsers = async (req: Request, res: Response): Promise<void> =>
             // (únicos, ya validados como no existentes) y registramos su ALTA en MovimientoSocio.
             const creados = await tx.user.findMany({
                 where: { email: { in: emails } },
-                select: { ID_Usuario: true },
+                select: { ID_Usuario: true, email: true },
             });
+            const cuotas = creados.flatMap((c) => {
+                const fee = cuotasPorEmail.get(c.email.toLowerCase());
+                return fee ? [{ ...fee, ID_Usuario: c.ID_Usuario }] : [];
+            });
+            for (const batch of chunkArray(cuotas, IMPORT_USERS_BATCH_SIZE)) {
+                await tx.cuota.createMany({ data: batch });
+            }
             if (creados.length > 0) {
                 const movimientos: Prisma.MovimientoSocioCreateManyInput[] = creados.map((c) => ({
                     ID_Usuario: c.ID_Usuario,
@@ -1350,9 +1401,9 @@ export const importUsers = async (req: Request, res: Response): Promise<void> =>
                 }
             }
             return createdCount;
-        });
+        }, { maxWait: 10_000, timeout: 60_000 });
 
-        res.status(201).json({ message: 'ok', count });
+        res.status(201).json({ message: 'ok', count, cuotasCreadas: cuotasPorEmail.size });
     } catch (error: any) {
         respondUnexpected(res, error, "importar los usuarios");
     }

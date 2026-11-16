@@ -259,6 +259,15 @@
     font-size: 13px
 }
 
+.signup-notice {
+    padding: 11px;
+    border-radius: 8px;
+    background: #fbf0d9;
+    color: #6b4a07;
+    font-size: 13px;
+    line-height: 1.45
+}
+
 .signup-card__login {
     border-top: 1px solid #dedee2;
     margin-top: 20px;

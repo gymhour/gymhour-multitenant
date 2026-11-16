@@ -187,6 +187,7 @@
   cursor: pointer;
 }
 .subscription-checkout__primary:hover:not(:disabled) { background: #b93c2b; }
+.subscription-checkout__active a.subscription-checkout__primary { color: #fff; text-decoration: none; }
 .subscription-checkout__primary:disabled { opacity: .55; cursor: wait; }
 .subscription-checkout__summary {
   display: flex;

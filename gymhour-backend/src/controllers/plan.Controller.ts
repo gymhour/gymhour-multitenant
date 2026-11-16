@@ -7,7 +7,7 @@ import { parseFeeDuration, serializeFeeDuration } from '../services/feeDates.ser
 // Crear un nuevo plan
 export const createPlan = async (req: Request, res: Response): Promise<void> => {
     try {
-        const { nombre, precio, desc, duracion, duracionUnidad, duracionCantidad, sesionesPorSemana, sesionesTotales, sesionesGracia, requiereTurno } = req.body;
+        const { nombre, precio, desc, duracion, duracionUnidad, duracionCantidad, sesionesPorSemana, sesionesTotales, requiereTurno } = req.body;
         const precioNumber = Number(precio);
         if (!nombre || !Number.isFinite(precioNumber)) {
             res.status(400).json({ message: "Completá el nombre y el precio del plan." });
@@ -32,7 +32,6 @@ export const createPlan = async (req: Request, res: Response): Promise<void> => 
                 duracion: dur,
                 sesionesPorSemana: Number(sesionesPorSemana || 0),
                 sesionesTotales: totales,
-                sesionesGracia: Number(sesionesGracia || 0),
                 requiereTurno: requiereTurno !== false,
             }
         });
@@ -71,8 +70,8 @@ export const getPlanById = async (req: Request, res: Response): Promise<void> =>
 export const updatePlan = async (req: Request, res: Response): Promise<void> => {
     try {
         const ID_Plan = Number(req.params.id);
-        const { nombre, precio, desc, duracion, duracionUnidad, duracionCantidad, sesionesPorSemana, sesionesTotales, sesionesGracia, requiereTurno } = req.body;
-        if (!nombre && precio === undefined && desc === undefined && duracion === undefined && duracionUnidad === undefined && duracionCantidad === undefined && sesionesPorSemana === undefined && sesionesTotales === undefined && sesionesGracia === undefined && requiereTurno === undefined) {
+        const { nombre, precio, desc, duracion, duracionUnidad, duracionCantidad, sesionesPorSemana, sesionesTotales, requiereTurno } = req.body;
+        if (!nombre && precio === undefined && desc === undefined && duracion === undefined && duracionUnidad === undefined && duracionCantidad === undefined && sesionesPorSemana === undefined && sesionesTotales === undefined && requiereTurno === undefined) {
             res.status(400).json({ message: 'No hay cambios para guardar.' });
             return;
         }
@@ -101,7 +100,6 @@ export const updatePlan = async (req: Request, res: Response): Promise<void> => 
                 ...(requestedDuration !== undefined && { duracion: requestedDuration }),
                 ...(sesionesPorSemana !== undefined && { sesionesPorSemana: Number(sesionesPorSemana) }),
                 ...(sesionesTotales !== undefined && { sesionesTotales: Number(sesionesTotales) }),
-                ...(sesionesGracia !== undefined && { sesionesGracia: Number(sesionesGracia) }),
                 ...(requiereTurno !== undefined && { requiereTurno: Boolean(requiereTurno) }),
             }
         });

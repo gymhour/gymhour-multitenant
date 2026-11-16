@@ -4,7 +4,7 @@ import { buildCuotaPlanSnapshot, generateFixedTurnosForCuota } from './accessRul
 import { runSerializableTransaction } from './transaction.service.js';
 import {
   feeDateString, feeDayEnd, feeMonth, feeNextDay, feePeriod, feeToday,
-  nextUnbilledAnniversary, parseFeeDate,
+  nextUnbilledAnniversary, parseFeeDate, skipEndedPeriods,
 } from './feeDates.service.js';
 
 const DEFAULT_TIMEZONE = 'America/Argentina/Cordoba';
@@ -173,6 +173,41 @@ export async function createCycleFee(userId: number, input: ManualFeeInput) {
   return { cuota: created, turnosGenerados: fixed.created, turnosNoGenerados: fixed.errores };
 }
 
+type ImportPlan = Parameters<typeof buildCuotaPlanSnapshot>[0] & {
+  ID_Plan: number; precio: number; duracion: string;
+};
+
+// Datos de ciclo de un socio importado por Excel. Sin fecha de inicio, el cobro queda en pausa
+// y la primera cuota se crea desde Cuotas; con fecha, se crea acá y se activa el cobro.
+export function buildImportedFeeCycle(plan: ImportPlan, start: Date | null, paid: boolean, today: Date) {
+  if (!start) {
+    return {
+      user: {
+        fechaInicioCobro: today, proximoInicioCuota: today,
+        diaAnclaCobro: today.getUTCDate(), cobroAutomaticoActivo: false,
+      },
+      fee: null,
+    };
+  }
+  const anchorDay = start.getUTCDate();
+  const period = feePeriod(start, plan.duracion, anchorDay);
+  const free = Number(plan.precio) === 0;
+  const pagada = free || paid;
+  return {
+    user: {
+      fechaInicioCobro: start, proximoInicioCuota: period.nextStart,
+      diaAnclaCobro: anchorDay, cobroAutomaticoActivo: true,
+    },
+    fee: {
+      ID_Plan: plan.ID_Plan, mes: feeMonth(start), fechaInicio: start, fechaFin: period.end,
+      vence: period.due, importe: Number(plan.precio), pagada, vencida: !pagada && period.due < today,
+      fechaPago: pagada ? today : null,
+      formaPago: free ? 'Plan gratuito' : paid ? 'Informado al importar' : null,
+      origen: 'IMPORTACION', ...buildCuotaPlanSnapshot(plan),
+    },
+  };
+}
+
 export async function generateDueFees(): Promise<{ created: number; skipped: number; errors: number }> {
   const today = await localFeeToday();
   const horizon = new Date(today.getTime() + 3 * 86_400_000);
@@ -191,8 +226,9 @@ export async function generateDueFees(): Promise<{ created: number; skipped: num
             include: { plan: true },
           });
           if (!current?.plan || !current.proximoInicioCuota || current.proximoInicioCuota > horizon) return null;
-          const start = current.proximoInicioCuota;
-          const period = feePeriod(start, current.plan.duracion, current.diaAnclaCobro || start.getUTCDate());
+          const anchorDay = current.diaAnclaCobro || current.proximoInicioCuota.getUTCDate();
+          const start = skipEndedPeriods(current.proximoInicioCuota, current.plan.duracion, anchorDay, today);
+          const period = feePeriod(start, current.plan.duracion, anchorDay);
           const existing = await tx.cuota.findFirst({ where: { ID_Usuario: user.ID_Usuario,
             OR: [{ fechaInicio: { lte: period.end }, fechaFin: { gte: start } },
               { mes: feeMonth(start), OR: [{ fechaInicio: null }, { fechaFin: null }] }],

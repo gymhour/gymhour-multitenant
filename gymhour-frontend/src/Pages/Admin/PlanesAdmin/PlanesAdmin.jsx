@@ -34,7 +34,6 @@ const PlanesAdmin = () => {
   const [duracionUnidad, setDuracionUnidad] = useState('MONTHS')
   const [duracionCantidad, setDuracionCantidad] = useState(1)
   const [sesionesTotales, setSesionesTotales] = useState('')
-  const [sesionesGracia, setSesionesGracia] = useState('')
   const [requiereTurno, setRequiereTurno] = useState(true)
   const [toDelete, setToDelete] = useState(null)
   const [editingPlan, setEditingPlan] = useState(null)
@@ -65,7 +64,6 @@ const PlanesAdmin = () => {
     setDuracionUnidad('MONTHS')
     setDuracionCantidad(1)
     setSesionesTotales('')
-    setSesionesGracia('')
     setRequiereTurno(true)
     setShowModal(true)
   }
@@ -90,7 +88,6 @@ const PlanesAdmin = () => {
     setDuracionUnidad(duration.unit)
     setDuracionCantidad(duration.count)
     setSesionesTotales(plan.sesionesTotales ?? '')
-    setSesionesGracia(plan.sesionesGracia ?? '')
     setRequiereTurno(plan.requiereTurno !== false)
     setShowModal(true)
   }
@@ -104,7 +101,6 @@ const PlanesAdmin = () => {
     setDuracionUnidad('MONTHS')
     setDuracionCantidad(1)
     setSesionesTotales('')
-    setSesionesGracia('')
     setRequiereTurno(true)
     setShowModal(false)
   }
@@ -120,7 +116,6 @@ const PlanesAdmin = () => {
       duracionUnidad,
       duracionCantidad: Number(duracionCantidad),
       sesionesTotales: Number(sesionesTotales || 0),
-      sesionesGracia: Number(sesionesGracia || 0),
       requiereTurno
     }
     try {
@@ -200,7 +195,6 @@ const PlanesAdmin = () => {
                     <th scope="col">Precio</th>
                     <th scope="col">Duración</th>
                     <th scope="col">Sesiones</th>
-                    <th scope="col">Gracia</th>
                     <th scope="col">Acciones</th>
                   </tr>
                 </thead>
@@ -222,7 +216,6 @@ const PlanesAdmin = () => {
                       <td className="plan-table-price">${plan.precio.toLocaleString()}</td>
                       <td>{durationLabel(plan.duracion)}</td>
                       <td>{plan.sesionesTotales || 0}</td>
-                      <td>{plan.sesionesGracia || 0}</td>
                       <td>
                         <div className="plan-table-actions">
                           <button type="button" onClick={() => handleEdit(plan)} aria-label={`Editar plan ${plan.nombre}`} title="Editar plan"><Edit size={17} /></button>
@@ -311,17 +304,6 @@ const PlanesAdmin = () => {
                       placeholder="30"
                       value={sesionesTotales}
                       onChange={(e) => setSesionesTotales(e.target.value)}
-                      width="100%"
-                    />
-                  </div>
-                  <div className="plan-form-input-container">
-                    <label>Sesiones de gracia</label>
-                    <CustomInput
-                      type="number"
-                      min="0"
-                      placeholder="3"
-                      value={sesionesGracia}
-                      onChange={(e) => setSesionesGracia(e.target.value)}
                       width="100%"
                     />
                   </div>

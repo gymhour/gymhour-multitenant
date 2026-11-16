@@ -685,16 +685,6 @@ const generarCuotasLote = async (body) => {
     return response.data;
 }
 
-const prepararEliminacionCuotasByMes = async (body) => {
-    const response = await apiClient.post("cuotas/delete-cuotas/preparar", body);
-    return response.data;
-}
-
-const eliminarCuotasByMesLote = async (body) => {
-    const response = await apiClient.post("cuotas/delete-cuotas/lote", body);
-    return response.data;
-}
-
 const getCuotaManualPreview = async (idUsuario, mes) => {
     const response = await apiClient.get(`cuotas/usuario/${idUsuario}/preview`, {
         params: { mes },
@@ -1055,8 +1045,6 @@ export default {
     postCuotasMasivas,
     prepararCuotasMasivas,
     generarCuotasLote,
-    prepararEliminacionCuotasByMes,
-    eliminarCuotasByMesLote,
     getCuotaManualPreview,
     prepararCuotaUsuarioLotes,
     generarTurnosCuotaUsuarioLote,

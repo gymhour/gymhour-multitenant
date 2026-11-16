@@ -7,6 +7,7 @@ import { sendResetPasswordEmail, sendVerificationEmail, sendWelcomeEmail } from 
 import { comparePassword, hashPassword } from '../services/password.service.js';
 import { getTenantLogoUrl } from '../services/cloudinary.service.js';
 import { tenantPlanAccess } from '../services/planAccess.service.js';
+import { tenantBillingTier } from '../services/tenantBilling.service.js';
 
 const TIMEZONE = process.env.TIMEZONE || 'America/Argentina/Cordoba';
 const normalizeEmail = (value: unknown): string => String(value ?? '').trim().toLowerCase();
@@ -89,6 +90,9 @@ export const registerTenant = async (req: Request, res: Response): Promise<void>
     const verificationToken = crypto.randomBytes(32).toString('base64url');
     const kioskToken = crypto.randomBytes(32).toString('base64url');
     const registeredAt = new Date();
+    // La prueba gratuita es una por email: si ya administra otro gimnasio, el nuevo empieza sin prueba.
+    const trialAvailable = !await systemPrisma.user.findFirst({ where: { email, role: 'ADMIN' }, select: { ID_Usuario: true } });
+    const trialEndsAt = trialAvailable ? new Date(registeredAt.getTime() + 14 * 24 * 60 * 60 * 1000) : registeredAt;
     let result;
     for (let attempt = 0; attempt < 3 && !result; attempt += 1) {
       const slug = await availableTenantSlug(`nuevo-gimnasio-${crypto.randomBytes(4).toString('hex')}`);
@@ -99,7 +103,7 @@ export const registerTenant = async (req: Request, res: Response): Promise<void>
               name: 'Mi gimnasio',
               slug,
               createdAt: registeredAt,
-              trialEndsAt: new Date(registeredAt.getTime() + 14 * 24 * 60 * 60 * 1000),
+              trialEndsAt,
               billingExempt: false,
               settings: { create: { timezone: TIMEZONE, currency: 'ARS', onboardingCompleted: false } },
               kiosks: { create: { tokenHash: hashOpaqueToken(kioskToken) } },
@@ -131,6 +135,7 @@ export const registerTenant = async (req: Request, res: Response): Promise<void>
       user: { id: result.user.ID_Usuario, email: result.user.email, role: result.user.role },
       tenant: { id: result.tenant.id, name: result.tenant.name, slug: result.tenant.slug, onboardingCompleted: false },
       kioskActivationToken: kioskToken,
+      trialAvailable,
     });
   } catch (error: any) {
     if (error?.code === 'P2002') {
@@ -297,9 +302,12 @@ export const me = async (req: Request, res: Response): Promise<void> => {
   }
   const tenant = await systemPrisma.tenant.findUniqueOrThrow({ where: { id: req.tenant.id } });
   const billing = await tenantPlanAccess(tenant.id);
+  // Durante la prueba no hay tope: el admin ve si al terminar va a necesitar el plan A medida.
+  const activeStudents = billing.state === 'TRIAL' && req.user.role === 'ADMIN'
+    ? (await tenantBillingTier(tenant.id)).activeStudents : undefined;
   res.setHeader('Cache-Control', 'no-store');
   res.json({ user: req.user, tenant: { ...req.tenant, settings: enrichedSettings,
-    billing } });
+    billing: { ...billing, activeStudents } } });
 };
 
 export const forgotPassword = async (req: Request, res: Response): Promise<void> => {

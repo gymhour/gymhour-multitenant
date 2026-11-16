@@ -674,7 +674,7 @@ const AgendarTurno = () => {
                 </p>
                 {!cuotaVigente.pagada && (
                   <p className="agendar-empty-state-note">
-                    Tu cuota está pendiente de pago: podés reservar mientras te queden sesiones de gracia.
+                    Tu cuota está pendiente de pago: podés reservar hasta su fecha de vencimiento.
                   </p>
                 )}
               </div>

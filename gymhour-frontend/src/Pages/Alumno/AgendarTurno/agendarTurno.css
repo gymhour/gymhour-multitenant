@@ -189,7 +189,7 @@
     padding: 18px;
 }
 
-/* Aclaración secundaria dentro del estado vacío (ej: cuota pendiente con gracia). */
+/* Aclaración secundaria dentro del estado vacío (ej: cuota pendiente de pago). */
 .agendar-empty-state-note {
     font-size: 0.86rem;
     opacity: 0.8;

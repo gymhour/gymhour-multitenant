@@ -3,9 +3,7 @@ import { respondUnexpected } from "../services/apiError.service.js";
 import prisma from '../models/Prisma.js';
 import { Prisma } from '@prisma/client';
 import {
-  countUnpaidAllowedAttendances,
   findActiveCuota,
-  getGraceSessionLimit,
   getTotalSessionLimit,
   requiresTurno
 } from '../services/accessRules.service.js';
@@ -147,22 +145,11 @@ export const registrarAsistencia = async (req: Request, res: Response): Promise<
       }
     });
 
-    const graceLimit = cuotaMesActual ? getGraceSessionLimit(cuotaMesActual) : 0;
-    const graceUsed = cuotaMesActual ? await countUnpaidAllowedAttendances(user.ID_Usuario, cuotaMesActual.ID_Cuota) : 0;
-    const hasGraceAvailable = !!cuotaMesActual && !cuotaMesActual.pagada && graceUsed < graceLimit;
-
-    // Evaluar estado de pago
-    if (!cuotaMesActual || cuotaVencida || (!cuotaMesActual.pagada && !hasGraceAvailable)) {
-      let motivoDenegacion = 'Acceso denegado por falta de pago.';
-      if (cuotaVencida) {
-        motivoDenegacion = `Acceso denegado. Registra cuotas vencidas impagas.`;
-      } else if (!cuotaMesActual) {
-        motivoDenegacion = `Acceso denegado. No se encontró una cuota activa para la fecha actual.`;
-      } else if (!cuotaMesActual.pagada && graceLimit <= 0) {
-        motivoDenegacion = `Acceso denegado. La cuota activa no está pagada.`;
-      } else if (!cuotaMesActual.pagada) {
-        motivoDenegacion = `Acceso denegado. Ya consumió las ${graceLimit} sesión(es) de gracia.`;
-      }
+    // Una cuota impaga que todavía no venció no bloquea: el límite es su vencimiento.
+    if (!cuotaMesActual || cuotaVencida) {
+      const motivoDenegacion = cuotaVencida
+        ? 'Acceso denegado. Registra cuotas vencidas impagas.'
+        : 'Acceso denegado. No se encontró una cuota activa para la fecha actual.';
 
       const asistencia = await prisma.asistencia.create({
         data: {
@@ -298,12 +285,15 @@ export const registrarAsistencia = async (req: Request, res: Response): Promise<
     }
 
     // Caso de Éxito: Acceso Permitido
+    const motivoPermitido = cuotaMesActual.pagada
+      ? 'Acceso autorizado. Cuota al día.'
+      : 'Acceso autorizado. La cuota está pendiente de pago.';
     const asistencia = await prisma.asistencia.create({
       data: {
         metodo,
         permitido: true,
         resultado: 'PERMITIDO',
-        motivo: 'Acceso autorizado. Cuota al día.',
+        motivo: motivoPermitido,
         ID_Usuario: user.ID_Usuario,
         ID_Cuota: cuotaMesActual.ID_Cuota,
         ID_Turno: turnoValido?.id_turno ?? null,
@@ -321,7 +311,7 @@ export const registrarAsistencia = async (req: Request, res: Response): Promise<
     res.status(200).json({
       permitido: true,
       resultado: 'PERMITIDO',
-      motivo: cuotaMesActual.pagada ? 'Acceso autorizado. Cuota al día.' : 'Acceso autorizado usando sesión de gracia.',
+      motivo: motivoPermitido,
       alumno: buildAlumnoResponse(user),
       asistencia: buildAsistenciaResponse(asistencia)
     });

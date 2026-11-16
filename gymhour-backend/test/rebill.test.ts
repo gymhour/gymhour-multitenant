@@ -1,7 +1,7 @@
 import crypto from 'node:crypto';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ALL_BILLING_PLANS } from '../src/services/billingCatalog.service.js';
-import { changeRebillSubscriptionPlan, fetchRebillPayment, fetchRebillSubscription, findOrCreateRebillPlan, rebillSubscriptionMatchesOrder, validRebillSignature } from '../src/services/rebill.service.js';
+import { changeRebillSubscriptionPlan, createRebillCardUpdateLink, updateRebillSubscription, fetchRebillPayment, findRebillPaymentIdByMetadata, fetchRebillSubscription, findOrCreateRebillPlan, rebillSubscriptionMatchesOrder, validRebillSignature } from '../src/services/rebill.service.js';
 
 describe('Rebill configuration and webhook signature', () => {
   afterEach(() => {
@@ -43,6 +43,24 @@ describe('Rebill configuration and webhook signature', () => {
     expect(payment).toMatchObject({ orderId: 'order_123', subscriptionId: null });
   });
 
+  it('finds the transfer payment of an order by its metadata', async () => {
+    process.env.REBILL_SECRET_KEY = 'sk_test';
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ records: [
+      { id: 'test_pay_other', status: 'approved', metadata: { gymhourOrderId: 'order_other' } },
+      { id: 'test_pay_pending', status: 'pending', metadata: { gymhourOrderId: 'order_123' } },
+      { id: 'test_pay_ok', status: 'approved', metadata: { gymhourOrderId: 'order_123' } },
+      { id: 'test_pay_card', status: 'approved', metadata: null },
+      { id: 'test_pay_change', status: 'approved', metadata: { gymhourPlanChangeId: 'change_1' } },
+    ] }) });
+    vi.stubGlobal('fetch', fetchMock);
+    expect(await findRebillPaymentIdByMetadata('gymhourOrderId', 'order_123', 'admin@example.com')).toBe('test_pay_ok');
+    expect(fetchMock.mock.calls[0][0]).toBe('https://api.rebill.com/v3/payments/search');
+    expect(fetchMock.mock.calls[0][1].method).toBe('POST');
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toMatchObject({ search: 'admin@example.com' });
+    expect(await findRebillPaymentIdByMetadata('gymhourOrderId', 'order_missing', 'admin@example.com')).toBeNull();
+    expect(await findRebillPaymentIdByMetadata('gymhourPlanChangeId', 'change_1', 'admin@example.com')).toBe('test_pay_change');
+  });
+
   it('changes the recurring plan without charging the current cycle', async () => {
     process.env.REBILL_SECRET_KEY = 'sk_test';
     const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ id: 'rfd_123' }) });
@@ -51,6 +69,30 @@ describe('Rebill configuration and webhook signature', () => {
     expect(fetchMock.mock.calls[0][0]).toBe('https://api.rebill.com/v3/subscriptions/test_sub_123/plan');
     expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({ planId: 'test_pln_pro' });
     expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('updates the subscription status and next charge date', async () => {
+    process.env.REBILL_SECRET_KEY = 'sk_test';
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ id: 'test_sub_123' }) });
+    vi.stubGlobal('fetch', fetchMock);
+    await updateRebillSubscription('test_sub_123', { status: 'active', nextChargeDate: '2026-11-02T15:00:00.000Z' });
+    expect(fetchMock.mock.calls[0][0]).toBe('https://api.rebill.com/v3/subscriptions/test_sub_123');
+    expect(fetchMock.mock.calls[0][1].method).toBe('PATCH');
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({ status: 'active', nextChargeDate: '2026-11-02T15:00:00.000Z' });
+    await expect(updateRebillSubscription('../plans', { status: 'cancelled' })).rejects.toThrow('INVALID_REBILL_IDENTIFIER');
+  });
+
+  it('returns the hosted card update link and rejects an unsafe one', async () => {
+    process.env.REBILL_SECRET_KEY = 'sk_test';
+    const url = 'https://pay.rebill.com/gymhour/card-renewal/test_sub_123?token=abc';
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ url }) });
+    vi.stubGlobal('fetch', fetchMock);
+    expect(await createRebillCardUpdateLink('test_sub_123')).toBe(url);
+    expect(fetchMock.mock.calls[0][0]).toBe('https://api.rebill.com/v3/subscriptions/test_sub_123/card/update-link');
+    expect(fetchMock.mock.calls[0][1].method).toBe('POST');
+
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: async () => ({ url: 'javascript:alert(1)' }) }));
+    await expect(createRebillCardUpdateLink('test_sub_123')).rejects.toThrow('REBILL_CARD_LINK_INVALID');
   });
 
   it('checks the recurring amount, cadence and plan name', async () => {

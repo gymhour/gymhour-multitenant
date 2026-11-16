@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Link, Navigate, NavLink, Route, Routes, useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { Activity, Building2, CirclePause, LayoutDashboard, LogOut, Search, ShieldCheck, Trash2 } from 'lucide-react';
+import { Activity, Building2, CirclePause, CreditCard, LayoutDashboard, LogOut, Search, ShieldCheck, Trash2 } from 'lucide-react';
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { ToastContainer, toast } from 'react-toastify';
 import platformApi from './platformApi';
@@ -11,6 +11,7 @@ const errorMessage = error => error.response?.data?.message || 'No pudimos compl
 const number = value => new Intl.NumberFormat('es-AR').format(value || 0);
 const date = value => value ? new Intl.DateTimeFormat('es-AR', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value)) : 'Sin actividad';
 const billingDate = value => value ? date(value) : '—';
+const money = value => new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 }).format(value || 0);
 
 function Login() {
   const { user, completeLogin } = usePlatformAuth();
@@ -62,6 +63,7 @@ function Shell({ children }) {
       <nav>
         <NavLink to="/dashboard"><LayoutDashboard size={19}/>Dashboard</NavLink>
         <NavLink to="/tenants"><Building2 size={19}/>Tenants</NavLink>
+        <NavLink to="/pagos-sin-vincular"><CreditCard size={19}/>Pagos sin vincular</NavLink>
         <NavLink to="/audit"><Activity size={19}/>Auditoría</NavLink>
       </nav>
       <div className="platform-account"><small>{user?.email}</small><button onClick={logout}><LogOut size={17}/>Salir</button></div>
@@ -90,6 +92,7 @@ function Dashboard() {
     label: new Intl.DateTimeFormat('es-AR', { month: 'short' }).format(new Date(`${item.month}-01T00:00:00Z`)).replace('.', ''),
   }));
   return <Page title="Dashboard" subtitle="Estado de los tenants y evolución de registros durante los últimos 12 meses.">
+    {summary.unlinkedPayments > 0 && <div className="platform-warning"><strong>{summary.unlinkedPayments === 1 ? 'Hay 1 pago con tarjeta sin vincular.' : `Hay ${summary.unlinkedPayments} pagos con tarjeta sin vincular.`}</strong> Rebill los cobró, pero el gimnasio todavía no tiene acceso. <Link to="/pagos-sin-vincular">Revisarlos</Link></div>}
     <div className="platform-cards">{cards.map(([label, value, hint, Icon]) => <article key={label}><Icon/><span>{label}</span><strong>{value}</strong><small>{hint}</small></article>)}</div>
     <section className="platform-panel platform-chart-panel">
       <div className="platform-section-heading"><div><h2>Evolución mensual</h2><p>Tenants registrados por mes</p></div><span>Últimos 12 meses</span></div>
@@ -178,6 +181,26 @@ function BillingDialog({ tenant, onClose, onDone }) {
   </form></div>;
 }
 
+function CancelSubscriptionDialog({ tenant, onClose, onDone }) {
+  const [form, setForm] = useState({ reason: '', mfaCode: '' });
+  const [busy, setBusy] = useState(false);
+  const submit = async event => {
+    event.preventDefault(); setBusy(true);
+    try {
+      await platformApi.post(`/platform/tenants/${tenant.id}/subscription/cancel`, form);
+      toast.success('Suscripción cancelada.'); onDone();
+    } catch (error) { toast.error(errorMessage(error)); }
+    finally { setBusy(false); }
+  };
+  return <div className="platform-modal-backdrop"><form className="platform-modal" onSubmit={submit}>
+    <h2>Cancelar suscripción</h2>
+    <p>Se corta el débito automático de {tenant.name}. El gimnasio conserva el acceso hasta el vencimiento ya pago.</p>
+    <label>Motivo<input value={form.reason} minLength={5} onChange={e => setForm({ ...form, reason: e.target.value })} required /></label>
+    <label>Código MFA<input inputMode="numeric" autoComplete="one-time-code" value={form.mfaCode} onChange={e => setForm({ ...form, mfaCode: e.target.value })} required /></label>
+    <div className="platform-modal-actions"><button type="button" className="secondary" onClick={onClose}>Volver</button><button disabled={busy} className="danger-button">{busy ? 'Cancelando…' : 'Confirmar cancelación'}</button></div>
+  </form></div>;
+}
+
 function BillingOrders({ tenant }) {
   const [items, setItems] = useState([]);
   useEffect(() => {
@@ -190,6 +213,7 @@ function BillingOrders({ tenant }) {
     {items.map(item => <div className="platform-billing-order" key={item.id}>
       <div><strong>{item.method === 'TRANSFER' ? 'Transferencia' : 'Tarjeta'} · {item.planCode}</strong>
         <small>{new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 }).format(item.amountArs)} · {date(item.createdAt)} · {item.status}</small>
+        {item.rebillSubscriptionStatus && <small>Suscripción: {item.rebillSubscriptionStatus}{item.cancelReason ? ` · ${item.cancelReason}` : ''}{item.cancelledBy ? ` · por ${item.cancelledBy}` : ''}</small>}
         <small>Referencia: {item.id}</small></div>
     </div>)}
   </section>;
@@ -208,11 +232,78 @@ function TenantDetail() {
     <div className="platform-detail-head"><StatusPill status={tenant.status}/><BillingPill billing={tenant.billing}/><span>Creado {date(tenant.createdAt)}</span><span>Última actividad {date(tenant.lastActivityAt)}</span></div>
     {tenant.status === 'SUSPENDED' && <div className="platform-warning"><strong>Suspendido:</strong> {tenant.suspensionReason} · {date(tenant.suspendedAt)}</div>}
     <div className="platform-grid"><section className="platform-panel"><h2>Contacto y configuración</h2><dl><dt>Email</dt><dd>{tenant.settings?.contactEmail || '—'}</dd><dt>Teléfono</dt><dd>{tenant.settings?.contactPhone || '—'}</dd><dt>Ubicación</dt><dd>{tenant.settings?.location || '—'}</dd><dt>Onboarding</dt><dd>{tenant.settings?.onboardingCompleted ? 'Completo' : 'Pendiente'}</dd></dl></section><section className="platform-panel"><h2>Administradores del gimnasio</h2>{tenant.users.map(admin => <div className="platform-event" key={admin.ID_Usuario}><strong>{[admin.nombre, admin.apellido].filter(Boolean).join(' ') || 'Sin nombre'}</strong><span>{admin.email}</span><small>{admin.estado ? 'Activo' : 'Inactivo'}</small></div>)}</section></div>
-    <section className="platform-panel platform-billing-panel"><div><h2>Suscripción</h2><p>Estado: {BILLING_LABELS[tenant.billing?.state] || 'Sin estado'}</p><p>Fin de prueba: {billingDate(tenant.billing?.trialEndsAt)}</p><p>Acceso pago hasta: {billingDate(tenant.billing?.paidUntil)}</p></div><button onClick={() => setDialog('billing')}>Registrar período pago</button></section>
+    <section className="platform-panel platform-billing-panel"><div><h2>Suscripción</h2><p>Estado: {BILLING_LABELS[tenant.billing?.state] || 'Sin estado'}</p><p>Fin de prueba: {billingDate(tenant.billing?.trialEndsAt)}</p><p>Acceso pago hasta: {billingDate(tenant.billing?.paidUntil)}</p><p>Débito automático: {tenant.liveSubscriptionStatus || 'No'}</p></div><div>{tenant.liveSubscriptionStatus && <button onClick={() => setDialog('cancel-subscription')}>Cancelar suscripción</button>} <button onClick={() => setDialog('billing')}>Registrar período pago</button></div></section>
     <BillingOrders tenant={tenant} />
     <section className="platform-danger-zone"><div><h2>Administración del estado</h2><p>Estas acciones afectan inmediatamente el acceso del gimnasio.</p></div><div>{tenant.status === 'ACTIVE' ? <button onClick={() => setDialog('suspend')}>Suspender</button> : <button onClick={() => setDialog('activate')}>Reactivar</button>}<button className="danger-button" onClick={() => setDialog('delete')}><Trash2 size={17}/>Eliminar definitivamente</button></div></section>
     {dialog === 'billing' && <BillingDialog tenant={tenant} onClose={() => setDialog(null)} onDone={() => done(false)} />}
-    {dialog && dialog !== 'billing' && <ConfirmDialog tenant={tenant} action={dialog} onClose={() => setDialog(null)} onDone={done}/>}
+    {dialog === 'cancel-subscription' && <CancelSubscriptionDialog tenant={tenant} onClose={() => setDialog(null)} onDone={() => done(false)} />}
+    {dialog && !['billing', 'cancel-subscription'].includes(dialog) && <ConfirmDialog tenant={tenant} action={dialog} onClose={() => setDialog(null)} onDone={done}/>}
+  </Page>;
+}
+
+function LinkPaymentDialog({ payment, onClose, onDone }) {
+  const [orderId, setOrderId] = useState(payment.suggestions[0]?.orderId || '');
+  const [search, setSearch] = useState('');
+  const [tenants, setTenants] = useState([]);
+  const [orders, setOrders] = useState([]);
+  const [form, setForm] = useState({ reason: '', mfaCode: '' });
+  const [busy, setBusy] = useState(false);
+  useEffect(() => {
+    if (search.trim().length < 2) { setTenants([]); return undefined; }
+    const timer = setTimeout(() => platformApi.get('/platform/tenants', { params: { search, pageSize: 10 } })
+      .then(({ data }) => setTenants(data.items)).catch(error => toast.error(errorMessage(error))), 250);
+    return () => clearTimeout(timer);
+  }, [search]);
+  // Sin sugerencia, el operador elige el gimnasio y una de sus compras con tarjeta pendientes.
+  const chooseTenant = tenantId => {
+    setOrders([]); setOrderId('');
+    platformApi.get(`/platform/tenants/${tenantId}/billing-orders`)
+      .then(({ data }) => setOrders(data.items.filter(item => item.method === 'CARD' && item.status === 'PENDING')))
+      .catch(error => toast.error(errorMessage(error)));
+  };
+  const submit = async event => {
+    event.preventDefault(); setBusy(true);
+    try {
+      const { data } = await platformApi.post(`/platform/billing/unlinked-payments/${payment.id}/link`, { orderId, ...form });
+      toast.success(`Pago vinculado. Acceso hasta ${date(data.paidUntil)}.${data.renewalsSkipped ? ` Quedaron ${data.renewalsSkipped} renovaciones sin acreditar: registralas como período pago.` : ''}`);
+      onDone();
+    } catch (error) { toast.error(errorMessage(error)); }
+    finally { setBusy(false); }
+  };
+  return <div className="platform-modal-backdrop"><form className="platform-modal" onSubmit={submit}>
+    <h2>Vincular pago</h2>
+    <p>{money(payment.amountArs)} cobrados el {date(payment.paidAt)} a {payment.customerEmail || 'un email desconocido'}. Rebill vuelve a validar el pago contra la orden elegida.</p>
+    {payment.suggestions.length > 0 && <fieldset className="platform-choice"><legend>Orden sugerida</legend>{payment.suggestions.map(suggestion => <label key={suggestion.orderId}>
+      <input type="radio" name="order" checked={orderId === suggestion.orderId} onChange={() => setOrderId(suggestion.orderId)} />
+      {suggestion.tenant.name} ({suggestion.tenant.slug}) · {suggestion.planCode} · {date(suggestion.createdAt)}
+    </label>)}</fieldset>}
+    <label>{payment.suggestions.length ? 'O buscá otro gimnasio' : 'Buscá el gimnasio'}<input value={search} placeholder="Nombre, slug o email" onChange={e => setSearch(e.target.value)} /></label>
+    {tenants.length > 0 && <select defaultValue="" onChange={e => chooseTenant(e.target.value)}><option value="" disabled>Elegí el gimnasio</option>{tenants.map(item => <option key={item.id} value={item.id}>{item.name} ({item.slug})</option>)}</select>}
+    {orders.length > 0 && <select value={orderId} onChange={e => setOrderId(e.target.value)}><option value="" disabled>Elegí la compra pendiente</option>{orders.map(item => <option key={item.id} value={item.id}>{item.planCode} · {money(item.amountArs)} · {date(item.createdAt)}</option>)}</select>}
+    <label>Motivo<input value={form.reason} minLength={5} onChange={e => setForm({ ...form, reason: e.target.value })} required /></label>
+    <label>Código MFA<input inputMode="numeric" autoComplete="one-time-code" value={form.mfaCode} onChange={e => setForm({ ...form, mfaCode: e.target.value })} required /></label>
+    <div className="platform-modal-actions"><button type="button" className="secondary" onClick={onClose}>Cancelar</button><button disabled={busy || !orderId}>{busy ? 'Vinculando…' : 'Vincular y habilitar'}</button></div>
+  </form></div>;
+}
+
+function UnlinkedPayments() {
+  const [items, setItems] = useState(null);
+  const [linking, setLinking] = useState(null);
+  const load = useCallback(() => {
+    platformApi.get('/platform/billing/unlinked-payments').then(({ data }) => setItems(data.items)).catch(error => toast.error(errorMessage(error)));
+  }, []);
+  useEffect(() => { load(); }, [load]);
+  return <Page title="Pagos sin vincular" subtitle="Primeros pagos con tarjeta que Rebill cobró, pero que no se confirmaron desde el navegador.">
+    {items?.length === 0 && <p className="platform-muted">No hay pagos pendientes de vincular.</p>}
+    {items?.length > 0 && <div className="platform-table-wrap"><table><thead><tr><th>Pago</th><th>Email</th><th>Importe</th><th>Suscripción</th><th>Sugerencia</th><th></th></tr></thead><tbody>{items.map(item => <tr key={item.id}>
+      <td><small>{date(item.paidAt)}</small></td>
+      <td>{item.customerEmail || '—'}</td>
+      <td>{money(item.amountArs)}</td>
+      <td><small>{item.subscriptionId}</small>{item.payments > 1 && <small>{item.payments} pagos sin acreditar</small>}</td>
+      <td>{item.suggestions.length ? item.suggestions.map(suggestion => <small key={suggestion.orderId}>{suggestion.tenant.name} · {suggestion.planCode}</small>) : <small>Sin sugerencia</small>}</td>
+      <td><button className="platform-row-link" onClick={() => setLinking(item)}>Vincular</button></td>
+    </tr>)}</tbody></table></div>}
+    {linking && <LinkPaymentDialog payment={linking} onClose={() => setLinking(null)} onDone={() => { setLinking(null); load(); }} />}
   </Page>;
 }
 
@@ -224,7 +315,7 @@ function Audit() {
 }
 
 function PlatformRoutes() {
-  return <Routes><Route path="/login" element={<Login/>}/><Route path="/*" element={<Guard><Shell><Routes><Route path="/dashboard" element={<Dashboard/>}/><Route path="/tenants" element={<Tenants/>}/><Route path="/tenants/:id" element={<TenantDetail/>}/><Route path="/audit" element={<Audit/>}/><Route path="*" element={<Navigate to="/dashboard" replace/>}/></Routes></Shell></Guard>}/></Routes>;
+  return <Routes><Route path="/login" element={<Login/>}/><Route path="/*" element={<Guard><Shell><Routes><Route path="/dashboard" element={<Dashboard/>}/><Route path="/tenants" element={<Tenants/>}/><Route path="/tenants/:id" element={<TenantDetail/>}/><Route path="/pagos-sin-vincular" element={<UnlinkedPayments/>}/><Route path="/audit" element={<Audit/>}/><Route path="*" element={<Navigate to="/dashboard" replace/>}/></Routes></Shell></Guard>}/></Routes>;
 }
 
 export default function PlatformApp() { return <PlatformProvider><ToastContainer position="top-right" theme="light" autoClose={3000} closeButton pauseOnFocusLoss={false} pauseOnHover={false}/><PlatformRoutes/></PlatformProvider>; }

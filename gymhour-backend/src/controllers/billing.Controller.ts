@@ -1,9 +1,13 @@
 import type { Request, Response } from 'express';
 import { systemPrisma } from '../models/Prisma.js';
 import { BILLING_CATALOG, BILLING_TIERS, billingOfferForActiveStudentCount, paidUntilFromPurchase } from '../services/billingCatalog.service.js';
-import { fetchRebillPayment, fetchRebillSubscription, findOrCreateRebillPlan, rebillSubscriptionMatchesOrder, validRebillSignature } from '../services/rebill.service.js';
+import { fetchRebillPayment, fetchRebillSubscription, findOrCreateRebillPlan, findRebillPaymentIdByMetadata, rebillSubscriptionMatchesOrder, validRebillSignature } from '../services/rebill.service.js';
 import { tenantBillingTier } from '../services/tenantBilling.service.js';
 import { tenantPlanAccess } from '../services/planAccess.service.js';
+import { cardGraceUntil } from '../services/billing.service.js';
+import { activateCardOrder, cardPaymentMatchesOrder } from '../services/cardOrder.service.js';
+import { notifyPaymentFailed, notifyPurchaseConfirmed, notifyRenewal, notifySubscriptionPaused } from '../services/billingNotifications.service.js';
+import { cancelTenantSubscriptions, collectAfterCardUpdate, liveSubscriptionOrders } from '../services/tenantSubscription.service.js';
 import { confirmPaidPlanChangePayment } from './billingChange.Controller.js';
 
 const findPlan = (code: unknown) => BILLING_CATALOG.find(plan => plan.code === code);
@@ -44,7 +48,7 @@ export async function createOrder(req: Request, res: Response): Promise<void> {
     res.status(400).json({ message: 'El plan seleccionado no corresponde a tu gimnasio.' }); return;
   }
   const access = await tenantPlanAccess(req.user!.tenantId);
-  if (access.state === 'PAID') {
+  if (access.state === 'PAID' && !access.inGrace) {
     res.status(409).json({ message: 'Tu suscripción sigue activa. Elegí el nuevo plan desde Mi suscripción.' }); return;
   }
   if (access.scheduledPlanCode && plan.code !== access.scheduledPlanCode) {
@@ -60,15 +64,21 @@ export async function createOrder(req: Request, res: Response): Promise<void> {
   if (method === 'CARD' && (!process.env.REBILL_PUBLIC_KEY || !process.env.REBILL_SECRET_KEY)) {
     res.status(503).json({ message: 'El pago con tarjeta todavía no está configurado.' }); return;
   }
-  const cardOrders = await systemPrisma.tenantBillingOrder.findMany({ where: {
-    tenantId: req.user!.tenantId, method: 'CARD', status: 'PAID', rebillSubscriptionId: { not: null },
-  } });
-  const activeCard = cardOrders.some(item => !['cancelled', 'finished'].includes(item.rebillSubscriptionStatus || 'active'));
-  if (activeCard) { res.status(409).json({ message: 'Este gimnasio ya tiene una suscripción automática.' }); return; }
+  const hasLiveSubscription = (await liveSubscriptionOrders(req.user!.tenantId)).length > 0;
+  if (hasLiveSubscription && req.body?.replaceSubscription !== true) {
+    res.status(409).json({ code: 'SUBSCRIPTION_RECOVERY_REQUIRED',
+      message: 'Este gimnasio tiene una suscripción con tarjeta. Actualizá la tarjeta o confirmá que querés reemplazarla.' });
+    return;
+  }
   let planId: string | null = null;
   if (method === 'CARD') {
     try { planId = await findOrCreateRebillPlan(plan); }
     catch { res.status(503).json({ message: 'No pudimos preparar la suscripción en Rebill. Intentá de nuevo.' }); return; }
+  }
+  // Se cancela antes de iniciar el pago nuevo para que no queden dos débitos activos.
+  if (hasLiveSubscription) {
+    try { await cancelTenantSubscriptions(req.user!.tenantId, 'Reemplazada por una nueva compra', req.user!.email); }
+    catch { res.status(503).json({ message: 'No pudimos cancelar la suscripción anterior. Intentá de nuevo.' }); return; }
   }
   const pending = await systemPrisma.tenantBillingOrder.findFirst({ where: {
     tenantId: req.user!.tenantId, status: 'PENDING', method, planCode: plan.code,
@@ -100,33 +110,13 @@ export async function confirmCard(req: Request, res: Response): Promise<void> {
   const [payment, subscription] = await Promise.all([
     fetchRebillPayment(paymentId), fetchRebillSubscription(subscriptionId),
   ]);
-  if (payment.id !== paymentId || payment.status !== 'approved' || payment.amount !== order.amountArs
-    || payment.currency !== 'ARS' || subscription.id !== subscriptionId
-    || (payment.subscriptionId && payment.subscriptionId !== subscriptionId)
-    || !rebillSubscriptionMatchesOrder(subscription, order)
-    || (subscription.orderId && subscription.orderId !== order.id)
-    || (payment.orderId && payment.orderId !== order.id)
-    || payment.createdAt < order.createdAt
-    || (payment.planId && subscription.planId && payment.planId !== subscription.planId)
-    || payment.customerEmail !== req.user!.email.toLowerCase()
-    || !Number.isFinite(payment.createdAt.getTime())) {
+  if (payment.id !== paymentId || subscription.id !== subscriptionId
+    || !cardPaymentMatchesOrder(order, payment, subscription)
+    || payment.customerEmail !== req.user!.email.toLowerCase()) {
     res.status(409).json({ message: 'Rebill no confirmó este pago para el plan y la cuenta seleccionados.' }); return;
   }
-  const paidUntil = paidUntilFromPurchase(payment.createdAt, order.months);
-  await systemPrisma.$transaction(async tx => {
-    const changed = await tx.tenantBillingOrder.updateMany({ where: { id: order.id, status: 'PENDING' }, data: {
-      status: 'PAID', rebillPaymentId: paymentId, rebillSubscriptionId: subscriptionId,
-      rebillSubscriptionStatus: subscription.status,
-      rebillLatestPaymentId: paymentId, currentPeriodStart: payment.createdAt,
-      paidAt: payment.createdAt, paidUntil,
-    } });
-    if (changed.count) {
-      await tx.rebillProcessedPayment.create({ data: { paymentId } });
-      const tenant = await tx.tenant.updateMany({ where: { id: order.tenantId, billingCreditArs: { gte: order.creditUsedArs } },
-        data: { paidUntil, billingExempt: false, billingCreditArs: { decrement: order.creditUsedArs } } });
-      if (!tenant.count) throw new Error('BILLING_CREDIT_CHANGED');
-    }
-  });
+  const { activated, paidUntil } = await systemPrisma.$transaction(tx => activateCardOrder(tx, order, payment, subscription));
+  if (activated) notifyPurchaseConfirmed(order.tenantId, order.planCode, paidUntil);
   res.json({ paidUntil });
 }
 
@@ -135,7 +125,15 @@ export async function confirmTransfer(req: Request, res: Response): Promise<void
     id: req.params.id, tenantId: req.user!.tenantId, method: 'TRANSFER',
   } });
   if (!order) { res.status(404).json({ message: 'Pago no encontrado.' }); return; }
-  const paymentId = String(req.body?.paymentId ?? order.rebillPaymentId ?? '');
+  let paymentId = String(req.body?.paymentId ?? order.rebillPaymentId ?? '');
+  if (!paymentId && order.status === 'PENDING') {
+    try { paymentId = await findRebillPaymentIdByMetadata('gymhourOrderId', order.id, req.user!.email.toLowerCase()) ?? ''; }
+    catch { res.status(503).json({ message: 'No pudimos consultar Rebill. Intentá de nuevo en unos minutos.' }); return; }
+    if (!paymentId) {
+      res.status(202).json({ status: 'PENDING', message: 'Todavía no recibimos la transferencia. Si ya la hiciste, puede demorar unos minutos.' });
+      return;
+    }
+  }
   if (!/^(test_)?pay_[\w-]+$/.test(paymentId)) {
     res.status(400).json({ message: 'Identificador de pago inválido.' }); return;
   }
@@ -158,19 +156,32 @@ export async function confirmTransfer(req: Request, res: Response): Promise<void
     res.status(202).json({ status: 'PENDING', message: 'La transferencia sigue pendiente de acreditación en Rebill.' }); return;
   }
   const paidUntil = paidUntilFromPurchase(payment.createdAt, order.months);
-  await systemPrisma.$transaction(async tx => {
+  const credited = await systemPrisma.$transaction(async tx => {
     const changed = await tx.tenantBillingOrder.updateMany({ where: { id: order.id, status: 'PENDING' }, data: {
       status: 'PAID', rebillPaymentId: paymentId, currentPeriodStart: payment.createdAt,
       paidAt: payment.createdAt, paidUntil,
     } });
-    if (changed.count) {
-      await tx.rebillProcessedPayment.create({ data: { paymentId } });
-      const tenant = await tx.tenant.updateMany({ where: { id: order.tenantId, billingCreditArs: { gte: order.creditUsedArs } },
-        data: { paidUntil, billingExempt: false, billingCreditArs: { decrement: order.creditUsedArs } } });
-      if (!tenant.count) throw new Error('BILLING_CREDIT_CHANGED');
-    }
+    if (!changed.count) return false;
+    await tx.rebillProcessedPayment.create({ data: { paymentId } });
+    const tenant = await tx.tenant.updateMany({ where: { id: order.tenantId, billingCreditArs: { gte: order.creditUsedArs } },
+      data: { paidUntil, billingExempt: false, billingCreditArs: { decrement: order.creditUsedArs } } });
+    if (!tenant.count) throw new Error('BILLING_CREDIT_CHANGED');
+    return true;
   });
+  if (credited) notifyPurchaseConfirmed(order.tenantId, order.planCode, paidUntil);
   res.json({ paidUntil });
+}
+
+// El primer pago con tarjeta se vincula solo si el navegador completa confirm-card.
+// Si no, el webhook lo guarda para que el backoffice lo vincule a mano.
+async function recordUnlinkedPayment(paymentId: string, subscriptionId: string): Promise<void> {
+  const payment = await fetchRebillPayment(paymentId);
+  if (payment.status !== 'approved' || (payment.subscriptionId && payment.subscriptionId !== subscriptionId)
+    || !Number.isFinite(payment.createdAt.getTime())) return;
+  await systemPrisma.rebillUnlinkedPayment.upsert({ where: { paymentId: payment.id }, update: {}, create: {
+    paymentId: payment.id, subscriptionId, customerEmail: payment.customerEmail,
+    amountArs: payment.amount, currency: payment.currency.slice(0, 10), paidAt: payment.createdAt,
+  } });
 }
 
 export async function rebillWebhook(req: Request & { rawBody?: Buffer }, res: Response): Promise<void> {
@@ -186,12 +197,29 @@ export async function rebillWebhook(req: Request & { rawBody?: Buffer }, res: Re
   const subscriptionId = req.body?.data?.subscriptionId;
   const paymentId = req.body?.data?.payment?.id ?? req.body?.data?.id;
   if (event === 'subscription.updated' && typeof req.body?.data?.id === 'string') {
-    await systemPrisma.$transaction(async tx => {
-      if (await tx.rebillWebhookEvent.findUnique({ where: { logId } })) return;
+    const order = await systemPrisma.tenantBillingOrder.findUnique({ where: { rebillSubscriptionId: req.body.data.id } });
+    // Un cambio de tarjeta no cambia el estado. Si este cobro falla, responde 500 y Rebill reintenta.
+    if (req.body.data.cardUpdated === true) {
+      if (order) await collectAfterCardUpdate(order);
+      await systemPrisma.rebillWebhookEvent.create({ data: { logId, event } });
+      res.status(204).end(); return;
+    }
+    const status = String(req.body.data.status ?? '').slice(0, 40);
+    const processed = await systemPrisma.$transaction(async tx => {
+      if (await tx.rebillWebhookEvent.findUnique({ where: { logId } })) return false;
       await tx.tenantBillingOrder.updateMany({ where: { rebillSubscriptionId: req.body.data.id },
-        data: { rebillSubscriptionStatus: String(req.body.data.status ?? '').slice(0, 40) } });
+        data: { rebillSubscriptionStatus: status } });
+      if (order && ['paused', 'cancelled', 'finished'].includes(status)) {
+        await tx.tenant.update({ where: { id: order.tenantId }, data: { billingGraceUntil: null } });
+      }
       await tx.rebillWebhookEvent.create({ data: { logId, event } });
+      return true;
     });
+    // Una pausa que pidió Gymhour al suspender el gimnasio no se avisa como falta de pago.
+    if (processed && order && status === 'paused' && order.rebillSubscriptionStatus !== 'paused' && !order.pausedBySuspensionAt) {
+      const tenant = await systemPrisma.tenant.findUnique({ where: { id: order.tenantId }, select: { status: true } });
+      if (tenant?.status === 'ACTIVE') notifySubscriptionPaused(order.tenantId);
+    }
     res.status(204).end(); return;
   }
   if (['payment.created', 'payment.updated'].includes(event) && typeof paymentId === 'string' && !subscriptionId) {
@@ -210,9 +238,9 @@ export async function rebillWebhook(req: Request & { rawBody?: Buffer }, res: Re
         && (!order.rebillPaymentId || order.rebillPaymentId === paymentId)
         && payment.id === paymentId && payment.amount === order.amountArs && payment.currency === 'ARS'
         && Number.isFinite(payment.createdAt.getTime())) {
-        await systemPrisma.$transaction(async tx => {
-          if (await tx.rebillWebhookEvent.findUnique({ where: { logId } })) return;
-          const paidUntil = paidUntilFromPurchase(payment.createdAt, order.months);
+        const paidUntil = paidUntilFromPurchase(payment.createdAt, order.months);
+        const credited = await systemPrisma.$transaction(async tx => {
+          if (await tx.rebillWebhookEvent.findUnique({ where: { logId } })) return false;
           const changed = await tx.tenantBillingOrder.updateMany({ where: { id: order.id, status: 'PENDING' }, data: {
             status: 'PAID', rebillPaymentId: paymentId, currentPeriodStart: payment.createdAt,
             paidAt: payment.createdAt, paidUntil,
@@ -224,7 +252,9 @@ export async function rebillWebhook(req: Request & { rawBody?: Buffer }, res: Re
             if (!tenant.count) throw new Error('BILLING_CREDIT_CHANGED');
           }
           await tx.rebillWebhookEvent.create({ data: { logId, event } });
+          return changed.count > 0;
         });
+        if (credited) notifyPurchaseConfirmed(order.tenantId, order.planCode, paidUntil);
         res.status(204).end(); return;
       }
     }
@@ -241,6 +271,22 @@ export async function rebillWebhook(req: Request & { rawBody?: Buffer }, res: Re
         systemPrisma.tenantPlanChange.findFirst({ where: { tenantId: order.tenantId, orderId: order.id,
           status: 'FAILED', rebillRefundId: 'CANCELLING_DOWNGRADE' } }),
       ]);
+      // Un cobro rechazado no se aprueba después: Rebill reintenta con un pago nuevo.
+      // Se avisa una sola vez por período, aunque Rebill reintente varias veces.
+      if (payment.status === 'rejected') {
+        const notify = Boolean(order.paidUntil) && order.failureNotifiedUntil?.getTime() !== order.paidUntil?.getTime();
+        await systemPrisma.$transaction(async tx => {
+          if (notify) {
+            await tx.tenantBillingOrder.update({ where: { id: order.id }, data: { failureNotifiedUntil: order.paidUntil } });
+          }
+          await tx.rebillWebhookEvent.create({ data: { logId, event } });
+        });
+        if (notify) {
+          const tenant = await systemPrisma.tenant.findUnique({ where: { id: order.tenantId }, select: { billingGraceUntil: true } });
+          notifyPaymentFailed(order.tenantId, tenant?.billingGraceUntil ?? null);
+        }
+        res.status(204).end(); return;
+      }
       if (cancelling) { res.status(503).end(); return; }
       const nextPlan = scheduled ? findPlan(scheduled.toPlanCode) : null;
       // Rebill already has the new recurring plan; Gymhour changes the entitlement with this renewal.
@@ -254,10 +300,10 @@ export async function rebillWebhook(req: Request & { rawBody?: Buffer }, res: Re
         || !Number.isFinite(payment.createdAt.getTime())) {
         res.status(409).end(); return;
       }
-      await systemPrisma.$transaction(async tx => {
-        if (await tx.rebillWebhookEvent.findUnique({ where: { logId } })) return;
+      const renewedUntil = await systemPrisma.$transaction(async tx => {
+        if (await tx.rebillWebhookEvent.findUnique({ where: { logId } })) return null;
         if (await tx.rebillProcessedPayment.findUnique({ where: { paymentId } })) {
-          await tx.rebillWebhookEvent.create({ data: { logId, event } }); return;
+          await tx.rebillWebhookEvent.create({ data: { logId, event } }); return null;
         }
         const tenant = await tx.tenant.findUniqueOrThrow({ where: { id: order.tenantId } });
         if (scheduled && tenant.paidUntil?.getTime() !== scheduled.periodEnd.getTime()) {
@@ -270,16 +316,20 @@ export async function rebillWebhook(req: Request & { rawBody?: Buffer }, res: Re
         }
         const start = tenant.paidUntil && tenant.paidUntil > payment.createdAt ? tenant.paidUntil : payment.createdAt;
         const paidUntil = paidUntilFromPurchase(start, expectedOrder.months);
-        await tx.tenant.update({ where: { id: order.tenantId }, data: { paidUntil } });
+        await tx.tenant.update({ where: { id: order.tenantId }, data: { paidUntil, billingGraceUntil: cardGraceUntil(paidUntil) } });
         await tx.tenantBillingOrder.update({ where: { id: order.id }, data: {
           currentPeriodStart: start, paidUntil, rebillLatestPaymentId: paymentId,
           ...(nextPlan ? { planCode: nextPlan.code, amountArs: nextPlan.amountArs, months: nextPlan.months } : {}),
         } });
         await tx.rebillProcessedPayment.create({ data: { paymentId } });
         await tx.rebillWebhookEvent.create({ data: { logId, event } });
+        return paidUntil;
       });
+      if (renewedUntil) notifyRenewal(order.tenantId, renewedUntil);
       res.status(204).end(); return;
     }
+    // Si falla la consulta a Rebill, responde 500 y Rebill reintenta: el pago no se pierde.
+    if (!order) await recordUnlinkedPayment(paymentId, subscriptionId);
   }
   await systemPrisma.rebillWebhookEvent.create({ data: { logId, event } });
   res.status(204).end();

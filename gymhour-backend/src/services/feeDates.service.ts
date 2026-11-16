@@ -56,6 +56,18 @@ export function feePeriod(start: Date, duration: unknown, anchorDay = start.getU
   return { start, end: new Date(nextStart.getTime() - 1), nextStart, due: feeDayEnd(start) };
 }
 
+// Si el período que tocaba ya terminó, devuelve el que cubre hoy. Así, un gimnasio que vuelve
+// de un vencimiento o una suspensión no recibe cuotas del tiempo en que estuvo bloqueado.
+export function skipEndedPeriods(start: Date, duration: unknown, anchorDay: number, today: Date): Date {
+  let current = start;
+  for (let i = 0; i < 5_200; i += 1) {
+    const next = nextFeeStart(current, duration, anchorDay);
+    if (next > today) return current;
+    current = next;
+  }
+  throw new Error('La fecha de la próxima cuota es demasiado antigua.');
+}
+
 export function nextUnbilledAnniversary(firstStart: Date, duration: unknown, anchorDay: number, today: Date): Date {
   let start = firstStart;
   for (let i = 0; i < 5_200 && start < today; i += 1) start = nextFeeStart(start, duration, anchorDay);
