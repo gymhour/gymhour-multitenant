@@ -55,7 +55,7 @@ gymhour-multitenant/
 ```
 
 - **Dos builds del frontend** con el mismo código: la app de gimnasios y el backoffice. `src/index.js` decide cuál renderizar según `REACT_APP_APP_MODE=platform`.
-- **Despliegue en Railway**: API, frontend y MySQL son servicios separados del mismo repo. El pre-deploy de la API corre `prisma migrate deploy`.
+- **Despliegue en Railway**: API, frontend y MySQL son servicios separados del mismo repo. Railway no tiene pre-deploy: las migraciones se aplican a mano con `prisma migrate deploy` contra la base de producción, justo antes de desplegar.
 - **Cron**: `src/scripts/dailyCron.ts` es el entrypoint pensado para un servicio de cron de Railway. También existen los endpoints `/cron/*`.
 
 ## 3. Aislamiento entre gimnasios
@@ -639,7 +639,7 @@ En Rebill hay que crear un webhook HTTPS a `/billing/webhooks/rebill` con `payme
 | `20261102000200_subscription_controls` | `Tenant.billingGraceUntil`, `TenantBillingOrder.cancelledAt`, `cancelReason` y `pausedBySuspensionAt` | Ninguno. Los gimnasios actuales con tarjeta reciben la tolerancia en su próxima renovación aprobada. |
 | `20261110000100_billing_followups` | `TenantBillingOrder.cancelledBy` y `failureNotifiedUntil`, y la tabla `RebillUnlinkedPayment` | Ninguno |
 
-Las tres últimas no se aplicaron en producción. El pre-deploy de Railway las va a aplicar solo al desplegar el código.
+Las tres últimas no se aplicaron en producción. Se aplican a mano justo antes de mergear: la primera borra columnas que el código anterior lee, y el código nuevo necesita las columnas que agregan las otras dos.
 
 ## 15. Entorno local y tests
 
@@ -749,7 +749,7 @@ Falta probarlos en sandbox y aplicar la migración.
 - [ ] `REBILL_SIGNING_SECRET` cargado y webhook creado en Rebill con los tres eventos.
 - [ ] Servicio de cron de Railway activo, una vez por día.
 - [ ] `FRONTEND_URL` y `PLATFORM_FRONTEND_URL` correctas.
-- [ ] Revisar `20261102000100_remove_session_grace` antes de desplegar: borra columnas, y el pre-deploy de Railway la aplica solo.
+- [ ] Revisar `20261102000100_remove_session_grace` antes de desplegar: borra columnas. Aplicar las tres migraciones a mano justo antes de mergear.
 - [ ] Sandbox: compra con tarjeta, renovación, webhook repetido y bloqueo al vencer.
 - [ ] Sandbox: tarjeta rechazada, 48 horas de acceso, cambio de tarjeta con cobro inmediato y compra de reemplazo sin doble suscripción.
 - [ ] Sandbox: cancelar como admin y desde el backoffice, suspender y reactivar, y eliminar un gimnasio con suscripción activa.
