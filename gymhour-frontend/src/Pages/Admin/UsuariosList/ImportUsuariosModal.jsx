@@ -5,17 +5,32 @@ import { toast } from 'react-toastify';
 import SecondaryButton from '../../../Components/utils/SecondaryButton/SecondaryButton';
 import { X, Upload, FileSpreadsheet, AlertCircle, Download } from 'lucide-react';
 
-const COLUMNAS_ESPERADAS = ['email', 'dni', 'nombre', 'apellido', 'tel', 'direc', 'profesion', 'fechaCumple', 'ID_Plan'];
+const COLUMNAS_ESPERADAS = ['email', 'dni', 'nombre', 'apellido', 'tel', 'direc', 'profesion', 'fechaCumple', 'ID_Plan', 'inicioPeriodo', 'cuotaPaga'];
 
-// Normaliza la fechaCumple del Excel a texto DD/MM/AAAA (el backend revalida).
+// Normaliza una fecha del Excel a texto DD/MM/AAAA (el backend revalida).
 // Cubre: celda fecha real (Date, por cellDates), texto DD/MM/AAAA o ISO, y vacío.
 const pad2 = (n) => String(n).padStart(2, '0');
-const normalizeFechaCumple = (value) => {
+const normalizeFecha = (value) => {
   if (value instanceof Date && !isNaN(value.getTime())) {
     return `${pad2(value.getDate())}/${pad2(value.getMonth() + 1)}/${value.getFullYear()}`;
   }
   return String(value ?? '').trim();
 };
+
+// La vista previa muestra el mes en letras: si Excel invirtió día y mes, salta a la vista.
+const MESES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+export const fechaLegible = (value) => {
+  const match = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(value || '');
+  if (!match) return value || '-';
+  const [day, month, year] = match.slice(1).map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  if (date.getUTCDate() !== day || date.getUTCMonth() !== month - 1) return value;
+  return `${day} ${MESES[month - 1]} ${year}`;
+};
+
+// Columnas de fecha de la plantilla (H: fechaCumple, J: inicioPeriodo) y filas que se preparan como texto.
+const COLUMNAS_FECHA = ['H', 'J'];
+const FILAS_PLANTILLA = 500;
 
 const ImportUsuariosModal = ({ onClose, onSuccess, planes = [] }) => {
   const fileInputRef = useRef(null);
@@ -66,9 +81,11 @@ const ImportUsuariosModal = ({ onClose, onSuccess, planes = [] }) => {
           tel: String(row.tel || '').trim(),
           direc: String(row.direc || '').trim(),
           profesion: String(row.profesion || '').trim(),
-          fechaCumple: normalizeFechaCumple(row.fechaCumple),
+          fechaCumple: normalizeFecha(row.fechaCumple),
           ID_Plan: String(row.ID_Plan ?? '').trim(),
-        }));
+          inicioPeriodo: normalizeFecha(row.inicioPeriodo),
+          cuotaPaga: String(row.cuotaPaga ?? '').trim(),
+        })).filter((u) => COLUMNAS_ESPERADAS.some((columna) => u[columna]));
 
         setUsuarios(parsed);
         setFileName(file.name);
@@ -81,6 +98,11 @@ const ImportUsuariosModal = ({ onClose, onSuccess, planes = [] }) => {
 
   const handleDownloadTemplate = () => {
     const usuariosSheet = XLSX.utils.aoa_to_sheet([COLUMNAS_ESPERADAS]);
+    // Las fechas quedan con formato texto para que Excel no las convierta ni invierta día y mes.
+    for (let fila = 2; fila <= FILAS_PLANTILLA + 1; fila += 1) {
+      COLUMNAS_FECHA.forEach((columna) => { usuariosSheet[`${columna}${fila}`] = { t: 's', v: '', z: '@' }; });
+    }
+    usuariosSheet['!ref'] = `A1:K${FILAS_PLANTILLA + 1}`;
     const planesSheet = XLSX.utils.aoa_to_sheet([
       ['ID_Plan', 'nombre'],
       ...planes.map((plan) => [plan.ID_Plan, plan.nombre]),
@@ -94,6 +116,8 @@ const ImportUsuariosModal = ({ onClose, onSuccess, planes = [] }) => {
       { wch: 16 },
       { wch: 24 },
       { wch: 18 },
+      { wch: 14 },
+      { wch: 10 },
       { wch: 14 },
       { wch: 10 },
     ];
@@ -126,7 +150,9 @@ const ImportUsuariosModal = ({ onClose, onSuccess, planes = [] }) => {
       const { data } = await apiClient.post('/usuarios/import', { usuarios });
       stopProgress();
       setProgress(100);
-      toast.success(`${data.count} usuario(s) importado(s) correctamente`);
+      toast.success(data.cuotasCreadas
+        ? `${data.count} usuario(s) importado(s) y ${data.cuotasCreadas} cuota(s) creada(s)`
+        : `${data.count} usuario(s) importado(s) correctamente`);
       onSuccess();
     } catch (err) {
       stopProgress();
@@ -173,6 +199,10 @@ const ImportUsuariosModal = ({ onClose, onSuccess, planes = [] }) => {
             <li>El tipo de usuario se crea como Cliente.</li>
             <li>ID_Plan debe ser el ID visible en Administración de Planes. Si queda vacío, el usuario se crea sin plan.</li>
             <li>La fecha de cumpleaños debe usar formato dd/mm/yyyy.</li>
+            <li>inicioPeriodo es opcional: indicá el inicio del período actual (dd/mm/yyyy) para crear la primera cuota y activar el cobro automático. Si queda vacío, la primera cuota se crea después desde Cuotas.</li>
+            <li>cuotaPaga es opcional: SI o NO. Si queda vacío, la cuota se crea impaga.</li>
+            <li>Revisá bien las fechas: una cuota impaga cuyo inicio ya pasó queda vencida y bloquea el ingreso y las reservas del socio.</li>
+            <li>La plantilla trae las fechas como texto. Si usás tu propio Excel, revisá en la vista previa que el mes sea el correcto.</li>
           </ul>
         </div>
 
@@ -237,7 +267,10 @@ const ImportUsuariosModal = ({ onClose, onSuccess, planes = [] }) => {
                     <th>DNI</th>
                     <th>Nombre</th>
                     <th>Apellido</th>
+                    <th>Cumpleaños</th>
                     <th>ID_Plan</th>
+                    <th>Inicio</th>
+                    <th>Paga</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -248,12 +281,15 @@ const ImportUsuariosModal = ({ onClose, onSuccess, planes = [] }) => {
                       <td className={!u.dni ? 'is-empty' : ''}>{u.dni || 'Vacio'}</td>
                       <td>{u.nombre || '-'}</td>
                       <td>{u.apellido || '-'}</td>
+                      <td>{fechaLegible(u.fechaCumple)}</td>
                       <td>{u.ID_Plan || '-'}</td>
+                      <td>{fechaLegible(u.inicioPeriodo)}</td>
+                      <td>{u.cuotaPaga || '-'}</td>
                     </tr>
                   ))}
                   {usuarios.length > 50 && (
                     <tr>
-                      <td colSpan={6} className="import-users-more-row">
+                      <td colSpan={9} className="import-users-more-row">
                         Y {usuarios.length - 50} registros mas
                       </td>
                     </tr>

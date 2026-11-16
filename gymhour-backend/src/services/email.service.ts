@@ -523,6 +523,66 @@ export async function sendRetencionEmail(
   );
 }
 
+// --- Suscripción del gimnasio a Gymhour (se envían a los administradores) ---
+
+const BILLING_HERO = "linear-gradient(90deg,#DA4632 0%, #ee6a52 100%)";
+const billingDate = (date: Date): string => date.toLocaleDateString("es-AR", { timeZone: "America/Argentina/Buenos_Aires" });
+const subscriptionCta = (label: string): string => {
+  const url = `${process.env.FRONTEND_URL ?? ""}/admin/suscripcion`;
+  return `<div class="cta"><a class="btn" href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">${label}</a></div>`;
+};
+
+export async function sendPaymentConfirmedEmail(email: string, data: { planLabel: string; paidUntil: Date }): Promise<void> {
+  const body = `
+    <p>¡Listo! Confirmamos tu pago y tu plan <strong>${escapeHtml(data.planLabel)}</strong> ya está activo.</p>
+    <p>Tenés acceso hasta el <strong>${billingDate(data.paidUntil)}</strong>. Rebill te envía el comprobante de pago por separado.</p>
+    ${subscriptionCta("Ver mi suscripción")}
+  `;
+  await sendEmail(email, "Tu plan de Gymhour está activo", emailShell(BILLING_HERO, "Pago confirmado", `Plan ${escapeHtml(data.planLabel)}`, body));
+}
+
+export async function sendRenewalEmail(email: string, data: { paidUntil: Date }): Promise<void> {
+  const body = `
+    <p>Cobramos la renovación de tu suscripción a Gymhour.</p>
+    <p>Tu acceso ahora sigue hasta el <strong>${billingDate(data.paidUntil)}</strong>. Rebill te envía el comprobante de pago por separado.</p>
+    ${subscriptionCta("Ver mi suscripción")}
+  `;
+  await sendEmail(email, "Renovamos tu suscripción a Gymhour", emailShell(BILLING_HERO, "Suscripción renovada", `Acceso hasta el ${billingDate(data.paidUntil)}`, body));
+}
+
+export async function sendPaymentFailedEmail(email: string, data: { graceUntil: Date | null }): Promise<void> {
+  const access = data.graceUntil
+    ? `Conservás el acceso hasta el <strong>${billingDate(data.graceUntil)}</strong>.`
+    : "Tu acceso puede quedar en pausa.";
+  const body = `
+    <p>No pudimos cobrar la renovación de tu suscripción con la tarjeta registrada.</p>
+    <p>${access} Actualizá la tarjeta o pagá de otra forma desde Mi suscripción para no perderlo.</p>
+    ${subscriptionCta("Actualizar el pago")}
+  `;
+  await sendEmail(email, "No pudimos cobrar tu suscripción a Gymhour", emailShell("linear-gradient(90deg,#f59e0b 0%, #f97316 100%)", "No pudimos cobrar tu tarjeta", "Actualizá el medio de pago", body));
+}
+
+export async function sendSubscriptionPausedEmail(email: string): Promise<void> {
+  const body = `
+    <p>Rebill no pudo cobrar tu suscripción después de varios intentos y la pausó.</p>
+    <p>Para volver a usar Gymhour, entrá y actualizá la tarjeta o pagá de otra forma desde Mi suscripción.</p>
+    ${subscriptionCta("Reactivar mi suscripción")}
+  `;
+  await sendEmail(email, "Tu suscripción a Gymhour está en pausa", emailShell("linear-gradient(90deg,#f59e0b 0%, #f97316 100%)", "Suscripción en pausa", "No pudimos cobrar la renovación", body));
+}
+
+export async function sendSubscriptionCancelledEmail(email: string, data: { accessUntil: Date | null }): Promise<void> {
+  const access = data.accessUntil
+    ? `Conservás el acceso hasta el <strong>${billingDate(data.accessUntil)}</strong>.`
+    : "";
+  const body = `
+    <p>Cancelamos tu suscripción a Gymhour: no se harán más débitos. ${access}</p>
+    <p>Si querés volver, podés elegir un plan cuando quieras desde Mi suscripción.</p>
+    ${subscriptionCta("Ver mi suscripción")}
+  `;
+  await sendEmail(email, "Cancelaste tu suscripción a Gymhour", emailShell(BILLING_HERO, "Suscripción cancelada", "No se harán más débitos", body));
+}
+
 /**
  * Helpers:
  * - escapeHtml: evita inyección de caracteres en el template

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { feeDateString, feePeriod, nextFeeStart, nextUnbilledAnniversary, parseFeeDate, parseFeeDuration } from '../src/services/feeDates.service.js';
+import { feeDateString, feePeriod, nextFeeStart, nextUnbilledAnniversary, parseFeeDate, parseFeeDuration, skipEndedPeriods } from '../src/services/feeDates.service.js';
 
 describe('ciclos de cuotas', () => {
   it('cubre el período completo y vence al empezar', () => {
@@ -19,6 +19,14 @@ describe('ciclos de cuotas', () => {
     expect(feeDateString(nextFeeStart(parseFeeDate('2026-10-17')!, 'WEEKS:2'))).toBe('2026-10-31');
     expect(feeDateString(nextFeeStart(parseFeeDate('2026-10-17')!, 'MONTHS:2'))).toBe('2026-12-17');
     expect(parseFeeDuration('MONTHS:25')).toBeNull();
+  });
+
+  it('saltea los períodos terminados y conserva el que cubre hoy', () => {
+    const today = parseFeeDate('2026-11-02')!;
+    expect(feeDateString(skipEndedPeriods(parseFeeDate('2026-08-10')!, 'MONTHS:1', 10, today))).toBe('2026-10-10');
+    expect(feeDateString(skipEndedPeriods(parseFeeDate('2026-10-10')!, 'MONTHS:1', 10, today))).toBe('2026-10-10');
+    expect(feeDateString(skipEndedPeriods(parseFeeDate('2026-11-05')!, 'MONTHS:1', 5, today))).toBe('2026-11-05');
+    expect(feeDateString(skipEndedPeriods(parseFeeDate('2026-10-02')!, 'MONTHS:1', 2, today))).toBe('2026-11-02');
   });
 
   it('omite aniversarios pasados de un alta retroactiva', () => {

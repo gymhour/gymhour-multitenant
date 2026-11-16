@@ -39,9 +39,12 @@ platformRouter.get('/tenants', safe(platformMethods.listTenants));
 platformRouter.get('/tenants/:id', safe(platformMethods.tenantDetail));
 platformRouter.patch('/tenants/:id/billing', requirePlatformCsrf, safe(platformMethods.updateTenantBilling));
 platformRouter.get('/tenants/:id/billing-orders', safe(platformMethods.listTenantBillingOrders));
+platformRouter.post('/tenants/:id/subscription/cancel', requirePlatformCsrf, safe(platformMethods.cancelTenantSubscription));
 platformRouter.patch('/tenants/:id/status', requirePlatformCsrf, safe(platformMethods.changeTenantStatus));
 platformRouter.post('/tenants/:id/purge', requirePlatformCsrf, safe(platformMethods.purgeTenant));
 platformRouter.get('/audit', safe(platformMethods.auditList));
+platformRouter.get('/billing/unlinked-payments', safe(platformMethods.listUnlinkedPayments));
+platformRouter.post('/billing/unlinked-payments/:id/link', requirePlatformCsrf, safe(platformMethods.linkUnlinkedPayment));
 
 platformRouter.use((error: unknown, _req: Request, res: Response, _next: NextFunction) => {
   console.error('[platform]', error);

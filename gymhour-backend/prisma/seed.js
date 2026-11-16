@@ -63,7 +63,7 @@ async function main() {
   const plans = await Promise.all([
     ["Pase libre", 42000, 0, false], ["12 clases", 35000, 12, true], ["8 clases", 29000, 8, true],
   ].map(([nombre, precio, sesionesTotales, requiereTurno]) => prisma.plan.create({ data: {
-    tenantId: tenant.id, nombre, precio, sesionesTotales, requiereTurno, desc: `${nombre} mensual`, sesionesGracia: requiereTurno ? 1 : 0,
+    tenantId: tenant.id, nombre, precio, sesionesTotales, requiereTurno, desc: `${nombre} mensual`,
   } })));
 
   const definitions = [
@@ -114,7 +114,7 @@ async function main() {
         pagada: paid, vencida: overdue || (!current && !paid), formaPago: paid ? ["Efectivo", "Transferencia", "Mercado Pago"][index % 3] : null,
         fechaPago: paid ? monthDate(period, 5 + index % 5) : null, origen: "MASIVA", planNombreSnapshot: plan.nombre,
         planDuracionSnapshot: plan.duracion, planSesionesTotalesSnapshot: plan.sesionesTotales,
-        planSesionesGraciaSnapshot: plan.sesionesGracia, planRequiereTurnoSnapshot: plan.requiereTurno,
+        planRequiereTurnoSnapshot: plan.requiereTurno,
       });
     });
   }

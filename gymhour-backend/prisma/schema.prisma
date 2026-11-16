@@ -58,6 +58,7 @@ model Tenant {
   paidUntil               DateTime?
   billingCreditArs        Int                       @default(0)
   billingExempt           Boolean                   @default(false)
+  billingGraceUntil       DateTime?
   billingOrders           TenantBillingOrder[]
   planChanges             TenantPlanChange[]
   lastActivityAt          DateTime?
@@ -121,6 +122,12 @@ model TenantBillingOrder {
   rebillLatestPaymentId String?                    @db.VarChar(100)
   currentPeriodStart   DateTime?
   creditUsedArs        Int                       @default(0)
+  cancelledAt          DateTime?
+  cancelReason         String?                   @db.VarChar(255)
+  cancelledBy          String?                   @db.VarChar(191)
+  pausedBySuspensionAt DateTime?
+  // Evita repetir el mail de cobro fallido dentro del mismo período.
+  failureNotifiedUntil DateTime?
   paidAt               DateTime?
   paidUntil            DateTime?
   createdAt            DateTime                 @default(now())
@@ -165,6 +172,25 @@ model RebillWebhookEvent {
 model RebillProcessedPayment {
   paymentId   String   @id @db.VarChar(100)
   processedAt DateTime @default(now())
+}
+
+// Pagos de suscripciones que llegaron por webhook sin una orden vinculada.
+// El backoffice los vincula a mano.
+model RebillUnlinkedPayment {
+  id             String    @id @default(cuid())
+  paymentId      String    @unique @db.VarChar(100)
+  subscriptionId String    @db.VarChar(100)
+  customerEmail  String?   @db.VarChar(191)
+  amountArs      Int
+  currency       String    @db.VarChar(10)
+  paidAt         DateTime
+  createdAt      DateTime  @default(now())
+  linkedAt       DateTime?
+  linkedOrderId  String?   @db.VarChar(191)
+  linkedBy       String?   @db.VarChar(191)
+
+  @@index([linkedAt, createdAt])
+  @@index([subscriptionId])
 }
 
 model TenantSettings {
@@ -427,7 +453,6 @@ model Plan {
   duracion          String  @default("MENSUAL")
   sesionesPorSemana Int     @default(0) // DEPRECADO: reemplazado por sesionesTotales (se conserva por compat)
   sesionesTotales   Int     @default(0) // total de sesiones del período del plan
-  sesionesGracia    Int     @default(0)
   requiereTurno     Boolean @default(true)
   usuarios          User[]  @relation("UserPlan")
   cuotas            Cuota[]
@@ -451,15 +476,13 @@ model Cuota {
   fechaPago                   DateTime? // Fecha en que se realizó el pago, opcional
   recordatorioVenceEnviado    DateTime?
   vencida                     Boolean      @default(false)
-  // Cómo se creó la cuota: "MANUAL" (alta individual, proporcional al mes) o
-  // "MASIVA" (generación del mes, período completo del plan). Null en las anteriores
-  // a este campo, donde el origen no quedó registrado.
+  // Cómo se creó la cuota: "MANUAL" (desde Cuotas o el alta del socio), "AUTOMATICA" (cron),
+  // "IMPORTACION" (Excel) o "MASIVA" (histórico). Null en las anteriores a este campo.
   origen                      String?
   planNombreSnapshot          String?
   planDuracionSnapshot        String?
   planSesionesSemanaSnapshot  Int? // DEPRECADO: reemplazado por planSesionesTotalesSnapshot
   planSesionesTotalesSnapshot Int?
-  planSesionesGraciaSnapshot  Int?
   planRequiereTurnoSnapshot   Boolean?
   ID_Usuario                  Int
   ID_Plan                     Int?

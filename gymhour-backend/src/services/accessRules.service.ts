@@ -16,7 +16,6 @@ type PlanLike = {
   duracion?: string | null;
   sesionesPorSemana?: number | null;
   sesionesTotales?: number | null;
-  sesionesGracia?: number | null;
   requiereTurno?: boolean | null;
 };
 
@@ -185,7 +184,6 @@ export const buildCuotaPlanSnapshot = (plan: PlanLike | null | undefined) => ({
   planDuracionSnapshot: normalizePlanDuration(plan?.duracion),
   planSesionesSemanaSnapshot: Number(plan?.sesionesPorSemana || 0),
   planSesionesTotalesSnapshot: Number(plan?.sesionesTotales || 0),
-  planSesionesGraciaSnapshot: Number(plan?.sesionesGracia || 0),
   planRequiereTurnoSnapshot: plan?.requiereTurno !== false,
 });
 
@@ -202,9 +200,10 @@ export const findActiveCuota = async (ID_Usuario: number, date = getArgentinaDat
 
   if (cuotaByPeriod) return cuotaByPeriod;
 
+  // El respaldo por mes es solo para cuotas viejas sin período: si tienen fechas, se respeta el rango.
   const mes = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
   return prisma.cuota.findFirst({
-    where: { ID_Usuario, mes },
+    where: { ID_Usuario, mes, OR: [{ fechaInicio: null }, { fechaFin: null }] },
     include: { Plan: true },
     orderBy: { vence: "desc" },
   });
@@ -230,10 +229,6 @@ export const findActiveOrUpcomingCuota = async (ID_Usuario: number, date = getAr
 
 export const getWeeklySessionLimit = (cuota: any): number => (
   Number(cuota?.planSesionesSemanaSnapshot ?? cuota?.Plan?.sesionesPorSemana ?? 0)
-);
-
-export const getGraceSessionLimit = (cuota: any): number => (
-  Number(cuota?.planSesionesGraciaSnapshot ?? cuota?.Plan?.sesionesGracia ?? 0)
 );
 
 // Tope TOTAL de sesiones del período (reemplaza al semanal).
@@ -267,30 +262,11 @@ export const countWeeklyUsedSessions = async (
   });
 };
 
-export const countUnpaidAllowedAttendances = async (
-  ID_Usuario: number,
-  ID_Cuota: number,
-  client: any = prisma
-): Promise<number> => (
-  client.asistencia.count({
-    where: {
-      ID_Usuario,
-      ID_Cuota,
-      permitido: true,
-    },
-  })
-);
-
-// Reglas de pago para RESERVAR un turno. Mismo criterio que el control de ingreso
-// (registrarAsistencia), para que el alumno no pueda reservar algo a lo que después no
-// lo van a dejar entrar:
-//   - cualquier cuota impaga y vencida bloquea, aunque sea de un mes anterior;
-//   - con la cuota del período pendiente puede reservar mientras le queden sesiones de
-//     gracia, y la gracia se consume con las asistencias permitidas de esa cuota.
-// El tope de sesiones del plan y el rango de fechas se validan aparte.
+// Regla de pago para RESERVAR un turno, con el mismo criterio que el control de ingreso:
+// cualquier cuota impaga y vencida bloquea, aunque sea de un período anterior. Una cuota
+// impaga que todavía no venció no bloquea. El tope de sesiones y las fechas se validan aparte.
 export const validateCuotaPaymentForBooking = async (
   ID_Usuario: number,
-  cuota: any,
   client: any = prisma
 ): Promise<string | null> => {
   const deudaVencida = await client.cuota.findFirst({
@@ -307,20 +283,6 @@ export const validateCuotaPaymentForBooking = async (
   if (deudaVencida) {
     return `No podés reservar turnos porque tenés la cuota de ${formatMesLegible(deudaVencida.mes)} vencida y sin pagar. `
       + `Regularizá el pago con el administrador y vas a poder reservar de nuevo.`;
-  }
-
-  if (cuota?.pagada) return null;
-
-  const graceLimit = getGraceSessionLimit(cuota);
-  if (graceLimit <= 0) {
-    return "Tu cuota de este período todavía figura como pendiente de pago y tu plan no incluye sesiones de gracia, "
-      + "así que no podés reservar turnos hasta que se registre el pago.";
-  }
-
-  const graceUsed = await countUnpaidAllowedAttendances(ID_Usuario, cuota.ID_Cuota, client);
-  if (graceUsed >= graceLimit) {
-    return `Ya usaste ${graceLimit === 1 ? "la sesión de gracia" : `las ${graceLimit} sesiones de gracia`} que te permite tu plan `
-      + `mientras la cuota figura pendiente de pago. Regularizá el pago con el administrador para seguir reservando.`;
   }
 
   return null;

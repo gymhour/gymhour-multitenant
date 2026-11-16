@@ -240,7 +240,7 @@ const createTurno = async (req: Request, res: Response): Promise<void> => {
       }
 
       if (!isAdmin) {
-        const pagoError = await validateCuotaPaymentForBooking(ID_Usuario, cuotaActiva, tx);
+        const pagoError = await validateCuotaPaymentForBooking(ID_Usuario, tx);
         if (pagoError) throw new TurnoRuleError("CUOTA_IMPAGA", pagoError);
 
         const sinSesiones = await validatePeriodAvailability(ID_Usuario, cuotaActiva, undefined, tx);

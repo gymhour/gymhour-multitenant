@@ -53,7 +53,10 @@ async function register(slug: string, email = 'same-admin@gymhour.test', complet
     expect(verified.body.token).toBeTruthy();
     expect((await request(app).post('/auth/verify-email').send({ token: verificationToken })).status).toBe(400);
     const name = slug === slugs[0] ? 'Vitest Gym A' : 'Vitest Gym B';
-    await systemPrisma.tenant.update({ where: { id: tenant.id }, data: { name, slug } });
+    // La prueba es una por email; los tests de aislamiento necesitan ambos gimnasios habilitados.
+    if (response.body.trialAvailable === false) expect(tenant.trialEndsAt!.getTime()).toBeLessThanOrEqual(tenant.createdAt.getTime());
+    await systemPrisma.tenant.update({ where: { id: tenant.id }, data: { name, slug,
+      ...(response.body.trialAvailable === false ? { trialEndsAt: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000) } : {}) } });
     if (completeOnboarding) await systemPrisma.tenantSettings.update({
       where: { tenantId: tenant.id }, data: { onboardingCompleted: true },
     });
@@ -85,6 +88,8 @@ describe.runIf(hasTestDatabase)('API multi-tenant (MySQL aislada)', () => {
     const b = await register(slugs[1]);
     expect(a.status).toBe(201);
     expect(b.status).toBe(201);
+    expect(a.body.trialAvailable).toBe(true);
+    expect(b.body.trialAvailable).toBe(false);
     expect(a.body.user.role).toBe('ADMIN');
     expect(b.body.user.role).toBe('ADMIN');
     expect(a.body.tenant.slug).toBe(slugs[0]);

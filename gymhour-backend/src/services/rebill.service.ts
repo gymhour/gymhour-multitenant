@@ -46,6 +46,22 @@ export async function changeRebillSubscriptionPlan(subscriptionId: string, planI
   await rebillRequest(`subscriptions/${encodeURIComponent(subscriptionId)}/plan`, 'PATCH', { planId });
 }
 
+export async function updateRebillSubscription(
+  subscriptionId: string,
+  changes: { status?: 'active' | 'paused' | 'cancelled'; nextChargeDate?: string },
+): Promise<void> {
+  if (!/^(test_)?sub_[\w-]+$/.test(subscriptionId)) throw new Error('INVALID_REBILL_IDENTIFIER');
+  await rebillRequest(`subscriptions/${encodeURIComponent(subscriptionId)}`, 'PATCH', changes);
+}
+
+export async function createRebillCardUpdateLink(subscriptionId: string): Promise<string> {
+  if (!/^(test_)?sub_[\w-]+$/.test(subscriptionId)) throw new Error('INVALID_REBILL_IDENTIFIER');
+  const body = await rebillRequest(`subscriptions/${encodeURIComponent(subscriptionId)}/card/update-link`, 'POST');
+  const url = String(body.url ?? body.data?.url ?? '');
+  if (!url.startsWith('https://')) throw new Error('REBILL_CARD_LINK_INVALID');
+  return url;
+}
+
 function planMatches(plan: any, expected: BillingPlan): boolean {
   const terms = subscriptionTerms(plan, plan);
   return plan?.status === 'active' && plan?.name?.some?.((name: any) => name.text === rebillPlanName(expected))
@@ -97,6 +113,18 @@ export async function fetchRebillPayment(id: string): Promise<RebillPayment> {
     changeId: payment.metadata?.gymhourPlanChangeId ?? body.metadata?.gymhourPlanChangeId ?? null,
     createdAt: new Date(payment.createdAt),
   };
+}
+
+// Con transferencia, el checkout avisa al generar el QR, sin el ID del pago: se busca por la orden o el cambio de plan.
+export async function findRebillPaymentIdByMetadata(
+  key: 'gymhourOrderId' | 'gymhourPlanChangeId', value: string, email: string,
+): Promise<string | null> {
+  const body = await rebillRequest('payments/search', 'POST', {
+    search: email, pagination: { limit: 20, offset: 0, sort: 'created_at', order: 'DESC' },
+  });
+  const matches = (body.records ?? []).filter((item: any) => item?.metadata?.[key] === value);
+  const payment = matches.find((item: any) => item.status === 'approved') ?? matches[0];
+  return /^(test_)?pay_[\w-]+$/.test(String(payment?.id ?? '')) ? String(payment.id) : null;
 }
 
 export async function fetchRebillSubscription(id: string) {

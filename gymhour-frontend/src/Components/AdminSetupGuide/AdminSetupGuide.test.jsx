@@ -22,8 +22,8 @@ describe('AdminSetupGuide', () => {
 
     expect(screen.queryByRole('link', { name: 'Crear plan' })).not.toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Asignar rutina' })).toHaveAttribute('href', '/admin/asignar-rutinas');
-    expect(screen.getByRole('link', { name: 'Generar cuotas' })).toHaveAttribute('href', '/admin/cuotas?action=generate');
-    expect(screen.getByText(/creá los cargos del mes/i)).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Crear cuota' })).toHaveAttribute('href', '/admin/cuotas?action=create');
+    expect(screen.getByText(/las siguientes se generan automáticamente/i)).toBeInTheDocument();
   });
 
   it('muestra todos los pasos completados al volver a abrirla', () => {

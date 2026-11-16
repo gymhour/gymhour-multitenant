@@ -1676,7 +1676,7 @@ export const getAllCuotas = async (req: Request, res: Response): Promise<void> =
               email: true,
               nombre: true,
               apellido: true,
-              plan: { select: { ID_Plan: true, nombre: true, precio: true, duracion: true, sesionesPorSemana: true, sesionesGracia: true, requiereTurno: true } }
+              plan: { select: { ID_Plan: true, nombre: true, precio: true, duracion: true, sesionesPorSemana: true, requiereTurno: true } }
             }
           },
           Plan: true,
@@ -1686,7 +1686,6 @@ export const getAllCuotas = async (req: Request, res: Response): Promise<void> =
           planNombreSnapshot: true,
           planDuracionSnapshot: true,
           planSesionesSemanaSnapshot: true,
-          planSesionesGraciaSnapshot: true,
           planRequiereTurnoSnapshot: true
         }
       })
@@ -1734,7 +1733,7 @@ export const getAllCuotasByUsuario = async (req: Request, res: Response): Promis
             email: true,
             nombre: true,
             apellido: true,
-            plan: { select: { ID_Plan: true, nombre: true, precio: true, duracion: true, sesionesPorSemana: true, sesionesGracia: true, requiereTurno: true } }
+            plan: { select: { ID_Plan: true, nombre: true, precio: true, duracion: true, sesionesPorSemana: true, requiereTurno: true } }
           }
         },
         Plan: true,
@@ -1743,7 +1742,6 @@ export const getAllCuotasByUsuario = async (req: Request, res: Response): Promis
         planNombreSnapshot: true,
         planDuracionSnapshot: true,
         planSesionesSemanaSnapshot: true,
-        planSesionesGraciaSnapshot: true,
         planRequiereTurnoSnapshot: true
       }
     });
@@ -1751,29 +1749,6 @@ export const getAllCuotasByUsuario = async (req: Request, res: Response): Promis
     res.status(200).json(cuotas);
   } catch (error: any) {
     respondUnexpected(res, error, "cargar las cuotas del alumno");
-  }
-};
-
-// Al borrar cuotas, el próximo ciclo vuelve al primer período eliminado.
-// Se usa también en la eliminación por lotes para no dejar el cursor adelantado.
-const rewindFeeCycleAfterDeletion = async (
-  tx: { user: { updateMany: (args: any) => Promise<any> } },
-  deletedFees: Array<{ ID_Usuario: number; fechaInicio: Date | null }>,
-) => {
-  const firstDeletedStart = new Map<number, Date>();
-  for (const fee of deletedFees) {
-    if (!fee.fechaInicio) continue;
-    const previous = firstDeletedStart.get(fee.ID_Usuario);
-    if (!previous || fee.fechaInicio < previous) firstDeletedStart.set(fee.ID_Usuario, fee.fechaInicio);
-  }
-  for (const [userId, start] of firstDeletedStart) {
-    await tx.user.updateMany({
-      where: {
-        ID_Usuario: userId,
-        OR: [{ proximoInicioCuota: null }, { proximoInicioCuota: { gt: start } }],
-      },
-      data: { proximoInicioCuota: start },
-    });
   }
 };
 
@@ -1785,10 +1760,11 @@ const deleteCuota = async (req: Request, res: Response): Promise<void> => {
       res.status(400).json({ message: 'No pudimos identificar la cuota. Actualizá la página e intentá de nuevo.' });
       return;
     }
+    const today = await localFeeToday();
     const result = await prisma.$transaction(async (tx) => {
       const cuota = await tx.cuota.findUnique({
         where: { ID_Cuota: id },
-        select: { ID_Cuota: true, ID_Usuario: true, fechaInicio: true }
+        select: { ID_Cuota: true, ID_Usuario: true }
       });
 
       if (!cuota) {
@@ -1800,7 +1776,21 @@ const deleteCuota = async (req: Request, res: Response): Promise<void> => {
       });
 
       await tx.cuota.delete({ where: { ID_Cuota: id } });
-      await rewindFeeCycleAfterDeletion(tx, [cuota]);
+
+      // Sin cuotas no hay ciclo que continuar: vuelve al estado de alta, para poder corregir
+      // una fecha mal cargada sin que el cron siga avanzando desde ella.
+      const cuotasRestantes = await tx.cuota.count({ where: { ID_Usuario: cuota.ID_Usuario } });
+      if (cuotasRestantes === 0) {
+        await tx.user.updateMany({
+          where: { ID_Usuario: cuota.ID_Usuario, cobroAutomaticoActivo: true },
+          data: {
+            fechaInicioCobro: today,
+            proximoInicioCuota: today,
+            diaAnclaCobro: today.getUTCDate(),
+            cobroAutomaticoActivo: false,
+          },
+        });
+      }
 
       return { turnosEliminados: turnosEliminados.count };
     });
@@ -1819,143 +1809,6 @@ const deleteCuota = async (req: Request, res: Response): Promise<void> => {
   }
 };
 
-const prepararEliminacionCuotasByMes = async (req: Request, res: Response): Promise<void> => {
-  try {
-    const mes = String(req.body?.mes || req.query?.mes || '').trim();
-
-    if (!parseMesParam(mes)) {
-      res.status(400).json({ message: "Elegí un mes válido." });
-      return;
-    }
-
-    const cuotasMes = await prisma.cuota.findMany({
-      where: { mes },
-      select: { ID_Cuota: true, pagada: true },
-    });
-
-    if (cuotasMes.length === 0) {
-      res.status(200).json({
-        message: `No hay cuotas registradas para el mes ${mes}`,
-        mes,
-        ids: [],
-        total: 0,
-        totalCuotasAEliminar: 0,
-        totalTurnosAEliminar: 0,
-        cuotasPagadasOmitidas: 0,
-        totalCuotasMes: 0,
-      });
-      return;
-    }
-
-    const cuotasPagadasOmitidas = cuotasMes.filter(c => c.pagada).length;
-    const cuotaIds = cuotasMes
-      .filter(c => !c.pagada)
-      .map(c => c.ID_Cuota)
-      .sort((a, b) => a - b);
-
-    if (cuotaIds.length === 0) {
-      res.status(200).json({
-        message: `No se eliminaron cuotas de ${mes}: todas las cuotas del mes estan pagadas.`,
-        mes,
-        ids: [],
-        total: 0,
-        totalCuotasAEliminar: 0,
-        totalTurnosAEliminar: 0,
-        cuotasPagadasOmitidas,
-        totalCuotasMes: cuotasMes.length,
-      });
-      return;
-    }
-
-    const totalTurnosAEliminar = await prisma.turno.count({
-      where: { ID_Cuota: { in: cuotaIds } },
-    });
-
-    res.status(200).json({
-      message: `Se prepararon ${cuotaIds.length} cuota(s) de ${mes} para eliminar.`,
-      mes,
-      ids: cuotaIds,
-      total: cuotaIds.length,
-      totalCuotasAEliminar: cuotaIds.length,
-      totalTurnosAEliminar,
-      cuotasPagadasOmitidas,
-      totalCuotasMes: cuotasMes.length,
-    });
-  } catch (error: any) {
-    respondUnexpected(res, error, "preparar la eliminación de las cuotas");
-  }
-};
-
-const eliminarCuotasByMesLote = async (req: Request, res: Response): Promise<void> => {
-  try {
-    const mes = String(req.body?.mes || '').trim();
-    const idsRaw = Array.isArray(req.body?.ids) ? req.body.ids : [];
-    const idsNumericos: number[] = idsRaw.map((id: unknown): number => Number(id));
-    const ids: number[] = Array.from(new Set(idsNumericos.filter((id: number) => Number.isInteger(id))));
-
-    if (!parseMesParam(mes)) {
-      res.status(400).json({ message: "Elegí un mes válido." });
-      return;
-    }
-
-    if (ids.length === 0 || ids.length > 100) {
-      res.status(400).json({ message: 'El lote debe tener entre 1 y 100 cuotas.' });
-      return;
-    }
-
-    const result = await prisma.$transaction(async (tx) => {
-      const cuotasLote = await tx.cuota.findMany({
-        where: {
-          ID_Cuota: { in: ids },
-          mes,
-          pagada: false,
-        },
-        select: { ID_Cuota: true, ID_Usuario: true, fechaInicio: true },
-      });
-
-      const cuotaIds = cuotasLote.map(c => c.ID_Cuota);
-
-      if (cuotaIds.length === 0) {
-        return {
-          cuotasEliminadas: 0,
-          turnosEliminados: 0,
-          cuotasOmitidas: ids.length,
-        };
-      }
-
-      const turnosEliminados = await tx.turno.deleteMany({
-        where: { ID_Cuota: { in: cuotaIds } },
-      });
-
-      const cuotasEliminadas = await tx.cuota.deleteMany({
-        where: {
-          ID_Cuota: { in: cuotaIds },
-          pagada: false,
-        },
-      });
-      if (cuotasEliminadas.count) await rewindFeeCycleAfterDeletion(tx, cuotasLote);
-
-      return {
-        cuotasEliminadas: cuotasEliminadas.count,
-        turnosEliminados: turnosEliminados.count,
-        cuotasOmitidas: ids.length - cuotasEliminadas.count,
-      };
-    });
-
-    res.status(200).json({
-      message: `Se eliminaron ${result.cuotasEliminadas} cuota(s) del lote de ${mes}.`,
-      mes,
-      procesados: ids.length,
-      cuotasEliminadas: result.cuotasEliminadas,
-      turnosEliminados: result.turnosEliminados,
-      cuotasOmitidas: result.cuotasOmitidas,
-    });
-  } catch (error: any) {
-    respondUnexpected(res, error, "eliminar las cuotas del mes");
-  }
-};
-
-// 6. Actualizar cuota
 const updateCuota = async (req: Request, res: Response): Promise<void> => {
   try {
     const id = parseInt(req.params.id, 10);
@@ -2210,8 +2063,6 @@ export const cuotaMethods = {
   getAllCuotas,
   getAllCuotasByUsuario,
   deleteCuota,
-  prepararEliminacionCuotasByMes,
-  eliminarCuotasByMesLote,
   updateCuota,
   payCuota,
   getCuotasVencenPronto,

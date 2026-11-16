@@ -1,4 +1,5 @@
 import React from 'react';
+import { Link } from 'react-router-dom';
 import { AUTOMATIC_SUBSCRIPTION_HELP } from './subscriptionHelp';
 import '../TrialStatusBar/TrialStatusBar.css';
 import './SubscriptionRenewalStatusBar.css';
@@ -23,6 +24,14 @@ export default function SubscriptionRenewalStatusBar({ days }) {
         <button type="button" aria-label="Información sobre la suscripción" aria-describedby="subscription-renewal-status-bar-tooltip">?</button>
         <span id="subscription-renewal-status-bar-tooltip" role="tooltip" className="subscription-renewal-status-bar__tooltip">{AUTOMATIC_SUBSCRIPTION_HELP}</span>
       </span>
+    </span>
+  </div>;
+}
+
+export function PaymentIssueStatusBar() {
+  return <div className="trial-status-bar subscription-renewal-status-bar" role="status">
+    <span className="trial-status-bar__label subscription-renewal-status-bar__label">
+      No pudimos confirmar el cobro de tu tarjeta <span aria-hidden="true">·</span> <Link to="/admin/suscripcion">Revisar</Link>
     </span>
   </div>;
 }

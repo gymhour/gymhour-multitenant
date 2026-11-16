@@ -69,11 +69,17 @@ const SignUp = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
+  const [withoutTrial, setWithoutTrial] = useState(null);
   const change = (event) =>
     setForm((current) => ({
       ...current,
       [event.target.name]: event.target.value,
     }));
+  const enterGym = async (data) => {
+    await login(data.token);
+    if (data.kioskActivationToken) sessionStorage.setItem("newKioskActivationToken", data.kioskActivationToken);
+    navigate("/onboarding", { replace: true });
+  };
   const handleSubmit = async (event) => {
     event.preventDefault();
     if (form.password !== confirmPassword) {
@@ -84,9 +90,9 @@ const SignUp = () => {
     setMessage("");
     try {
       const { data } = await authClient.post("/auth/tenants", form);
-      await login(data.token);
-      if (data.kioskActivationToken) sessionStorage.setItem("newKioskActivationToken", data.kioskActivationToken);
-      navigate("/onboarding", { replace: true });
+      // La prueba es una por email: se avisa antes de entrar, porque el gimnasio queda bloqueado hasta elegir un plan.
+      if (data.trialAvailable === false) { setWithoutTrial(data); return; }
+      await enterGym(data);
     } catch (error) {
       setMessage(
         error.response?.data?.message ||
@@ -184,19 +190,32 @@ const SignUp = () => {
                   required
                 />
               </label>
-              {message && (
-                <div className="signup-error" role="alert">
-                  {message}
-                </div>
+              {withoutTrial ? (
+                <>
+                  <div className="signup-notice" role="status">
+                    Este email ya usó la prueba gratuita. Podés crear este gimnasio, pero para usarlo vas a tener que elegir un plan.
+                  </div>
+                  <button className="signup-submit" type="button" onClick={() => enterGym(withoutTrial)}>
+                    Continuar <ArrowRight size={18} />
+                  </button>
+                </>
+              ) : (
+                <>
+                  {message && (
+                    <div className="signup-error" role="alert">
+                      {message}
+                    </div>
+                  )}
+                  <button
+                    className="signup-submit"
+                    type="submit"
+                    disabled={loading}
+                  >
+                    {loading ? "Creando tu cuenta..." : "Crear cuenta gratis"}{" "}
+                    <ArrowRight size={18} />
+                  </button>
+                </>
               )}
-              <button
-                className="signup-submit"
-                type="submit"
-                disabled={loading}
-              >
-                {loading ? "Creando tu cuenta..." : "Crear cuenta gratis"}{" "}
-                <ArrowRight size={18} />
-              </button>
             </form>
             <div className="signup-card__login">
               ¿Ya tenés cuenta? <Link to="/">Iniciá sesión</Link>

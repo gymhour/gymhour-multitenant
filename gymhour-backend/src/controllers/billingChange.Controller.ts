@@ -6,7 +6,7 @@ import { tenantPlanAccess } from '../services/planAccess.service.js';
 import { planChangeCharge } from '../services/planChange.service.js';
 import {
   changeRebillSubscriptionPlan, fetchRebillPayment, fetchRebillSubscription,
-  findOrCreateRebillPlan, rebillSubscriptionMatchesOrder,
+  findOrCreateRebillPlan, findRebillPaymentIdByMetadata, rebillSubscriptionMatchesOrder,
 } from '../services/rebill.service.js';
 
 async function context(tenantId: number, targetCode: unknown) {
@@ -274,7 +274,16 @@ export async function confirmPlanChange(req: Request, res: Response): Promise<vo
   }
   if (change.amountArs < 0) { res.status(409).json({ message: 'Este ajuste anterior necesita revisión.' }); return; }
   if (change.amountArs > 0 && change.status === 'PENDING') {
-    const paymentId = String(req.body?.paymentId ?? '');
+    let paymentId = String(req.body?.paymentId ?? '');
+    // Con transferencia, el navegador no recibe el ID del pago: se busca en Rebill por el cambio de plan.
+    if (!paymentId) {
+      try { paymentId = await findRebillPaymentIdByMetadata('gymhourPlanChangeId', change.id, req.user!.email.toLowerCase()) ?? ''; }
+      catch { res.status(503).json({ message: 'No pudimos consultar Rebill. Intentá de nuevo en unos minutos.' }); return; }
+      if (!paymentId) {
+        res.status(202).json({ changeId: change.id, status: 'PENDING', message: 'Todavía no recibimos la transferencia. Si ya la hiciste, puede demorar unos minutos.' });
+        return;
+      }
+    }
     if (!/^(test_)?pay_[\w-]+$/.test(paymentId)) { res.status(400).json({ message: 'Pago inválido.' }); return; }
     try { await confirmPaidPlanChangePayment(change.id, paymentId, req.user!.email); }
     catch { res.status(202).json({ changeId: change.id, message: 'Estamos verificando el pago y el nuevo plan. Reintentá en unos instantes sin volver a pagar.' }); return; }

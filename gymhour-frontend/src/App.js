@@ -54,18 +54,24 @@ import AIAssistant from './Pages/Shared/AIAssistant/AIAssistant';
 import SupportWhatsAppButton from './Components/utils/SupportWhatsAppButton/SupportWhatsAppButton';
 import { useAuth } from './context/AuthContext';
 import SubscriptionExpired from './Components/SubscriptionExpired/SubscriptionExpired';
-import SubscriptionRenewalStatusBar, { renewalDaysRemaining } from './Components/SubscriptionExpired/SubscriptionRenewalStatusBar';
+import SubscriptionRenewalStatusBar, { PaymentIssueStatusBar, renewalDaysRemaining } from './Components/SubscriptionExpired/SubscriptionRenewalStatusBar';
 import TrialStatusBar from './Components/TrialStatusBar/TrialStatusBar';
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 
 function App() {
   const { user, tenant } = useAuth();
   const { pathname } = useLocation();
   const expired = tenant?.billing?.state === 'EXPIRED';
+  // Tras pagar, el modal sigue abierto con la confirmación hasta que el admin lo cierra.
+  const [paymentConfirmed, setPaymentConfirmed] = useState(false);
+  const showPaywall = expired || paymentConfirmed;
+  const handlePaid = useCallback(() => setPaymentConfirmed(true), []);
+  const handlePaymentClosed = useCallback(() => setPaymentConfirmed(false), []);
   const appContentRef = useRef(null);
   const appPath = /^\/(admin|entrenador|alumno)(\/|$)/.test(pathname);
   const reminderDays = renewalDaysRemaining(tenant?.billing);
   const showRenewalBar = Boolean(user?.role === 'ADMIN' && appPath && reminderDays !== null);
+  const showPaymentIssue = Boolean(user?.role === 'ADMIN' && appPath && tenant?.billing?.inGrace);
   const showTrial = Boolean(user && tenant?.billing?.state === 'TRIAL'
     && appPath);
 
@@ -79,8 +85,8 @@ function App() {
   }, [theme]);
 
   useEffect(() => {
-    if (appContentRef.current) appContentRef.current.inert = expired;
-  }, [expired]);
+    if (appContentRef.current) appContentRef.current.inert = showPaywall;
+  }, [showPaywall]);
 
   // Expose toggle function globally for temporary testing or pass down if needed
   window.toggleTheme = () => setTheme(prev => prev === 'dark' ? 'light' : 'dark');
@@ -100,9 +106,10 @@ function App() {
         pauseOnHover={false}
         theme={theme}
       />}
-      {showTrial && <TrialStatusBar billing={tenant.billing} />}
+      {showTrial && <TrialStatusBar billing={tenant.billing} admin={user?.role === 'ADMIN'} tenant={tenant} />}
       {showRenewalBar && <SubscriptionRenewalStatusBar days={reminderDays} />}
-      <div ref={appContentRef} aria-hidden={expired} className={showTrial || showRenewalBar ? 'trial-app-shell' : undefined}>
+      {showPaymentIssue && <PaymentIssueStatusBar />}
+      <div ref={appContentRef} aria-hidden={showPaywall} className={showTrial || showRenewalBar || showPaymentIssue ? 'trial-app-shell' : undefined}>
       <Routes>
         {/* Rutas públicas */}
         <Route path="/" element={<Login />} />
@@ -619,7 +626,7 @@ function App() {
       </Routes>
       {!expired && <SupportWhatsAppButton />}
       </div>
-      {expired && <SubscriptionExpired />}
+      {showPaywall && <SubscriptionExpired onPaid={handlePaid} onClose={handlePaymentClosed} />}
     </>
   );
 }

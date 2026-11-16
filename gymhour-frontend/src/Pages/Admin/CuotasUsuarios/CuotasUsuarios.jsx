@@ -71,6 +71,16 @@ export default function CuotasUsuarios({ fromAdmin }) {
   useEffect(() => { load(); }, [load, refresh]);
 
   useEffect(() => {
+    if (searchParams.get('action') !== 'create') return;
+    setCreating(true);
+    const next = new URLSearchParams(searchParams);
+    next.delete('action');
+    setSearchParams(next, { replace: true });
+    // El parámetro es una orden de navegación que debe consumirse una sola vez.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
     if (!creating || search.trim().length < 2) { setStudents([]); return; }
     let current = true;
     const timer = setTimeout(async () => {

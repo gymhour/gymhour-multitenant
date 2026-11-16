@@ -20,8 +20,8 @@ const STEP_DEFINITIONS = [
     actions: [{ label: 'Asignar rutina', to: '/admin/asignar-rutinas', description: 'Prepará el entrenamiento y elegí qué socios o grupos lo recibirán.' }],
   },
   {
-    key: 'quotas', title: 'Generá las primeras cuotas',
-    actions: [{ label: 'Generar cuotas', to: '/admin/cuotas?action=generate', description: 'Creá los cargos del mes para todos los socios que tengan un plan.' }],
+    key: 'quotas', title: 'Creá tu primera cuota',
+    actions: [{ label: 'Crear cuota', to: '/admin/cuotas?action=create', description: 'Elegí un socio y creá su primera cuota. Las siguientes se generan automáticamente.' }],
   },
   {
     key: 'payment', title: 'Registrá el primer cobro',
