@@ -742,7 +742,7 @@ Falta probarlos en sandbox y aplicar la migración.
 - **Zonas horarias:** el ingreso y las reservas usan UTC-3 fijo, y las fechas de cuota usan la zona del gimnasio. Hoy todos los gimnasios son de Argentina.
 - **Período manual con baja programada:** cambia `paidUntil` y la siguiente renovación por webhook falla con `SCHEDULED_DOWNGRADE_PERIOD_CHANGED`. Se decidió dejarlo: es muy poco probable.
 - **Dashboard:** el histórico de ingresos lee todas las cuotas pagadas y agrupa en memoria. Revisar si crece el volumen.
-- **CSP en Vercel. A verificar:** `gymhour-frontend/vercel.json` define `script-src 'self'` y no declara `frame-src`. Si el frontend corre en Vercel y el checkout de Rebill carga scripts o iframes externos, los bloquearía. En Railway ese archivo no aplica.
+- **CSP en Vercel:** el frontend corre en Vercel, y la Content Security Policy de `gymhour-frontend/vercel.json` bloqueaba el checkout de Rebill en producción. Hoy permite los iframes de `*.rebill.com` y el script e iframe de antifraude de `*.online-metrix.net`. Si Rebill suma otro dominio, la consola del navegador lo muestra como "violates the following Content Security Policy directive" y hay que agregarlo ahí.
 
 ### Lista para producción
 
