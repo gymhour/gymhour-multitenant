@@ -321,8 +321,9 @@ export async function getAuthorizedPayment(token: string, authorizedPaymentId: s
 // --- Firma de los avisos (webhooks) ---
 
 // Mercado Pago firma cada aviso con el secreto de la aplicación: header x-signature "ts=...,v1=..."
-// sobre el texto "id:<data.id>;request-id:<x-request-id>;ts:<ts>;". Igual, Gymhour nunca confía en
-// el cuerpo: siempre vuelve a consultar el recurso en la API con el token del gimnasio.
+// sobre el texto "id:<data.id>;request-id:<x-request-id>;ts:<ts>;". El data.id es el de la URL;
+// si no viene, como en los avisos con formato IPN, esa parte se omite. Igual, Gymhour nunca confía
+// en el cuerpo: siempre vuelve a consultar el recurso en la API con el token del gimnasio.
 const SIGNATURE_TOLERANCE_MS = 24 * 60 * 60 * 1000;
 
 export function verifyWebhookSignature(input: {

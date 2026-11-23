@@ -9,7 +9,7 @@ import {
   MercadoPagoConnectionError, activeOnlineOperations, completeConnection, connectionStatus, disconnectAccount,
   startConnection,
 } from '../services/mercadoPagoAccount.service.js';
-import { processMercadoPagoNotification, processQueuedNotifications } from '../services/mercadoPagoWebhook.service.js';
+import { normalizeTopic, processMercadoPagoNotification, processQueuedNotifications } from '../services/mercadoPagoWebhook.service.js';
 import {
   MemberPaymentError, listAlerts, markAlertReviewed, memberPaymentState, startCheckout, verifyAttempt,
 } from '../services/memberPayments.service.js';
@@ -187,10 +187,15 @@ export async function mercadoPagoWebhook(req: Request, res: Response): Promise<v
   const resourceId = String(queryDataId ?? req.body?.data?.id ?? req.query.id ?? '');
   const reference = typeof req.query.ref === 'string' ? req.query.ref : null;
   if (!resourceId || resourceId.length > 64) { res.status(200).end(); return; }
+  // Tópicos que Gymhour no usa, como merchant_order, que Mercado Pago manda a la notification_url
+  // de cada checkout. Se confirman sin procesar: con otra respuesta, Mercado Pago los reintenta.
+  if (!normalizeTopic(topic)) { res.status(200).end(); return; }
 
+  // En el texto firmado, el id es solo el data.id de la URL. Los avisos con formato IPN
+  // (?id=...&topic=...) no lo traen, y entonces Mercado Pago firma sin esa parte.
   const signature = verifyWebhookSignature({
     signature: req.headers['x-signature'], requestId: req.headers['x-request-id'],
-    dataId: queryDataId ?? resourceId, secret: process.env.MP_WEBHOOK_SECRET ?? '',
+    dataId: queryDataId, secret: process.env.MP_WEBHOOK_SECRET ?? '',
   });
   if (signature === 'invalid') {
     console.error('[mercadopago] aviso con firma inválida', { topic, resourceId });

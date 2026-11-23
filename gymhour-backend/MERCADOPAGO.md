@@ -66,7 +66,10 @@ El admin toca **Conectar Mercado Pago** en Ajustes → "Cobros con Mercado Pago"
 - **`state`:** impide que alguien conecte **su** cuenta de Mercado Pago a un gimnasio ajeno (mandándole al admin un link con su propio `code`) para quedarse con los pagos de los socios. También identifica al gimnasio sin confiar en el navegador: el callback no tiene sesión de Gymhour.
 - **PKCE (S256):** un `code` filtrado (por el historial o una extensión del navegador) no sirve sin el verificador, que nunca sale del servidor.
 - **`redirect_uri` fija:** Mercado Pago solo devuelve el `code` a la URL exacta registrada en la app.
-- **Modo de prueba o real:** con `MP_TEST_MODE=true` solo se aceptan cuentas de prueba, y sin él solo cuentas reales (`MODE_MISMATCH`).
+- **Modo de prueba o real:** lo separa la app, no la variable.
+  - Una app de una cuenta real no conecta cuentas de prueba (confirmado), y Gymhour Sandbox, que es de una cuenta de prueba, es para cuentas de prueba.
+  - Con Gymhour Sandbox, `MP_TEST_MODE` va en `false`. Mercado Pago entrega tokens productivos de cuentas de prueba, sin `test_token` (confirmado el 23 de noviembre de 2026).
+  - `MP_TEST_MODE=true` queda para el flujo viejo de credenciales `TEST-`: manda `test_token=true` y exige que el token no sea productivo (`MODE_MISMATCH`).
 
 **Renovación:** el cron renueva los tokens que vencen en menos de 30 días, también en gimnasios bloqueados. Cada renovación trae un refresh token nuevo, que se vuelve a guardar. Si Mercado Pago rechaza la renovación, o responde 401 en cualquier operación:
 
@@ -247,7 +250,10 @@ En Cuotas, "Avisos de Mercado Pago" (`GET /pagos/avisos`) lista los pagos que el
 
 `POST /pagos/webhooks/mercadopago` es pública: la llama Mercado Pago.
 
-- **Firma:** si llega `x-signature` y está `MP_WEBHOOK_SECRET`, se valida: HMAC-SHA256 sobre `id:<data.id>;request-id:<x-request-id>;ts:<ts>;`, comparación en tiempo constante y 24 horas de tolerancia. Si es inválida, `401`.
+- **Dos formatos:** a la `notification_url` de cada checkout llegan avisos con formato Webhooks (`?data.id=…&type=payment`) y con formato IPN (`?id=…&topic=payment` o `topic=merchant_order`).
+- **Firma:** si llega `x-signature` y está `MP_WEBHOOK_SECRET`, se valida con HMAC-SHA256 sobre `id:<data.id>;request-id:<x-request-id>;ts:<ts>;`.
+  - El `data.id` es solo el de la URL. En los IPN no viene, y la parte `id:` se omite, como indica Mercado Pago. Hasta el 23 de noviembre de 2026 se usaba el `id` del IPN, y esos avisos daban `401`.
+  - Se compara en tiempo constante y con 24 horas de tolerancia. Si es inválida, responde `401`.
 - **Nunca se confía en el cuerpo:** solo se usa el ID del recurso, que se vuelve a consultar con el token del gimnasio.
 - **A qué gimnasio corresponde:**
   - Primero, por la referencia de Gymhour (`?ref=` de la `notification_url`, o la referencia del débito).
@@ -257,7 +263,10 @@ En Cuotas, "Avisos de Mercado Pago" (`GET /pagos/avisos`) lista los pagos que el
   - `payment`: botón de pago y cobros del débito.
   - `subscription_preapproval` / `preapproval`: estado del débito.
   - `subscription_authorized_payment` / `authorized_payment`: cobros del débito.
-- **Respuestas:** `200` si se procesó o se ignoró. `500` si falló, para que Mercado Pago reintente.
+- **Respuestas:**
+  - `200` si se procesó o se ignoró.
+  - `200` sin verificar la firma para los tópicos que Gymhour no usa, como `merchant_order`. Así Mercado Pago no los reintenta.
+  - `500` si falló el procesamiento, para que Mercado Pago reintente.
 - **Sin un token utilizable**, el aviso se guarda en `MercadoPagoPendingNotification` y se procesa al reconectar o en el cron.
 
 Código: `services/mercadoPagoWebhook.service.ts`, `controllers/mercadoPago.Controller.ts`.
@@ -369,15 +378,19 @@ Según Mercado Pago, la función es para cuentas con una sola app o ninguna, as�
 
 ### 1. Apps en Mercado Pago Developers
 
-Dos apps desde esa cuenta (Tus integraciones → Crear aplicación, con Checkout Pro). Así el entorno test nunca tiene el Client Secret de producción.
+Tres apps (Tus integraciones → Crear aplicación, con Checkout Pro). Así el entorno test nunca tiene el Client Secret de producción.
 
-| App | Para qué | URL de webhooks, modo pruebas y modo producción |
-|---|---|---|
-| Gymhour Test | Entorno test, con `MP_TEST_MODE=true` y cuentas de prueba | Las dos a la API de test |
-| Gymhour | Producción | Las dos a la API de producción |
+| App | Cuenta dueña | Para qué | URL de webhooks, modo pruebas y modo producción |
+|---|---|---|---|
+| Gymhour Test | La cuenta real | Solo para crear las cuentas de prueba. No se conecta. | — |
+| Gymhour Sandbox | Una cuenta de prueba tipo Integrador | Entorno test, con las cuentas de prueba | Las dos a la API de test |
+| Gymhour | La cuenta real | Producción | Las dos a la API de producción |
 
-En cada app:
+Mercado Pago no deja conectar cuentas de prueba a una app de una cuenta real. Lo confirmamos el 23 de noviembre de 2026: con el Vendedor de prueba, la autorización respondió "Lo sentimos, la aplicación no puede conectarse a tu cuenta". Por eso la app del entorno test se crea dentro de la cuenta de prueba Integrador, entrando a Mercado Pago Developers con ella en una ventana privada. Odoo y otras integraciones lo resuelven igual.
 
+En cada app que se conecta:
+
+- **Al crearla:** solución Checkout Pro y, en "Tipo de API", **API de Preferences**. Gymhour crea los cobros con `/checkout/preferences` y no usa la API de Orders. Mercado Pago marca esa API como "será descontinuada pronto": ver "Pendiente antes de producción".
 - **URL de redireccionamiento:** `https://<api>/pagos/mercadopago/oauth/callback`. Tiene que coincidir exactamente con `API_PUBLIC_URL`.
 - **PKCE:** Detalles de aplicación → Editar → flujo de código de autorización con PKCE.
 - **Permisos:** `read`, `write` y `offline_access`, si la pantalla los ofrece.
@@ -386,8 +399,8 @@ En cada app:
   - Al guardar se genera la clave secreta, que va en `MP_WEBHOOK_SECRET`.
   - Con "Simular notificación", la API tiene que responder 200. Un 401 indica que la clave no coincide.
 - **Client ID y Client Secret:** están en la pestaña Producción de las credenciales, que hay que activar (rubro y sitio web) aunque la app sea de test. La pestaña Prueba solo tiene la Public Key y el Access Token de la cuenta de prueba automática. En las dos pestañas, la Public Key y el Access Token no se usan. El Access Token de Producción da acceso a la cuenta real dueña de la app: no se copia en ningún lado.
-- **Cuentas de prueba,** solo en Gymhour Test:
-  - Un Vendedor para el gimnasio y un Comprador para el socio, de Argentina. La cuenta de prueba que Mercado Pago crea sola con la app no se usa.
+- **Cuentas de prueba,** creadas desde Gymhour Test:
+  - Un Integrador, dueño de Gymhour Sandbox. Un Vendedor para el gimnasio y un Comprador para el socio. Todas de Argentina. La cuenta de prueba que Mercado Pago crea sola con la app no se usa.
   - Se entra con ellas en una ventana privada. Si piden un código por email, es el de 6 dígitos que muestra Mercado Pago Developers para esa cuenta.
   - El máximo es de 15 cuentas.
 
@@ -400,7 +413,7 @@ En cada app:
 | `MP_TOKEN_ENCRYPTION_KEY` | 32 bytes en hex o base64 para cifrar los tokens. Generarla con `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`. Si se pierde o cambia, todos los gimnasios tienen que reconectar. |
 | `MP_WEBHOOK_SECRET` | Secreto de firma de los webhooks de la app |
 | `API_PUBLIC_URL` | URL pública https de la API, sin barra final |
-| `MP_TEST_MODE` | `true` para el sandbox (cuentas y tokens de prueba). Sin definir en producción. |
+| `MP_TEST_MODE` | `false` o sin definir, también en el entorno test con Gymhour Sandbox. `true` solo para el flujo viejo de credenciales `TEST-`. Ver "Modo de prueba o real". |
 | `MP_API_BASE_URL`, `MP_AUTH_BASE_URL` | Opcionales. Por defecto `https://api.mercadopago.com` y `https://auth.mercadopago.com`. |
 
 Sin `MP_CLIENT_ID`, `MP_CLIENT_SECRET`, `MP_TOKEN_ENCRYPTION_KEY` y `API_PUBLIC_URL`, la sección de Ajustes muestra "Todavía no disponible" y el cron no hace nada de Mercado Pago. El recargo funciona igual.
@@ -420,16 +433,16 @@ El entorno `test` es una copia de `production`. Railway copia los servicios, las
    - Rebill: las claves de sandbox, o ninguna. La prueba gratuita ya incluye Mercado Pago.
    - Cloudinary: sin las tres variables, o con una cuenta aparte. Los IDs de gimnasio vuelven a empezar en 1 y las carpetas son `tenants/<id>/`. Subir archivos mezclaría las carpetas con las de producción, y borrar un gimnasio de test borraría la carpeta del gimnasio de producción con el mismo ID.
    - `FRONTEND_URL`: la URL de la rama en Vercel, sin barra final, porque CORS compara el origen exacto.
-   - Las de Mercado Pago, de la app Gymhour Test, con `MP_TEST_MODE=true`. El cron también las necesita.
+   - Las de Mercado Pago, de la app Gymhour Sandbox, con `MP_TEST_MODE=false`. El cron también las necesita.
    - SMTP queda igual: la base arranca vacía y solo se usan emails propios.
 4. **Migraciones:** la base vacía necesita todas. Se aplican con `migrate deploy` desde la PC, con la URL pública del MySQL de test. Antes de aplicarlas, `migrate status` muestra el host.
 5. **Frontend:** la vista previa de Vercel de la rama, con `REACT_APP_API_URL` apuntando a la API de test. Esa variable se configura para Preview y la rama `feature-mercadopago`. Se fija al compilar, así que después de cargarla hay que volver a desplegar la vista previa.
 
 ### 5. Prueba en sandbox
 
-En el entorno test (o en local con un túnel), con `MP_TEST_MODE=true` y las cuentas de prueba:
+En el entorno test (o en local con un túnel), con la app Gymhour Sandbox, `MP_TEST_MODE=false` y las cuentas de prueba:
 
-1. Conectar con el vendedor de prueba, en una ventana privada.
+1. Conectar con el Vendedor de prueba, en una ventana privada. Funcionó el 23 de noviembre de 2026.
 2. Configurar un recargo y verlo en una cuota vencida, en el pago manual y en el botón de pago.
 3. Pagar una cuota con el comprador de prueba: queda pagada con su número de operación.
 4. Probar un pago rechazado y un reintento.
@@ -441,15 +454,27 @@ En el entorno test (o en local con un túnel), con `MP_TEST_MODE=true` y las cue
 10. Rechazar un cobro del débito: probar "Actualizar mi tarjeta" y "Pagar por otro medio".
 11. Dar de baja el débito, y desconectar con débitos activos.
 
+## Pendiente antes de producción
+
+- [ ] **Botón de pago con la API de Orders.**
+  - El 23 de noviembre de 2026, al crear la app, Mercado Pago marcaba la API de Preferences como "será descontinuada pronto".
+  - La documentación dice que sigue con soporte, pero las novedades van solo a la API de Orders, que es la que recomienda para integraciones nuevas. No publicó una fecha de baja.
+  - Migrar cambia la creación del checkout (`POST /v1/orders` en vez de `/checkout/preferences`), la consulta del pago (`GET /v1/orders/{id}`) y el tópico de los webhooks (`order`).
+  - Suma rutas a la lista cerrada de permisos, así que hay que decidirlo antes de programarlo.
+  - Confirmar si la API de Suscripciones, que usa el débito automático, también tiene fecha de retiro.
+
 ## A confirmar en sandbox
 
 Puntos de la documentación de Mercado Pago que hay que verificar con la primera prueba. Si alguno da distinto, se ajusta el código y esta sección.
 
-- [ ] Dominio de autorización para Argentina (`MP_AUTH_BASE_URL`) y PKCE.
-- [ ] Si con cuentas de prueba sigue haciendo falta `test_token=true` al canjear el código, y si el checkout abre con `sandbox_init_point` o con `init_point`.
+- [x] Dominio de autorización y PKCE. `https://auth.mercadopago.com` redirige a `auth.mercadopago.com.ar`, y la conexión con PKCE (S256) funcionó el 23 de noviembre de 2026. `MP_AUTH_BASE_URL` no hace falta.
+- [x] Con la app de prueba dentro de la cuenta Integrador, la conexión funciona con `MP_TEST_MODE=false`: sin `test_token` y con un token productivo de la cuenta de prueba (23 de noviembre de 2026). Así lo hacen también Odoo y la guía de marketplace de next-mercadopago.
 - [ ] A qué URL de webhooks llegan los avisos de las cuentas de prueba vinculadas: la de modo pruebas o la de producción. La documentación dice que el modo pruebas es para las credenciales de prueba del dueño de la app. Por eso la app de test apunta las dos a la API de test.
 - [ ] Que la renovación devuelva un refresh token nuevo.
-- [ ] Si llega `x-signature` en los avisos de la `notification_url` y con qué secreto.
+- [ ] Firma de los avisos de la `notification_url`.
+  - El 23 de noviembre de 2026 llegaron con `x-signature`.
+  - Falta confirmar en los logs que los de `type=payment` y `topic=payment` respondan `200` con la clave de Gymhour Sandbox.
+- [x] Checkout con `init_point` y pago del Comprador de prueba con dinero en cuenta: la cuota quedó pagada para el socio y para el admin (23 de noviembre de 2026).
 - [ ] Si los webhooks de la app llegan para las cuentas vinculadas, con `user_id`, y el formato de los tópicos de suscripciones.
 - [ ] Que el checkout no acepte pagos después de `expiration_date_to`.
 - [ ] Que `auto_return` y `back_url` acepten la URL del frontend.
@@ -473,7 +498,7 @@ Con Prisma y Mercado Pago simulados, archivo por archivo:
 | `test/mercadoPagoAccount.test.ts` | `state` de un solo uso y con vencimiento, PKCE, tokens cifrados, modo de prueba, cambio de cuenta, renovación y `ERROR` |
 | `test/memberPayments.test.ts` | Checkout, bloqueos, aplicación idempotente, `REVISAR`, `DUPLICADO`, devoluciones, contracargos, vencimiento y avisos |
 | `test/automaticDebit.test.ts` | Frecuencia, primer cobro, adhesión, cobros, rechazos, baja con confirmación de Mercado Pago, cambios de plan y conciliación de cobros perdidos |
-| `test/mercadoPagoWebhook.test.ts` | A qué gimnasio va cada aviso, tópicos, cola y respuestas del endpoint |
+| `test/mercadoPagoWebhook.test.ts` | A qué gimnasio va cada aviso, tópicos, cola, firma en los formatos Webhooks e IPN y respuestas del endpoint |
 
 `test/helpers/fakePrisma.ts` es una base en memoria para estos tests. En el frontend:
 
