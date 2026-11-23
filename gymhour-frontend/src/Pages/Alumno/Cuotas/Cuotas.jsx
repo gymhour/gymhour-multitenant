@@ -69,8 +69,10 @@ const Cuotas = () => {
     return d.toLocaleString('es-AR', { month: 'long', year: 'numeric', timeZone: 'UTC' });
   };
 
+  // Las fechas de la cuota (inicio, fin, vencimiento y pago) son días del gimnasio guardados en UTC.
+  // Sin timeZone 'UTC', en Argentina se mostraban un día antes, a diferencia de la vista del admin.
   const formatDate = (iso) =>
-    iso ? new Date(iso).toLocaleDateString('es-AR') : '–';
+    iso ? new Date(iso).toLocaleDateString('es-AR', { timeZone: 'UTC' }) : '–';
 
   const formatCurrency = (val) =>
     new Intl.NumberFormat('es-AR', { style: 'currency', currency: settings.currency || 'ARS' }).format(val ?? 0);

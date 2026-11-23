@@ -798,6 +798,9 @@ Falta probarlos en sandbox y aplicar la migración.
 - **Celular del onboarding:** se indica que se usa "para validar tu identidad", y el código solo lo guarda.
 - **Saldo a favor:** nada incrementa `billingCreditArs`. La lógica que lo descuenta y bloquea la tarjeta solo actúa si se carga a mano.
 - **Zonas horarias:** el ingreso y las reservas usan UTC-3 fijo, y las fechas de cuota usan la zona del gimnasio. Hoy todos los gimnasios son de Argentina.
+  - Las fechas de la cuota se guardan como días en UTC, así que el frontend las tiene que mostrar con `timeZone: 'UTC'`.
+  - La pantalla Cuotas del socio no lo hacía, y en Argentina mostraba el inicio del período y la fecha de pago un día antes que la vista del admin.
+  - Se corrigió en la rama `feature-mercadopago` (23 de noviembre de 2026). Producción lo sigue mostrando mal hasta el merge.
 - **Período manual con baja programada:** cambia `paidUntil` y la siguiente renovación por webhook falla con `SCHEDULED_DOWNGRADE_PERIOD_CHANGED`. Se decidió dejarlo: es muy poco probable.
 - **Dashboard:** el histórico de ingresos lee todas las cuotas pagadas y agrupa en memoria. Revisar si crece el volumen.
 - **CSP en Vercel:** el frontend corre en Vercel, y la Content Security Policy de `gymhour-frontend/vercel.json` bloqueaba el checkout de Rebill en producción. Hoy permite los iframes de `*.rebill.com` y el script e iframe de antifraude de `*.online-metrix.net`. Si Rebill suma otro dominio, la consola del navegador lo muestra como "violates the following Content Security Policy directive" y hay que agregarlo ahí.

@@ -98,6 +98,16 @@ it('con un débito rechazado ofrece actualizar la tarjeta o pagar por otro medio
   await waitFor(() => expect(apiService.cancelMyAutomaticDebit).toHaveBeenCalledWith('El socio eligió pagar por otro medio.'));
 });
 
+it('muestra los días de la cuota igual que el admin, sin correrlos por la zona horaria', async () => {
+  apiService.getCuotasUsuario.mockResolvedValue([cuota({
+    pagada: true, vencida: false, recargoSugerido: null, formaPago: 'Mercado Pago', referenciaPago: '1001',
+    fechaPago: '2026-11-23T00:00:00.000Z',
+  })]);
+  renderCuotas();
+  expect(await screen.findByText('18/11/2026 – 17/12/2026')).toBeTruthy();
+  expect(screen.getByText('23/11/2026')).toBeTruthy();
+});
+
 it('sin Mercado Pago conectado, solo muestra los datos para transferir', async () => {
   apiService.getMyPaymentState.mockResolvedValue({ disponible: false, intentoActivo: null, debito: null });
   renderCuotas();

@@ -251,9 +251,12 @@ En Cuotas, "Avisos de Mercado Pago" (`GET /pagos/avisos`) lista los pagos que el
 `POST /pagos/webhooks/mercadopago` es pública: la llama Mercado Pago.
 
 - **Dos formatos:** a la `notification_url` de cada checkout llegan avisos con formato Webhooks (`?data.id=…&type=payment`) y con formato IPN (`?id=…&topic=payment` o `topic=merchant_order`).
-- **Firma:** si llega `x-signature` y está `MP_WEBHOOK_SECRET`, se valida con HMAC-SHA256 sobre `id:<data.id>;request-id:<x-request-id>;ts:<ts>;`.
-  - El `data.id` es solo el de la URL. En los IPN no viene, y la parte `id:` se omite, como indica Mercado Pago. Hasta el 23 de noviembre de 2026 se usaba el `id` del IPN, y esos avisos daban `401`.
+- **Los IPN no se procesan:** se confirman con `200`, porque cada pago llega también con formato Webhooks.
+  - Su firma no coincide con el método documentado: se probó el 23 de noviembre de 2026, con la clave correcta y sin la parte `id:`, y dio `401`.
+  - Antes, con la clave equivocada, también fallaba la versión con el `id` del IPN, así que esa prueba no permite descartarla.
+- **Firma de los avisos Webhooks:** si llega `x-signature` y está `MP_WEBHOOK_SECRET`, se valida con HMAC-SHA256 sobre `id:<data.id>;request-id:<x-request-id>;ts:<ts>;`, con el `data.id` de la URL.
   - Se compara en tiempo constante y con 24 horas de tolerancia. Si es inválida, responde `401`.
+  - La clave es la del **modo productivo** de la app: con cuentas de prueba, los avisos llegan como "Productivo".
 - **Nunca se confía en el cuerpo:** solo se usa el ID del recurso, que se vuelve a consultar con el token del gimnasio.
 - **A qué gimnasio corresponde:**
   - Primero, por la referencia de Gymhour (`?ref=` de la `notification_url`, o la referencia del débito).
@@ -265,7 +268,7 @@ En Cuotas, "Avisos de Mercado Pago" (`GET /pagos/avisos`) lista los pagos que el
   - `subscription_authorized_payment` / `authorized_payment`: cobros del débito.
 - **Respuestas:**
   - `200` si se procesó o se ignoró.
-  - `200` sin verificar la firma para los tópicos que Gymhour no usa, como `merchant_order`. Así Mercado Pago no los reintenta.
+  - `200` sin verificar la firma para los tópicos que Gymhour no usa, como `merchant_order`, y para los avisos IPN. Así Mercado Pago no los reintenta.
   - `500` si falló el procesamiento, para que Mercado Pago reintente.
 - **Sin un token utilizable**, el aviso se guarda en `MercadoPagoPendingNotification` y se procesa al reconectar o en el cron.
 
@@ -471,11 +474,10 @@ Puntos de la documentación de Mercado Pago que hay que verificar con la primera
 - [x] Con la app de prueba dentro de la cuenta Integrador, la conexión funciona con `MP_TEST_MODE=false`: sin `test_token` y con un token productivo de la cuenta de prueba (23 de noviembre de 2026). Así lo hacen también Odoo y la guía de marketplace de next-mercadopago.
 - [ ] A qué URL de webhooks llegan los avisos de las cuentas de prueba vinculadas: la de modo pruebas o la de producción. La documentación dice que el modo pruebas es para las credenciales de prueba del dueño de la app. Por eso la app de test apunta las dos a la API de test.
 - [ ] Que la renovación devuelva un refresh token nuevo.
-- [ ] Firma de los avisos de la `notification_url`.
-  - El 23 de noviembre de 2026 llegaron con `x-signature`.
-  - En el segundo pago, todos los avisos `payment` dieron `401`, tanto los de formato Webhooks como los IPN. Lo más probable es que `MP_WEBHOOK_SECRET` no sea la clave de Gymhour Sandbox.
-  - Falta confirmarlo con "Simular notificación" y verificar que los avisos de un pago nuevo respondan `200`.
-  - Mientras el webhook falle, la cuota se confirma por la verificación del socio al volver o con "Ya pagué, verificar".
+- [x] Firma de los avisos (23 de noviembre de 2026).
+  - Llegan con `x-signature`, firmados con la clave del modo productivo de la app.
+  - Los de formato Webhooks validan y responden `200`. Antes daban `401` porque `MP_WEBHOOK_SECRET` tenía la clave de otra app.
+  - Los IPN no validan con el método documentado y se confirman sin procesar: ver "Webhooks".
 - [x] Checkout con `init_point` y pago del Comprador de prueba con dinero en cuenta: la cuota quedó pagada para el socio y para el admin (23 de noviembre de 2026).
 - [ ] Si los webhooks de la app llegan para las cuentas vinculadas, con `user_id`, y el formato de los tópicos de suscripciones.
 - [ ] Que el checkout no acepte pagos después de `expiration_date_to`.
@@ -500,7 +502,7 @@ Con Prisma y Mercado Pago simulados, archivo por archivo:
 | `test/mercadoPagoAccount.test.ts` | `state` de un solo uso y con vencimiento, PKCE, tokens cifrados, modo de prueba, cambio de cuenta, renovación y `ERROR` |
 | `test/memberPayments.test.ts` | Checkout, bloqueos, aplicación idempotente, `REVISAR`, `DUPLICADO`, devoluciones, contracargos, vencimiento y avisos |
 | `test/automaticDebit.test.ts` | Frecuencia, primer cobro, adhesión, cobros, rechazos, baja con confirmación de Mercado Pago, cambios de plan y conciliación de cobros perdidos |
-| `test/mercadoPagoWebhook.test.ts` | A qué gimnasio va cada aviso, tópicos, cola, firma en los formatos Webhooks e IPN y respuestas del endpoint |
+| `test/mercadoPagoWebhook.test.ts` | A qué gimnasio va cada aviso, tópicos, cola, firma de los avisos Webhooks, IPN y tópicos sin usar confirmados con 200, y respuestas del endpoint |
 
 `test/helpers/fakePrisma.ts` es una base en memoria para estos tests. En el frontend:
 

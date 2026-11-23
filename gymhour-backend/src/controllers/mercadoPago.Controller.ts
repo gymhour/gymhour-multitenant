@@ -190,9 +190,12 @@ export async function mercadoPagoWebhook(req: Request, res: Response): Promise<v
   // Tópicos que Gymhour no usa, como merchant_order, que Mercado Pago manda a la notification_url
   // de cada checkout. Se confirman sin procesar: con otra respuesta, Mercado Pago los reintenta.
   if (!normalizeTopic(topic)) { res.status(200).end(); return; }
+  // Avisos con el formato viejo (IPN: ?id=...&topic=...). Mercado Pago manda cada uno también con el
+  // formato Webhooks (?data.id=...&type=...), que es el que se valida y se procesa. La firma de los IPN
+  // no coincide con el método documentado, así que se confirman sin procesar: con 401 se reintentan.
+  if (!queryDataId && typeof req.query.topic === 'string') { res.status(200).end(); return; }
 
-  // En el texto firmado, el id es solo el data.id de la URL. Los avisos con formato IPN
-  // (?id=...&topic=...) no lo traen, y entonces Mercado Pago firma sin esa parte.
+  // En el texto firmado, el id es el data.id de la URL.
   const signature = verifyWebhookSignature({
     signature: req.headers['x-signature'], requestId: req.headers['x-request-id'],
     dataId: queryDataId, secret: process.env.MP_WEBHOOK_SECRET ?? '',

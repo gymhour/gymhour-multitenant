@@ -88,11 +88,9 @@ describe('a qué gimnasio corresponde cada aviso', () => {
 });
 
 describe('endpoint del webhook', () => {
-  // Sin dataId, el texto firmado va sin la parte del id, como en los avisos con formato IPN.
-  const signed = (dataId: string | null, requestId = 'req-1') => {
+  const signed = (dataId: string, requestId = 'req-1') => {
     const ts = String(Math.floor(Date.now() / 1000));
-    const manifest = `${dataId ? `id:${dataId};` : ''}request-id:${requestId};ts:${ts};`;
-    const v1 = crypto.createHmac('sha256', 'webhook-secret').update(manifest).digest('hex');
+    const v1 = crypto.createHmac('sha256', 'webhook-secret').update(`id:${dataId};request-id:${requestId};ts:${ts};`).digest('hex');
     return { 'x-signature': `ts=${ts},v1=${v1}`, 'x-request-id': requestId };
   };
   const call = async (req: Record<string, unknown>) => {
@@ -113,13 +111,10 @@ describe('endpoint del webhook', () => {
     expect(mp.getPayment).not.toHaveBeenCalled();
   });
 
-  it('un aviso con formato IPN se valida sin el id en el texto firmado', async () => {
-    const query = { ref: 'ref-checkout-0001', id: '1001', topic: 'payment' };
-    const ok = await call({ query, headers: signed(null) });
-    expect(ok.status).toHaveBeenCalledWith(200);
-    expect(payments.applyPaymentUpdate).toHaveBeenCalled();
-    const conId = await call({ query, headers: signed('1001') });
-    expect(conId.status).toHaveBeenCalledWith(401);
+  it('los avisos con formato IPN se confirman con 200 sin procesar: el mismo pago llega con formato Webhooks', async () => {
+    const res = await call({ query: { ref: 'ref-checkout-0001', id: '1001', topic: 'payment' }, headers: signed('otro') });
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(mp.getPayment).not.toHaveBeenCalled();
   });
 
   it('los tópicos que no usa, como merchant_order, se confirman con 200 sin verificar ni procesar', async () => {
