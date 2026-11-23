@@ -725,6 +725,7 @@ npm run dev
 | `feeDates.test.ts` | Períodos, día ancla, duraciones y altas retroactivas |
 | `multitenant.integration.test.ts` | Registro, verificación, aislamiento y bloqueo por vencimiento |
 | `lateFee.test.ts` | Recargo por atraso: cálculo, Ajustes y pago manual |
+| `authToken.test.ts` | Sesión: `401` con un token inválido y `503` cuando falla la base, para que el frontend no cierre la sesión |
 | `mercadoPagoClient.test.ts`, `mercadoPagoAccount.test.ts`, `memberPayments.test.ts`, `automaticDebit.test.ts`, `mercadoPagoWebhook.test.ts` | Cobros a socios con Mercado Pago. Detalle en `gymhour-backend/MERCADOPAGO.md`, "Tests". |
 
 `npm test` también ejecuta `multitenant.integration.test.ts`, que aplica migraciones sobre `TEST_DATABASE_URL`. Para correr solo lo que usa Prisma simulado, indicá los archivos: `npx vitest run test/billing.test.ts`.
@@ -743,15 +744,21 @@ Si el navegador no completa `confirm-card`, el pago sigue sin vincularse solo, p
 **2. Cobro inmediato al cambiar la tarjeta. A verificar.**
 `collectAfterCardUpdate` sigue la documentación de Rebill para reactivar con `nextChargeDate` = hoy, pero no se probó en sandbox.
 
+**3. Pool de Prisma de una sola conexión. Corregido a medias.**
+`models/Prisma.ts` fuerza `connection_limit=1` y `pool_timeout=20` cuando `DATABASE_URL` no los trae. Viene de cuando la API corría en Vercel, con un hosting de MySQL que limitaba las conexiones por hora.
+- **El problema:** con una sola conexión, una consulta lenta frena todos los pedidos. El 23 de noviembre de 2026, en el entorno test, `/auth/me` esperó más de 20 segundos y falló con `P2024`.
+- **Lo corregido en la rama `feature-mercadopago`:** la autenticación respondía `401` ante cualquier error, y el frontend cerraba la sesión. Ahora responde `503` cuando falla la base, y solo `401` cuando el token no es válido (`test/authToken.test.ts`).
+- **Lo pendiente:** agregar `?connection_limit=5` al `DATABASE_URL` de Railway, que el código respeta. En test se recomendó hacerlo el 23 de noviembre de 2026. En producción se puede hacer antes del merge si la base ya no está en aquel hosting.
+
 ### Prioridad media (decidido dejar así)
 
-**3. El período manual sin orden da acceso total.**
+**4. El período manual sin orden da acceso total.**
 Registrar un período a un gimnasio sin órdenes pagadas lo deja como `LEGACY`: todas las funciones y sin tope de socios. Sirve para acuerdos especiales.
 
-**4. Se anuncia una función que no existe.**
+**5. Se anuncia una función que no existe.**
 La tarjeta de Pro incluye "Cobros automáticos a socios con Mercado Pago", sin implementación en el backend.
 
-**5. Gimnasios que ya pagan con tarjeta, sin tolerancia hasta su próxima renovación.**
+**6. Gimnasios que ya pagan con tarjeta, sin tolerancia hasta su próxima renovación.**
 `billingGraceUntil` se define en cada pago aprobado. Hoy no hay gimnasios pagando con tarjeta.
 
 ### Resueltos en la tanda del 11 de noviembre

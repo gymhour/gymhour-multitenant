@@ -67,6 +67,20 @@ const bearerToken = (req: Request): string | null => {
   return scheme === 'Bearer' && token ? token : null;
 };
 
+// Solo un token inválido o vencido cierra la sesión. Si lo que falla es la base, por ejemplo porque no
+// hay conexiones libres, se responde 503: con 401 el frontend borraría la sesión del usuario.
+const isInvalidTokenError = (error: unknown) => error instanceof jwt.JsonWebTokenError
+  || (error instanceof Error && ['INVALID_TOKEN_SCOPE', 'STALE_OR_INVALID_TOKEN'].includes(error.message));
+
+const rejectAuthentication = (res: Response, error: unknown) => {
+  if (isInvalidTokenError(error)) {
+    res.status(401).json({ error: 'No autorizado' });
+    return;
+  }
+  console.error('Error en la autenticación:', error);
+  res.status(503).json({ error: 'No pudimos validar tu sesión. Probá de nuevo en unos segundos.' });
+};
+
 export async function authenticateToken(req: Request, res: Response, next: NextFunction): Promise<void> {
   const token = bearerToken(req);
   if (!token) {
@@ -110,8 +124,7 @@ export async function authenticateToken(req: Request, res: Response, next: NextF
     }
     runWithTenantContext({ tenantId: tenant.id, user: req.user, tenant: req.tenant, db: prisma, source: 'JWT' }, next);
   } catch (error) {
-    console.error('Error en la autenticación:', error);
-    res.status(401).json({ error: 'No autorizado' });
+    rejectAuthentication(res, error);
   }
 }
 
@@ -161,8 +174,8 @@ export async function authenticatePlatformToken(req: Request, res: Response, nex
       || platformUser.authVersion !== payload.authVersion) throw new Error('STALE_OR_INVALID_TOKEN');
     req.platformUser = platformUser;
     next();
-  } catch {
-    res.status(401).json({ error: 'No autorizado' });
+  } catch (error) {
+    rejectAuthentication(res, error);
   }
 }
 

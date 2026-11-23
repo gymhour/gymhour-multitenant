@@ -473,7 +473,9 @@ Puntos de la documentación de Mercado Pago que hay que verificar con la primera
 - [ ] Que la renovación devuelva un refresh token nuevo.
 - [ ] Firma de los avisos de la `notification_url`.
   - El 23 de noviembre de 2026 llegaron con `x-signature`.
-  - Falta confirmar en los logs que los de `type=payment` y `topic=payment` respondan `200` con la clave de Gymhour Sandbox.
+  - En el segundo pago, todos los avisos `payment` dieron `401`, tanto los de formato Webhooks como los IPN. Lo más probable es que `MP_WEBHOOK_SECRET` no sea la clave de Gymhour Sandbox.
+  - Falta confirmarlo con "Simular notificación" y verificar que los avisos de un pago nuevo respondan `200`.
+  - Mientras el webhook falle, la cuota se confirma por la verificación del socio al volver o con "Ya pagué, verificar".
 - [x] Checkout con `init_point` y pago del Comprador de prueba con dinero en cuenta: la cuota quedó pagada para el socio y para el admin (23 de noviembre de 2026).
 - [ ] Si los webhooks de la app llegan para las cuentas vinculadas, con `user_id`, y el formato de los tópicos de suscripciones.
 - [ ] Que el checkout no acepte pagos después de `expiration_date_to`.
