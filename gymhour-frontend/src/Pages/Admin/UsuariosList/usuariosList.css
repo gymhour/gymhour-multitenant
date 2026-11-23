@@ -1461,3 +1461,8 @@
     width: 100%;
   }
 }
+
+/* Débito automático con Mercado Pago. */
+.usuarios-debito-badge { display: inline-block; margin-top: 4px; padding: 2px 8px; color: var(--text-color-distinct); background: color-mix(in srgb, var(--text-color) 6%, transparent); border-radius: 999px; font-size: 0.72rem; text-transform: none; white-space: nowrap; }
+.usuarios-debito-badge--activo { color: #15803d; background: color-mix(in srgb, #16a34a 12%, transparent); }
+.usuarios-debito-badge--con_rechazo, .usuarios-debito-badge--pausado { color: #b45309; background: color-mix(in srgb, #f59e0b 14%, transparent); }

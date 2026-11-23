@@ -1531,3 +1531,22 @@
   .fee-cycle-create-dialog .fee-cycle-actions { flex-direction: column-reverse; }
   .fee-cycle-create-dialog .fee-cycle-actions button { width: 100%; }
 }
+
+/* Recargo por atraso y comprobante en el pago manual. */
+.fee-cycle-late-fee { display: block; margin-top: 2px; color: var(--text-color-distinct); font-size: 12px; }
+.fee-cycle-dialog label.fee-cycle-late-fee-option { display: flex; flex-direction: row; align-items: flex-start; gap: 9px; font-size: 13px; line-height: 1.45; cursor: pointer; }
+.fee-cycle-dialog label.fee-cycle-late-fee-option input { width: auto; margin-top: 3px; }
+.fee-cycle-pay-total { margin: 0; font-size: 14px; }
+
+/* Cobro de cuotas con Mercado Pago: avisos, pagos en curso y débito automático. */
+.fee-cycle-chip { display: inline-block; margin-top: 4px; padding: 2px 8px; color: var(--text-color-distinct); background: color-mix(in srgb, var(--primary-color) 10%, transparent); border-radius: 999px; font-size: 12px; white-space: nowrap; }
+.fee-cycle-row-actions button:disabled { opacity: .5; cursor: not-allowed; }
+.fee-cycle-alerts { margin: 0 0 20px; padding: 14px 16px; border: 1px solid color-mix(in srgb, #f59e0b 55%, transparent); background: color-mix(in srgb, #f59e0b 7%, transparent); border-radius: 12px; }
+.fee-cycle-alerts h2 { margin: 0 0 4px; font-size: 1rem; }
+.fee-cycle-alerts > p { margin: 0 0 10px; color: var(--text-color-distinct); font-size: 13px; }
+.fee-cycle-alerts ul { display: flex; flex-direction: column; gap: 10px; margin: 0; padding: 0; list-style: none; }
+.fee-cycle-alerts li { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding-top: 10px; border-top: 1px solid var(--border-color); }
+.fee-cycle-alerts li > div { display: flex; flex-direction: column; gap: 3px; font-size: 13px; }
+.fee-cycle-alerts li small { color: var(--text-color-distinct); }
+.fee-cycle-alerts li button { flex: none; padding: 6px 10px; color: var(--text-color); background: var(--background-color); border: 1px solid var(--border-color); border-radius: 8px; font-size: 12px; cursor: pointer; }
+@media (max-width: 600px) { .fee-cycle-alerts li { flex-direction: column; } }

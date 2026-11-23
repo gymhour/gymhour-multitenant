@@ -1,12 +1,27 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Building2, Camera, Copy, CreditCard, ExternalLink, Mail, MapPin, Phone, Save, ShieldCheck } from 'lucide-react';
+import { Building2, Camera, Clock3, Copy, CreditCard, ExternalLink, Mail, MapPin, Phone, Save, ShieldCheck } from 'lucide-react';
 import { toast } from 'react-toastify';
 import SidebarMenu from '../../../Components/SidebarMenu/SidebarMenu';
+import MercadoPagoConnection from '../../../Components/MercadoPagoConnection/MercadoPagoConnection';
 import { useAuth } from '../../../context/AuthContext';
 import apiService from '../../../services/apiService';
+import { LATE_FEE_OPTIONS, lateFeeExample } from '../../../utils/lateFee';
 import './TenantSettings.css';
 
 const gymLoginUrl = slug => `${window.location.origin}/${slug}/login`;
+const money = value => new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 }).format(value ?? 0);
+const initialLateFee = settings => ({
+  recargoTipo: settings?.recargoTipo || 'NINGUNO',
+  recargoValor: settings?.recargoValor ? String(settings.recargoValor) : '',
+  recargoTope: settings?.recargoTope ? String(settings.recargoTope) : '',
+  recargoDiasGracia: String(settings?.recargoDiasGracia ?? 0),
+});
+const lateFeePayload = lateFee => ({
+  recargoTipo: lateFee.recargoTipo,
+  recargoValor: lateFee.recargoTipo === 'NINGUNO' ? 0 : Number(lateFee.recargoValor),
+  recargoTope: lateFee.recargoTipo === 'PORCENTAJE_DIARIO' ? Number(lateFee.recargoTope) : null,
+  recargoDiasGracia: Number(lateFee.recargoDiasGracia || 0),
+});
 
 const TenantSettings = () => {
   const { tenant, user, refresh } = useAuth();
@@ -24,6 +39,8 @@ const TenantSettings = () => {
     paymentCbu: tenant?.settings?.paymentCbu || '', paymentTaxId: tenant?.settings?.paymentTaxId || '',
     paymentWhatsapp: tenant?.settings?.paymentWhatsapp || '',
   });
+  const [lateFee, setLateFee] = useState(() => initialLateFee(tenant?.settings));
+  const example = lateFeeExample(lateFee);
 
   useEffect(() => () => { if (logo && logoPreview) URL.revokeObjectURL(logoPreview); }, [logo, logoPreview]);
 
@@ -44,7 +61,7 @@ const TenantSettings = () => {
       Object.entries(profile).forEach(([key, value]) => body.append(key, value));
       if (logo) body.append('logo', logo);
       const result = await apiService.updateTenantProfile(body);
-      await apiService.updateTenantSettings(payments);
+      await apiService.updateTenantSettings({ ...payments, ...lateFeePayload(lateFee) });
       await refresh();
       setLogoPreview(result.settings?.logoUrl || logoPreview);
       setLogo(null);
@@ -118,6 +135,33 @@ const TenantSettings = () => {
               </div>
             </div>
           </section>
+
+          <section className="settings-section" aria-labelledby="settings-late-fee-title">
+            <div className="settings-section-index">04</div>
+            <div className="settings-section-body">
+              <div className="settings-section-heading"><div><h2 id="settings-late-fee-title">Recargo por pago fuera de término</h2><p>Se suma a las cuotas pagadas después del vencimiento. Se cobra en los pagos con Mercado Pago y se sugiere cuando registrás un pago a mano, donde podés perdonarlo.</p></div><Clock3 size={19} /></div>
+              <div className="settings-grid">
+                <label className="settings-field"><span>Tipo de recargo</span>
+                  <select value={lateFee.recargoTipo} onChange={e => setLateFee({ ...lateFee, recargoTipo: e.target.value })}>
+                    {LATE_FEE_OPTIONS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
+                  </select>
+                </label>
+                {lateFee.recargoTipo !== 'NINGUNO' && <label className="settings-field"><span>Días de gracia <small>Opcional</small></span><input type="number" min="0" max="60" step="1" value={lateFee.recargoDiasGracia} onChange={e => setLateFee({ ...lateFee, recargoDiasGracia: e.target.value })} /><small>Días después del vencimiento sin recargo.</small></label>}
+                {lateFee.recargoTipo === 'FIJO' && <label className="settings-field"><span>Monto en pesos</span><input type="number" min="1" step="1" required value={lateFee.recargoValor} placeholder="2000" onChange={e => setLateFee({ ...lateFee, recargoValor: e.target.value })} /></label>}
+                {lateFee.recargoTipo === 'PORCENTAJE' && <label className="settings-field"><span>Porcentaje de la cuota</span><input type="number" min="0.01" max="100" step="0.01" required value={lateFee.recargoValor} placeholder="10" onChange={e => setLateFee({ ...lateFee, recargoValor: e.target.value })} /></label>}
+                {lateFee.recargoTipo === 'PORCENTAJE_DIARIO' && <>
+                  <label className="settings-field"><span>Porcentaje por día</span><input type="number" min="0.01" max="10" step="0.01" required value={lateFee.recargoValor} placeholder="0.3" onChange={e => setLateFee({ ...lateFee, recargoValor: e.target.value })} /></label>
+                  <label className="settings-field"><span>Tope, en % de la cuota</span><input type="number" min="1" max="100" step="0.01" required value={lateFee.recargoTope} placeholder="15" onChange={e => setLateFee({ ...lateFee, recargoTope: e.target.value })} /></label>
+                </>}
+              </div>
+              {lateFee.recargoTipo !== 'NINGUNO' && <div className="settings-late-fee-note">
+                <strong>Ejemplo: una cuota de {money(25000)} pagada 6 días después del vencimiento suma {money(example)} de recargo.</strong>
+                <span>Informá el recargo a tus socios antes de aplicarlo, por ejemplo en el reglamento del gimnasio, y conviene que lo valides con tu contador o abogado. Los cambios no modifican las cuotas ya pagadas.</span>
+              </div>}
+            </div>
+          </section>
+
+          <MercadoPagoConnection index="05" />
 
           <footer className="settings-actions"><span>Los cambios se aplicarán a toda la cuenta.</span><button className="settings-save" disabled={saving}><Save size={16} />{saving ? 'Guardando...' : 'Guardar configuración'}</button></footer>
         </form>

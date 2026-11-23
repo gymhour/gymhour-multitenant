@@ -208,7 +208,9 @@ export function buildImportedFeeCycle(plan: ImportPlan, start: Date | null, paid
   };
 }
 
-export async function generateDueFees(): Promise<{ created: number; skipped: number; errors: number }> {
+type DueFeesResult = { created: number; skipped: number; errors: number };
+
+export async function generateDueFees(): Promise<DueFeesResult> {
   const today = await localFeeToday();
   const horizon = new Date(today.getTime() + 3 * 86_400_000);
   const users = await prisma.user.findMany({
@@ -217,53 +219,65 @@ export async function generateDueFees(): Promise<{ created: number; skipped: num
     select: { ID_Usuario: true },
   });
   const result = { created: 0, skipped: 0, errors: 0 };
-  for (const user of users) {
-    try {
-      for (let periodCount = 0; periodCount < 1200; periodCount += 1) {
-        const step = await runSerializableTransaction(async tx => {
-          const current = await tx.user.findFirst({
-            where: { ID_Usuario: user.ID_Usuario, role: 'STUDENT', estado: true, cobroAutomaticoActivo: true },
-            include: { plan: true },
-          });
-          if (!current?.plan || !current.proximoInicioCuota || current.proximoInicioCuota > horizon) return null;
-          const anchorDay = current.diaAnclaCobro || current.proximoInicioCuota.getUTCDate();
-          const start = skipEndedPeriods(current.proximoInicioCuota, current.plan.duracion, anchorDay, today);
-          const period = feePeriod(start, current.plan.duracion, anchorDay);
-          const existing = await tx.cuota.findFirst({ where: { ID_Usuario: user.ID_Usuario,
-            OR: [{ fechaInicio: { lte: period.end }, fechaFin: { gte: start } },
-              { mes: feeMonth(start), OR: [{ fechaInicio: null }, { fechaFin: null }] }],
-          } });
-          if (existing) {
-            if (!existing.fechaInicio || !existing.fechaFin || existing.fechaInicio.getTime() !== start.getTime()) {
-              throw new FeeCycleError(409, `Cuota solapada para el alumno ${user.ID_Usuario} en ${feeDateString(start)}.`);
-            }
-            await tx.user.update({ where: { ID_Usuario: user.ID_Usuario }, data: {
-              proximoInicioCuota: feeNextDay(new Date(Date.UTC(existing.fechaFin.getUTCFullYear(), existing.fechaFin.getUTCMonth(), existing.fechaFin.getUTCDate()))),
-            } });
-            return { skipped: true };
-          }
-          const free = Number(current.plan.precio) === 0;
-          const cuota = await tx.cuota.create({ data: {
-            ID_Usuario: user.ID_Usuario, ID_Plan: current.ID_Plan, mes: feeMonth(start),
-            fechaInicio: start, fechaFin: period.end, vence: period.due,
-            importe: Number(current.plan.precio), pagada: free,
-            vencida: !free && start < today,
-            fechaPago: free ? today : null, formaPago: free ? 'Plan gratuito' : null,
-            origen: 'AUTOMATICA', ...buildCuotaPlanSnapshot(current.plan),
-          } });
-          await tx.user.update({ where: { ID_Usuario: user.ID_Usuario }, data: { proximoInicioCuota: period.nextStart } });
-          return { cuota };
-        }, { maxWait: 10000, timeout: 30000 });
-        if (!step) break;
-        if (step.skipped) { result.skipped += 1; continue; }
-        result.created += 1;
-        const fixed = await generateFixedTurnosForCuota(step.cuota);
-        if (fixed.errores.length) console.warn('[fee-cycle] turnos fijos omitidos', user.ID_Usuario, fixed.errores.length);
-      }
-    } catch (error) {
-      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') result.skipped += 1;
-      else { result.errors += 1; console.error('[fee-cycle] alumno', user.ID_Usuario, error); }
-    }
-  }
+  for (const user of users) await generateUserDueFees(user, today, horizon, result);
   return result;
+}
+
+// Lo mismo que el cron, para un solo socio. Lo usa el débito automático cuando Mercado Pago cobra
+// un período cuya cuota todavía no se creó. Necesita el contexto del gimnasio.
+export async function generateDueFeesForUser(userId: number): Promise<DueFeesResult> {
+  const today = await localFeeToday();
+  const horizon = new Date(today.getTime() + 3 * 86_400_000);
+  const result = { created: 0, skipped: 0, errors: 0 };
+  await generateUserDueFees({ ID_Usuario: userId }, today, horizon, result);
+  return result;
+}
+
+async function generateUserDueFees(user: { ID_Usuario: number }, today: Date, horizon: Date, result: DueFeesResult): Promise<void> {
+  try {
+    for (let periodCount = 0; periodCount < 1200; periodCount += 1) {
+      const step = await runSerializableTransaction(async tx => {
+        const current = await tx.user.findFirst({
+          where: { ID_Usuario: user.ID_Usuario, role: 'STUDENT', estado: true, cobroAutomaticoActivo: true },
+          include: { plan: true },
+        });
+        if (!current?.plan || !current.proximoInicioCuota || current.proximoInicioCuota > horizon) return null;
+        const anchorDay = current.diaAnclaCobro || current.proximoInicioCuota.getUTCDate();
+        const start = skipEndedPeriods(current.proximoInicioCuota, current.plan.duracion, anchorDay, today);
+        const period = feePeriod(start, current.plan.duracion, anchorDay);
+        const existing = await tx.cuota.findFirst({ where: { ID_Usuario: user.ID_Usuario,
+          OR: [{ fechaInicio: { lte: period.end }, fechaFin: { gte: start } },
+            { mes: feeMonth(start), OR: [{ fechaInicio: null }, { fechaFin: null }] }],
+        } });
+        if (existing) {
+          if (!existing.fechaInicio || !existing.fechaFin || existing.fechaInicio.getTime() !== start.getTime()) {
+            throw new FeeCycleError(409, `Cuota solapada para el alumno ${user.ID_Usuario} en ${feeDateString(start)}.`);
+          }
+          await tx.user.update({ where: { ID_Usuario: user.ID_Usuario }, data: {
+            proximoInicioCuota: feeNextDay(new Date(Date.UTC(existing.fechaFin.getUTCFullYear(), existing.fechaFin.getUTCMonth(), existing.fechaFin.getUTCDate()))),
+          } });
+          return { skipped: true };
+        }
+        const free = Number(current.plan.precio) === 0;
+        const cuota = await tx.cuota.create({ data: {
+          ID_Usuario: user.ID_Usuario, ID_Plan: current.ID_Plan, mes: feeMonth(start),
+          fechaInicio: start, fechaFin: period.end, vence: period.due,
+          importe: Number(current.plan.precio), pagada: free,
+          vencida: !free && start < today,
+          fechaPago: free ? today : null, formaPago: free ? 'Plan gratuito' : null,
+          origen: 'AUTOMATICA', ...buildCuotaPlanSnapshot(current.plan),
+        } });
+        await tx.user.update({ where: { ID_Usuario: user.ID_Usuario }, data: { proximoInicioCuota: period.nextStart } });
+        return { cuota };
+      }, { maxWait: 10000, timeout: 30000 });
+      if (!step) break;
+      if (step.skipped) { result.skipped += 1; continue; }
+      result.created += 1;
+      const fixed = await generateFixedTurnosForCuota(step.cuota);
+      if (fixed.errores.length) console.warn('[fee-cycle] turnos fijos omitidos', user.ID_Usuario, fixed.errores.length);
+    }
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') result.skipped += 1;
+    else { result.errors += 1; console.error('[fee-cycle] alumno', user.ID_Usuario, error); }
+  }
 }

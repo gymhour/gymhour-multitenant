@@ -3,6 +3,7 @@ import prisma, { systemPrisma } from '../models/Prisma.js';
 import { generateKioskToken, hashKioskToken } from '../services/kioskAuth.service.js';
 import { respondUnexpected } from '../services/apiError.service.js';
 import { deleteImage, getTenantLogoUrl, uploadImageBuffer } from '../services/cloudinary.service.js';
+import { parseLateFeeSettings } from '../services/lateFee.service.js';
 
 const normalizeSlug = (value: unknown): string => String(value ?? '')
   .trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
@@ -70,16 +71,19 @@ export const rotateKiosk = async (req: Request, res: Response): Promise<void> =>
 
 export const updateSettings = async (req: Request, res: Response): Promise<void> => {
   const allowed = ['timezone', 'currency', 'paymentAccountHolder', 'paymentAlias', 'paymentCbu', 'paymentTaxId', 'paymentWhatsapp'] as const;
-  const data: Record<string, string | null> = {};
+  const data: Record<string, string | number | null> = {};
   for (const field of allowed) {
     if (req.body?.[field] !== undefined) data[field] = String(req.body[field]).trim() || null;
   }
+  const lateFee = parseLateFeeSettings(req.body ?? {});
+  if (lateFee.error) { res.status(400).json({ message: lateFee.error }); return; }
+  Object.assign(data, lateFee.data ?? {});
   if (!Object.keys(data).length) { res.status(400).json({ message: 'No hay cambios para guardar.' }); return; }
   if (data.timezone === null || data.currency === null) {
     res.status(400).json({ message: 'Zona horaria y moneda no pueden quedar vacías.' });
     return;
   }
-  if (data.currency) data.currency = data.currency.toUpperCase().slice(0, 3);
+  if (typeof data.currency === 'string') data.currency = data.currency.toUpperCase().slice(0, 3);
   try {
     const settings = await prisma.tenantSettings.update({ where: { tenantId: req.tenant!.id }, data });
     res.json({ settings });

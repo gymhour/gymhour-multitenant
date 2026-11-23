@@ -28,6 +28,8 @@ Completá las variables del backend antes de iniciarlo. El frontend puede usar `
 
 Los archivos `.env` no se versionan. La plantilla `.env.example` sí forma parte del repositorio.
 
+El cobro de cuotas a socios con Mercado Pago (botón de pago, débito automático y recargo por atraso) necesita su propia configuración: la cuenta de Mercado Pago de Gymhour, sus apps de test y de producción, y las variables `MP_*` y `API_PUBLIC_URL`. Ver [`gymhour-backend/MERCADOPAGO.md`](gymhour-backend/MERCADOPAGO.md).
+
 ## Desarrollo
 
 Ejecutá cada proceso en una terminal diferente:
@@ -124,7 +126,7 @@ Cada servicio usa el mismo repositorio con una carpeta raíz distinta.
 
 - Root Directory: `/gymhour-backend`
 - Build Command: `npm ci && npm run build`
-- Pre-deploy Command: `npm run migrate:deploy`
+- Pre-deploy Command: `npm run migrate:deploy` (recomendado). Hoy no está configurado: las migraciones se aplican a mano contra la base de producción justo antes de mergear. Ver `DOCUMENTACION_BASE.md`, sección 14.
 - Start Command: `npm start`
 - Watch Path: `/gymhour-backend/**`
 

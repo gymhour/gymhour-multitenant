@@ -12,6 +12,7 @@ import { cardGraceUntil, getBillingAccess } from '../services/billing.service.js
 import { paidUntilFromPurchase } from '../services/billingCatalog.service.js';
 import { notifyPurchaseConfirmed, notifySubscriptionCancelled } from '../services/billingNotifications.service.js';
 import { activateCardOrder, cardPaymentMatchesOrder } from '../services/cardOrder.service.js';
+import { cancelAllDebits } from '../services/automaticDebit.service.js';
 import { fetchRebillPayment, fetchRebillSubscription } from '../services/rebill.service.js';
 import {
   cancelTenantSubscriptions, liveSubscriptionOrders, pauseTenantSubscriptions, resumeTenantSubscriptions,
@@ -171,10 +172,18 @@ export async function tenantDetail(req: Request, res: Response): Promise<void> {
     },
   });
   if (!tenant) { res.status(404).json({ message: 'Tenant no encontrado.' }); return; }
-  const [liveOrder] = await liveSubscriptionOrders(id);
+  const [[liveOrder], mercadoPago, activeDebits] = await Promise.all([
+    liveSubscriptionOrders(id),
+    // Solo el estado de la conexión: los tokens nunca salen del servicio de Mercado Pago.
+    systemPrisma.mercadoPagoAccount.findUnique({ where: { tenantId: id }, select: {
+      status: true, nickname: true, liveMode: true, connectedAt: true, tokenExpiresAt: true, lastError: true,
+    } }),
+    systemPrisma.debitoAutomatico.count({ where: { tenantId: id, activeKey: { not: null } } }),
+  ]);
   res.setHeader('Cache-Control', 'no-store');
   res.json({ ...tenant, billing: getBillingAccess(tenant),
-    liveSubscriptionStatus: liveOrder ? liveOrder.rebillSubscriptionStatus || 'active' : null });
+    liveSubscriptionStatus: liveOrder ? liveOrder.rebillSubscriptionStatus || 'active' : null,
+    mercadoPago: mercadoPago ? { ...mercadoPago, activeDebits } : null });
 }
 
 export async function updateTenantBilling(req: Request, res: Response): Promise<void> {
@@ -308,6 +317,14 @@ export async function purgeTenant(req: Request, res: Response): Promise<void> {
     console.error('[platform/purge]', error);
     await auditPlatform(req, { action: 'TENANT_DELETE', outcome: 'FAILURE', targetTenantId: id, targetTenantSlug: tenant.slug, reason });
     res.status(502).json({ message: 'Rebill no respondió, así que no se eliminó el gimnasio. Intentá nuevamente.' }); return;
+  }
+  // Lo mismo con los débitos automáticos de los socios en Mercado Pago.
+  try {
+    await cancelAllDebits(id, { by: 'Backoffice · eliminación', reason: `Gimnasio eliminado: ${reason}` });
+  } catch (error) {
+    console.error('[platform/purge] débitos de Mercado Pago', error);
+    await auditPlatform(req, { action: 'TENANT_DELETE', outcome: 'FAILURE', targetTenantId: id, targetTenantSlug: tenant.slug, reason });
+    res.status(502).json({ message: 'No pudimos cancelar los débitos automáticos de los socios en Mercado Pago, así que no se eliminó el gimnasio. Intentá nuevamente.' }); return;
   }
   const assets = await collectTenantAssets(id);
   const identity = requestIdentity(req);

@@ -9,6 +9,7 @@ import SidebarMenu from '../../../Components/SidebarMenu/SidebarMenu';
 import apiClient from '../../../axiosConfig';
 import apiService from '../../../services/apiService';
 import ConfirmationPopup from '../../../Components/utils/ConfirmationPopUp/ConfirmationPopUp';
+import { useAuth } from '../../../context/AuthContext';
 import { feeDurationLabel, parseFeeDuration } from '../../../utils/feeDuration';
 import '../../../App.css';
 import './CuotasUsuarios.css';
@@ -36,7 +37,15 @@ const periodEndForStart = (startValue, preview) => {
 };
 const periodOverlaps = (start, end, periods) => (periods || []).some(period => start <= period.fechaFin && end >= period.fechaInicio);
 
+// Avisos de Mercado Pago para el admin (ver gymhour-backend/MERCADOPAGO.md).
+const ALERT_LABELS = {
+  DEVUELTO: 'Pago devuelto', CONTRACARGO: 'Contracargo', DUPLICADO: 'Pago duplicado', REVISAR: 'Para revisar', APROBADO: 'Revisar importe',
+};
+const ONLINE_IN_PROGRESS = ['INICIADO', 'PENDIENTE'];
+
 export default function CuotasUsuarios({ fromAdmin }) {
+  const { tenant } = useAuth();
+  const onlinePayments = Boolean(tenant?.billing?.features?.MEMBER_PAYMENTS);
   const [searchParams, setSearchParams] = useSearchParams();
   const [filters, setFilters] = useState({ mes: searchParams.get('mes') || '', estado: searchParams.get('estado') || '', studentName: '' });
   const [applied, setApplied] = useState(filters);
@@ -55,8 +64,47 @@ export default function CuotasUsuarios({ fromAdmin }) {
   const [paying, setPaying] = useState(null);
   const [payMethod, setPayMethod] = useState('Efectivo');
   const [payDate, setPayDate] = useState(dateInput());
+  const [payReference, setPayReference] = useState('');
+  const [payLateFee, setPayLateFee] = useState(null);
+  const [applyLateFee, setApplyLateFee] = useState(true);
   const [deleting, setDeleting] = useState(null);
   const [deleteSaving, setDeleteSaving] = useState(false);
+  const [alerts, setAlerts] = useState([]);
+  const [debits, setDebits] = useState([]);
+  const [cancelDebitFee, setCancelDebitFee] = useState(null);
+  const [cancelDebitSaving, setCancelDebitSaving] = useState(false);
+
+  useEffect(() => {
+    if (!onlinePayments) return;
+    let current = true;
+    Promise.all([apiService.getPaymentAlerts(), apiService.getAutomaticDebits()])
+      .then(([alertList, debitList]) => { if (current) { setAlerts(alertList || []); setDebits(debitList || []); } })
+      .catch(error => { if (current) toast.error(error.message); });
+    return () => { current = false; };
+  }, [onlinePayments, refresh]);
+
+  const reviewAlert = async alert => {
+    try {
+      await apiService.reviewPaymentAlert(alert.id);
+      setAlerts(list => list.filter(item => item.id !== alert.id));
+    } catch (error) { toast.error(error.message); }
+  };
+
+  // Para registrar a mano una cuota cubierta por el débito, primero se cancela el débito en Mercado Pago.
+  const cancelDebitAndPay = async () => {
+    const fee = cancelDebitFee;
+    const debit = debits.find(item => item.ID_Usuario === fee?.ID_Usuario);
+    if (!fee || !debit) { setCancelDebitFee(null); return; }
+    setCancelDebitSaving(true);
+    try {
+      await apiService.cancelAutomaticDebit(debit.id, 'El gimnasio registró el pago por otro medio.');
+      toast.success('Débito automático cancelado. Ya podés registrar el pago.');
+      setCancelDebitFee(null);
+      setRefresh(value => value + 1);
+      openPayment({ ...fee, cubiertaPorDebito: false });
+    } catch (error) { toast.error(error.message); }
+    finally { setCancelDebitSaving(false); }
+  };
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -103,6 +151,20 @@ export default function CuotasUsuarios({ fromAdmin }) {
     return () => { current = false; };
   }, [student]);
 
+  // El recargo lo calcula el backend para la fecha de pago elegida.
+  useEffect(() => {
+    if (!paying || !payDate) { setPayLateFee(null); return; }
+    let current = true;
+    apiClient.get(`/cuotas/${paying.ID_Cuota}/recargo`, { params: { fechaPago: payDate } })
+      .then(({ data }) => { if (current) setPayLateFee(data); })
+      .catch(() => { if (current) setPayLateFee(null); });
+    return () => { current = false; };
+  }, [paying, payDate]);
+
+  const openPayment = fee => {
+    setPaying(fee); setPayDate(dateInput()); setPayReference(''); setApplyLateFee(true); setPayLateFee(null);
+  };
+
   const applyFilters = event => {
     event.preventDefault();
     setPage(1);
@@ -134,7 +196,10 @@ export default function CuotasUsuarios({ fromAdmin }) {
     if (!paying) return;
     setSaving(true);
     try {
-      await apiClient.put(`/cuotas/${paying.ID_Cuota}/pay`, { formaPago: payMethod, fechaPago: payDate });
+      await apiClient.put(`/cuotas/${paying.ID_Cuota}/pay`, {
+        formaPago: payMethod, fechaPago: payDate, referenciaPago: payReference.trim() || undefined,
+        aplicarRecargo: Boolean(applyLateFee && payLateFee?.monto > 0),
+      });
       toast.success('Pago registrado.'); setPaying(null); setRefresh(value => value + 1);
     } catch (error) { toast.error(message(error, 'No pudimos registrar el pago.')); }
     finally { setSaving(false); }
@@ -201,17 +266,35 @@ export default function CuotasUsuarios({ fromAdmin }) {
         </div>
         <button className="primary-button fee-cycle-filter-submit" type="submit">Aplicar filtros</button>
       </form>
+      {alerts.length > 0 && <section className="fee-cycle-alerts" aria-label="Avisos de Mercado Pago">
+        <h2>Avisos de Mercado Pago</h2>
+        <p>Revisalos en tu cuenta de Mercado Pago. Las devoluciones se hacen desde Mercado Pago, no desde Gymhour.</p>
+        <ul>{alerts.map(alert => <li key={alert.id}>
+          <div>
+            <strong>{ALERT_LABELS[alert.status] || 'Para revisar'}</strong>
+            <span>{alert.socio ? `${alert.socio.nombre} ${alert.socio.apellido}` : 'Socio'}{alert.cuota?.fechaInicio ? ` · cuota del ${formatDate(alert.cuota.fechaInicio)}` : ''}{alert.mpPaymentId ? ` · Op. N° ${alert.mpPaymentId}` : ''} · {money(alert.amount)}</span>
+            {alert.reviewNote && <small>{alert.reviewNote}</small>}
+          </div>
+          <button type="button" onClick={() => reviewAlert(alert)}>Marcar como revisado</button>
+        </li>)}</ul>
+      </section>}
       {loading ? <p>Cargando cuotas…</p> : rows.length === 0 ? <p>No hay cuotas para mostrar.</p> : <div className="table-responsive"><table className="cuotas-table"><thead><tr><th>Socio</th><th>Período cubierto</th><th>Vencimiento del pago</th><th>Plan</th><th>Importe</th><th>Estado</th><th>Pago</th><th>Acción</th></tr></thead><tbody>{rows.map(fee => <tr key={fee.ID_Cuota}>
         <td data-label="Socio">{fee.User ? `${fee.User.nombre} ${fee.User.apellido}` : '—'}</td>
         <td data-label="Período">{fee.fechaInicio && fee.fechaFin ? `${formatDate(fee.fechaInicio)} – ${formatDate(fee.fechaFin)}` : fee.mes}</td>
         <td data-label="Vencimiento del pago">{formatDate(fee.vence)}</td>
         <td data-label="Plan">{fee.planNombreSnapshot || fee.User?.plan?.nombre || '—'}</td>
-        <td data-label="Importe">{money(fee.importe)}</td>
+        <td data-label="Importe">{money(fee.importe)}{fee.pagada && fee.recargo > 0 && <small className="fee-cycle-late-fee"> + {money(fee.recargo)} de recargo</small>}{!fee.pagada && fee.recargoSugerido?.monto > 0 && <small className="fee-cycle-late-fee"> + {money(fee.recargoSugerido.monto)} de recargo hoy</small>}</td>
         <td data-label="Estado"><span className={`badge ${fee.pagada ? 'paid' : fee.vencida ? 'expired' : 'pending'}`}>{fee.pagada ? 'Pagada' : fee.vencida ? 'Vencida' : 'Pendiente'}</span></td>
-        <td data-label="Pago">{fee.pagada ? `${formatDate(fee.fechaPago)} · ${fee.formaPago || '—'}` : '—'}</td>
+        <td data-label="Pago">
+          {fee.pagada ? `${formatDate(fee.fechaPago)} · ${fee.formaPago || '—'}${fee.referenciaPago ? ` · ${fee.formaPago?.startsWith('Mercado Pago') ? 'Op. ' : ''}N° ${fee.referenciaPago}` : ''}` : '—'}
+          {fee.pagada && fee.pagoEnLinea?.status === 'APROBADO' && fee.pagoEnLinea.paymentMethod && <small className="fee-cycle-late-fee">{fee.pagoEnLinea.paymentMethod}{fee.pagoEnLinea.netAmount != null ? ` · neto ${money(fee.pagoEnLinea.netAmount)}` : ''}</small>}
+          {!fee.pagada && ONLINE_IN_PROGRESS.includes(fee.pagoEnLinea?.status) && <span className="fee-cycle-chip">{fee.pagoEnLinea.status === 'PENDIENTE' ? 'Pago en revisión (Mercado Pago)' : `Pago en curso (Mercado Pago)${fee.pagoEnLinea.expiresAt ? `, vence ${new Date(fee.pagoEnLinea.expiresAt).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })}` : ''}`}</span>}
+          {!fee.pagada && fee.cubiertaPorDebito && <span className="fee-cycle-chip">Débito automático</span>}
+        </td>
         <td data-label="Acción"><div className="fee-cycle-row-actions">
-          {!fee.pagada && <button type="button" className="accion-button pay" onClick={() => { setPaying(fee); setPayDate(dateInput()); }}>Registrar pago</button>}
-          <button type="button" className="accion-button delete" onClick={() => setDeleting(fee)} aria-label={`Eliminar cuota de ${fee.User?.nombre || 'socio'} ${fee.User?.apellido || ''}`}>Eliminar</button>
+          {!fee.pagada && !fee.cubiertaPorDebito && <button type="button" className="accion-button pay" disabled={ONLINE_IN_PROGRESS.includes(fee.pagoEnLinea?.status)} title={ONLINE_IN_PROGRESS.includes(fee.pagoEnLinea?.status) ? 'El socio está pagando esta cuota con Mercado Pago' : undefined} onClick={() => openPayment(fee)}>Registrar pago</button>}
+          {!fee.pagada && fee.cubiertaPorDebito && <button type="button" className="accion-button pay" onClick={() => setCancelDebitFee(fee)}>Cancelar débito y registrar pago</button>}
+          <button type="button" className="accion-button delete" disabled={ONLINE_IN_PROGRESS.includes(fee.pagoEnLinea?.status) || (!fee.pagada && fee.cubiertaPorDebito)} onClick={() => setDeleting(fee)} aria-label={`Eliminar cuota de ${fee.User?.nombre || 'socio'} ${fee.User?.apellido || ''}`}>Eliminar</button>
         </div></td>
       </tr>)}</tbody></table></div>}
       <div className="fee-cycle-pagination"><span>{meta.totalItems} cuotas</span><button type="button" disabled={page <= 1} onClick={() => setPage(page - 1)}>Anterior</button><span>{page} / {Math.max(1, meta.totalPages)}</span><button type="button" disabled={page >= meta.totalPages} onClick={() => setPage(page + 1)}>Siguiente</button></div>
@@ -236,7 +319,18 @@ export default function CuotasUsuarios({ fromAdmin }) {
       </form>}
     </div></div>}
 
-    {paying && <div className="fee-cycle-overlay"><form className="fee-cycle-dialog" role="dialog" aria-modal="true" aria-label="Registrar pago" onSubmit={pay}><div className="fee-cycle-dialog-head"><h2>Registrar pago</h2><button type="button" onClick={() => setPaying(null)} aria-label="Cerrar">×</button></div><p>{paying.User?.nombre} {paying.User?.apellido} · {money(paying.importe)}</p><label>Medio de pago<input required value={payMethod} onChange={e => setPayMethod(e.target.value)} /></label><label>Fecha de pago<input type="date" required max={dateInput()} value={payDate} onChange={e => setPayDate(e.target.value)} /></label><div className="fee-cycle-actions"><button type="button" onClick={() => setPaying(null)}>Cancelar</button><button className="primary-button" disabled={saving}>{saving ? 'Guardando…' : 'Registrar pago'}</button></div></form></div>}
+    {paying && <div className="fee-cycle-overlay"><form className="fee-cycle-dialog" role="dialog" aria-modal="true" aria-label="Registrar pago" onSubmit={pay}><div className="fee-cycle-dialog-head"><h2>Registrar pago</h2><button type="button" onClick={() => setPaying(null)} aria-label="Cerrar">×</button></div><p>{paying.User?.nombre} {paying.User?.apellido} · {money(paying.importe)}</p><label>Medio de pago<input required value={payMethod} onChange={e => setPayMethod(e.target.value)} /></label><label>Fecha de pago<input type="date" required max={dateInput()} value={payDate} onChange={e => setPayDate(e.target.value)} /></label><label>N° de comprobante <small>Opcional</small><input value={payReference} maxLength={100} placeholder="Por ejemplo, el número de la transferencia" onChange={e => setPayReference(e.target.value)} /></label>
+      {payLateFee?.monto > 0 && <label className="fee-cycle-late-fee-option"><input type="checkbox" checked={applyLateFee} onChange={e => setApplyLateFee(e.target.checked)} /><span>Cobrar recargo por atraso: {money(payLateFee.monto)} ({payLateFee.dias} {payLateFee.dias === 1 ? 'día' : 'días'} después del vencimiento)</span></label>}
+      {payLateFee?.monto > 0 && <p className="fee-cycle-pay-total">Total a registrar: <strong>{money(paying.importe + (applyLateFee ? payLateFee.monto : 0))}</strong></p>}
+      <div className="fee-cycle-actions"><button type="button" onClick={() => setPaying(null)}>Cancelar</button><button className="primary-button" disabled={saving}>{saving ? 'Guardando…' : 'Registrar pago'}</button></div></form></div>}
+    <ConfirmationPopup
+      isOpen={Boolean(cancelDebitFee)}
+      message={`${cancelDebitFee?.User?.nombre || 'El socio'} ${cancelDebitFee?.User?.apellido || ''} tiene débito automático. Para registrar el pago de otra forma hay que cancelar el débito en Mercado Pago: no se le va a cobrar más y tendrá que volver a adherirse. ¿Seguimos?`}
+      confirmText="Cancelar débito"
+      isLoading={cancelDebitSaving}
+      onClose={() => setCancelDebitFee(null)}
+      onConfirm={cancelDebitAndPay}
+    />
     <ConfirmationPopup
       isOpen={Boolean(deleting)}
       message={`¿Eliminar la cuota de ${deleting?.User?.nombre || 'este socio'} ${deleting?.User?.apellido || ''} por ${money(deleting?.importe)}? Esta acción no se puede deshacer.`}

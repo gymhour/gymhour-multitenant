@@ -22,6 +22,27 @@ import {
 import { runSerializableTransaction } from '../services/transaction.service.js';
 import { parseFeeDate } from '../services/feeDates.service.js';
 import { localFeeToday } from '../services/feeCycle.service.js';
+import { calculateLateFee, currentLateFeeSettings } from '../services/lateFee.service.js';
+import { attachOnlinePayments, onlinePaymentLock } from '../services/memberPayments.service.js';
+
+// Un pago con Mercado Pago en curso o un débito automático bloquean las acciones manuales sobre la
+// cuota: así no puede haber un cobro doble. Ver MERCADOPAGO.md.
+const rejectIfOnlinePayment = async (req: Request, res: Response, cuotaId: number): Promise<boolean> => {
+  const lock = await onlinePaymentLock(req.tenant!.id, cuotaId);
+  if (!lock) return false;
+  res.status(409).json(lock);
+  return true;
+};
+
+// Agrega a cada cuota impaga el recargo que correspondería si se pagara hoy.
+const withSuggestedLateFee = async <T extends { pagada: boolean; importe: number; vence: Date }>(cuotas: T[]) => {
+  if (!cuotas.some(cuota => !cuota.pagada)) return cuotas.map(cuota => ({ ...cuota, recargoSugerido: null }));
+  const [settings, today] = await Promise.all([currentLateFeeSettings(), localFeeToday()]);
+  return cuotas.map(cuota => ({
+    ...cuota,
+    recargoSugerido: cuota.pagada ? null : calculateLateFee(cuota, settings, today),
+  }));
+};
 
 type CuotaReturn = {
   ID_Cuota: number;
@@ -1669,6 +1690,8 @@ export const getAllCuotas = async (req: Request, res: Response): Promise<void> =
           vencida: true,
           formaPago: true,
           fechaPago: true,
+          recargo: true,
+          referenciaPago: true,
           ID_Usuario: true,
           User: {
             select: {
@@ -1695,7 +1718,7 @@ export const getAllCuotas = async (req: Request, res: Response): Promise<void> =
 
     res.status(200).json({
       meta: { totalItems: totalCuotas, take, page: pageNumber, totalPages },
-      data: cuotas
+      data: await attachOnlinePayments(req.tenant!.id, await withSuggestedLateFee(cuotas))
     });
   } catch (error: any) {
     respondUnexpected(res, error, "cargar las cuotas");
@@ -1726,6 +1749,8 @@ export const getAllCuotasByUsuario = async (req: Request, res: Response): Promis
         vencida: true,
         formaPago: true,
         fechaPago: true,
+        recargo: true,
+        referenciaPago: true,
         ID_Usuario: true,
         User: {
           select: {
@@ -1746,7 +1771,7 @@ export const getAllCuotasByUsuario = async (req: Request, res: Response): Promis
       }
     });
 
-    res.status(200).json(cuotas);
+    res.status(200).json(await attachOnlinePayments(req.tenant!.id, await withSuggestedLateFee(cuotas)));
   } catch (error: any) {
     respondUnexpected(res, error, "cargar las cuotas del alumno");
   }
@@ -1760,6 +1785,7 @@ const deleteCuota = async (req: Request, res: Response): Promise<void> => {
       res.status(400).json({ message: 'No pudimos identificar la cuota. Actualizá la página e intentá de nuevo.' });
       return;
     }
+    if (await rejectIfOnlinePayment(req, res, id)) return;
     const today = await localFeeToday();
     const result = await prisma.$transaction(async (tx) => {
       const cuota = await tx.cuota.findUnique({
@@ -1843,6 +1869,7 @@ const updateCuota = async (req: Request, res: Response): Promise<void> => {
       res.status(409).json({ message: 'Solo se pueden editar cuotas pendientes o vencidas' });
       return;
     }
+    if (await rejectIfOnlinePayment(req, res, id)) return;
 
     const updatedCuota = await prismaC.update({
       where: { ID_Cuota: id },
@@ -1861,6 +1888,11 @@ const payCuota = async (req: Request, res: Response): Promise<void> => {
   try {
     const cuotaId = parseInt(req.params.id, 10);
     const { formaPago, fechaPago } = req.body;
+    // El recargo se cobra solo si el admin lo confirma, y siempre se calcula acá, no en el navegador.
+    const aplicarRecargo = req.body?.aplicarRecargo === true;
+    const referenciaPago = typeof req.body?.referenciaPago === 'string'
+      ? req.body.referenciaPago.trim().slice(0, 100) || null
+      : null;
 
     if (isNaN(cuotaId) || !formaPago) {
       res.status(400).json({ message: 'Revisá la cuota y la forma de pago seleccionadas.' });
@@ -1872,13 +1904,26 @@ const payCuota = async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
+    const cuota = await prismaC.findUnique({
+      where: { ID_Cuota: cuotaId },
+      select: { ID_Cuota: true, importe: true, vence: true, pagada: true },
+    });
+    if (!cuota || cuota.pagada) {
+      res.status(409).json({ message: 'La cuota ya está pagada o no existe.' });
+      return;
+    }
+    if (await rejectIfOnlinePayment(req, res, cuotaId)) return;
+    const recargo = aplicarRecargo ? calculateLateFee(cuota, await currentLateFeeSettings(), paidOn).monto : 0;
+
     const changed = await prismaC.updateMany({
       where: { ID_Cuota: cuotaId, pagada: false },
       data: {
         pagada: true,
         vencida: false,
         fechaPago: paidOn,
-        formaPago
+        formaPago,
+        recargo,
+        referenciaPago,
       }
     });
     if (!changed.count) {
@@ -1893,6 +1938,31 @@ const payCuota = async (req: Request, res: Response): Promise<void> => {
     res.status(200).json({ message: 'Cuota pagada exitosamente', cuota: updatedCuota });
   } catch (error: any) {
     respondUnexpected(res, error, "registrar el pago");
+  }
+};
+
+// Recargo que correspondería si la cuota se paga en la fecha indicada (por defecto, hoy).
+const getRecargoCuota = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const cuotaId = parseInt(req.params.id, 10);
+    if (isNaN(cuotaId)) {
+      res.status(400).json({ message: 'No pudimos identificar la cuota. Actualizá la página e intentá de nuevo.' });
+      return;
+    }
+    const today = await localFeeToday();
+    const paidOn = req.query.fechaPago ? parseFeeDate(req.query.fechaPago) : today;
+    if (!paidOn || paidOn > today) {
+      res.status(400).json({ message: 'Elegí una fecha de pago válida, no posterior a hoy.' });
+      return;
+    }
+    const cuota = await prismaC.findUnique({
+      where: { ID_Cuota: cuotaId },
+      select: { importe: true, vence: true, pagada: true },
+    });
+    if (!cuota) { res.status(404).json({ message: 'No encontramos esa cuota.' }); return; }
+    res.json(calculateLateFee(cuota, await currentLateFeeSettings(), paidOn));
+  } catch (error: any) {
+    respondUnexpected(res, error, 'calcular el recargo');
   }
 };
 
@@ -2065,5 +2135,6 @@ export const cuotaMethods = {
   deleteCuota,
   updateCuota,
   payCuota,
+  getRecargoCuota,
   getCuotasVencenPronto,
 };

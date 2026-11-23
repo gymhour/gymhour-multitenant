@@ -9,6 +9,7 @@ import { ROLE_OPTIONS, formatRole } from '../../../utils/roleLabels';
 import SecondaryButton from '../../../Components/utils/SecondaryButton/SecondaryButton';
 import { ArrowLeft } from 'lucide-react';
 import LoaderFullScreen from '../../../Components/utils/LoaderFullScreen/LoaderFullScreen';
+import MemberDebitPanel from '../../../Components/MemberDebitPanel/MemberDebitPanel';
 import { useAuth } from '../../../context/AuthContext';
 import '../UsuarioForm.css';
 
@@ -334,6 +335,7 @@ const EditarUsuario = ({fromAdmin, fromTRAINER}) => {
             reversed={true}
           />
           <h2>Editar usuario</h2>
+          {fromAdmin && <MemberDebitPanel userId={id} />}
           <form
             onSubmit={handleSubmit}
             className="usuario-form"

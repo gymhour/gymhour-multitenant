@@ -93,6 +93,9 @@ model Tenant {
   attendances             Asistencia[]
   aiConversations         AiConversation[]
   aiMessages              AiMessage[]
+  mercadoPagoAccount      MercadoPagoAccount?
+  memberPayments          CuotaPago[]
+  automaticDebits         DebitoAutomatico[]
 
   @@index([status, createdAt])
 }
@@ -193,6 +196,136 @@ model RebillUnlinkedPayment {
   @@index([subscriptionId])
 }
 
+// --- Cobro de cuotas a socios con Mercado Pago (ver MERCADOPAGO.md) ---
+
+// Conexión de un gimnasio con su cuenta de Mercado Pago, obtenida por OAuth.
+// Los tokens se guardan cifrados (AES-256-GCM, MP_TOKEN_ENCRYPTION_KEY) y nunca salen del backend.
+model MercadoPagoAccount {
+  id                  String    @id @default(cuid())
+  tenantId            Int       @unique
+  mpUserId            String    @db.VarChar(40)
+  nickname            String?   @db.VarChar(191)
+  accessTokenEnc      String    @db.Text
+  refreshTokenEnc     String?   @db.Text
+  tokenExpiresAt      DateTime?
+  lastRefreshAt       DateTime?
+  liveMode            Boolean   @default(false)
+  // CONNECTED, ERROR (el token dejó de servir: hay que reconectar) o DISCONNECTED.
+  status              String    @default("CONNECTED") @db.VarChar(20)
+  lastError           String?   @db.VarChar(255)
+  connectedAt         DateTime  @default(now())
+  connectedByUserId   Int?
+  reconnectNotifiedAt DateTime?
+  updatedAt           DateTime  @updatedAt
+  tenant              Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([mpUserId])
+  @@index([status, tokenExpiresAt])
+}
+
+// Conexión OAuth en curso: `state` de un solo uso y verificador PKCE, atados al gimnasio y al admin.
+model MercadoPagoOAuthState {
+  id              String    @id @default(cuid())
+  stateHash       String    @unique @db.VarChar(64)
+  tenantId        Int
+  userId          Int
+  codeVerifierEnc String    @db.Text
+  expiresAt       DateTime
+  usedAt          DateTime?
+  createdAt       DateTime  @default(now())
+
+  @@index([expiresAt])
+}
+
+// Cada intento de pago de una cuota con Mercado Pago (botón de pago o cobro del débito automático).
+// `lockKey` es único mientras el intento está activo: garantiza un solo pago en curso por socio.
+model CuotaPago {
+  id                String    @id @default(cuid())
+  tenantId          Int
+  ID_Cuota          Int
+  ID_Usuario        Int
+  // CHECKOUT (botón de pago) o DEBITO (cobro del débito automático).
+  origen            String    @default("CHECKOUT") @db.VarChar(20)
+  debitoId          String?   @db.VarChar(191)
+  // INICIADO, PENDIENTE, APROBADO, RECHAZADO, EXPIRADO, DEVUELTO, CONTRACARGO, DUPLICADO o REVISAR.
+  status            String    @db.VarChar(20)
+  externalReference String    @unique @db.VarChar(64)
+  preferenceId      String?   @db.VarChar(191)
+  initPoint         String?   @db.VarChar(1000)
+  expiresAt         DateTime?
+  lockKey           String?   @unique @db.VarChar(64)
+  amount            Float
+  recargo           Float     @default(0)
+  // Número de operación de Mercado Pago.
+  mpPaymentId       String?   @unique @db.VarChar(40)
+  mpMerchantOrderId String?   @db.VarChar(40)
+  mpStatus          String?   @db.VarChar(40)
+  mpStatusDetail    String?   @db.VarChar(80)
+  paymentMethod     String?   @db.VarChar(80)
+  netAmount         Float?
+  payerEmail        String?   @db.VarChar(191)
+  approvedAt        DateTime?
+  checkedAt         DateTime?
+  reviewNote        String?   @db.VarChar(255)
+  reviewedAt        DateTime?
+  reviewedByUserId  Int?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  tenant            Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, ID_Cuota])
+  @@index([tenantId, ID_Usuario, status])
+  @@index([tenantId, status, reviewedAt])
+  @@index([status, expiresAt])
+}
+
+// Avisos de Mercado Pago que llegaron mientras el token del gimnasio no servía.
+// Se procesan cuando el gimnasio reconecta.
+model MercadoPagoPendingNotification {
+  id          String    @id @default(cuid())
+  tenantId    Int
+  topic       String    @db.VarChar(60)
+  resourceId  String    @db.VarChar(64)
+  receivedAt  DateTime  @default(now())
+  processedAt DateTime?
+
+  @@unique([topic, resourceId])
+  @@index([tenantId, processedAt])
+}
+
+// Débito automático de un socio: una suscripción de Mercado Pago creada con el token del gimnasio.
+// `activeKey` es único mientras el débito no está cancelado: un débito activo por socio.
+model DebitoAutomatico {
+  id                String    @id @default(cuid())
+  tenantId          Int
+  ID_Usuario        Int
+  ID_Plan           Int?
+  preapprovalId     String?   @unique @db.VarChar(64)
+  externalReference String    @unique @db.VarChar(64)
+  activeKey         String?   @unique @db.VarChar(64)
+  // PENDIENTE (falta autorizar en Mercado Pago), ACTIVO, CON_RECHAZO o CANCELADO.
+  status            String    @db.VarChar(20)
+  payerEmail        String    @db.VarChar(191)
+  amount            Float
+  frequency         Int
+  // months o days, como los espera Mercado Pago.
+  frequencyType     String    @db.VarChar(10)
+  startDate         DateTime
+  nextChargeDate    DateTime?
+  initPoint         String?   @db.VarChar(1000)
+  lastChargeStatus  String?   @db.VarChar(40)
+  lastChargeAt      DateTime?
+  cancelledAt       DateTime?
+  cancelledBy       String?   @db.VarChar(191)
+  cancelReason      String?   @db.VarChar(255)
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  tenant            Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, ID_Usuario])
+  @@index([tenantId, status])
+}
+
 model TenantSettings {
   id                    Int       @id @default(autoincrement())
   tenantId              Int       @unique @default(0)
@@ -210,6 +343,11 @@ model TenantSettings {
   paymentCbu            String?
   paymentTaxId          String?
   paymentWhatsapp       String?
+  // Recargo por pago fuera de término: NINGUNO, FIJO (pesos), PORCENTAJE (único) o PORCENTAJE_DIARIO (con tope).
+  recargoTipo           String    @default("NINGUNO") @db.VarChar(20)
+  recargoValor          Float     @default(0)
+  recargoTope           Float?
+  recargoDiasGracia     Int       @default(0)
   aiEnabled             Boolean   @default(false)
   aiMonthlyTokenLimit   Int       @default(2000000)
   createdAt             DateTime  @default(now())
@@ -474,6 +612,10 @@ model Cuota {
   pagada                      Boolean      @default(false) // Indica si la cuota fue pagada
   formaPago                   String?
   fechaPago                   DateTime? // Fecha en que se realizó el pago, opcional
+  // Recargo por atraso cobrado junto con la cuota. El ingreso total es importe + recargo.
+  recargo                     Float        @default(0)
+  // Número de operación de Mercado Pago o número de comprobante de un pago manual.
+  referenciaPago              String?      @db.VarChar(100)
   recordatorioVenceEnviado    DateTime?
   vencida                     Boolean      @default(false)
   // Cómo se creó la cuota: "MANUAL" (desde Cuotas o el alta del socio), "AUTOMATICA" (cron),

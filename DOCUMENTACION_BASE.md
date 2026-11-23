@@ -1,6 +1,8 @@
 # Gymhour multi-tenant: documentación base
 
-Foto del código en `master`, commit `74ba5d3` (1 de noviembre de 2026), más las tandas de arreglos del 2 y del 11 de noviembre, que todavía no tienen commit ni migraciones aplicadas en producción. Este documento se armó leyendo el código y corriendo tests con Prisma simulado: no se ejecutó la aplicación ni se consultó la base de datos. Si el código y este documento difieren, manda el código. Actualizalo en el mismo PR que cambie alguna de estas reglas.
+Foto del código en `master`, commit `b08ef61` (16 de noviembre de 2026), que ya incluye las tandas de arreglos del 2 y del 11 de noviembre, con sus migraciones aplicadas en producción. Suma los cobros a socios con Mercado Pago de la rama `feature-mercadopago` (19 de noviembre), todavía sin commit ni migraciones aplicadas: ver la [sección 19](#19-cobros-a-socios-con-mercado-pago).
+
+Este documento se armó leyendo el código y corriendo tests con Prisma simulado. Si el código y este documento difieren, manda el código. Actualizalo en el mismo PR que cambie alguna de estas reglas.
 
 ## Índice
 
@@ -22,6 +24,7 @@ Foto del código en `master`, commit `74ba5d3` (1 de noviembre de 2026), más la
 16. [Puntos de atención](#16-puntos-de-atención)
 17. [Documentación y código desactualizados](#17-documentación-y-código-desactualizados)
 18. [Reglas que no hay que romper](#18-reglas-que-no-hay-que-romper)
+19. [Cobros a socios con Mercado Pago](#19-cobros-a-socios-con-mercado-pago)
 
 ## 1. Resumen
 
@@ -55,7 +58,7 @@ gymhour-multitenant/
 ```
 
 - **Dos builds del frontend** con el mismo código: la app de gimnasios y el backoffice. `src/index.js` decide cuál renderizar según `REACT_APP_APP_MODE=platform`.
-- **Despliegue en Railway**: API, frontend y MySQL son servicios separados del mismo repo. El pre-deploy de la API corre `prisma migrate deploy`.
+- **Despliegue en Railway**: la API y MySQL son servicios separados del mismo repo; el frontend corre en Vercel. Railway no tiene pre-deploy: las migraciones se aplican a mano con `prisma migrate deploy` contra la base de producción, justo antes de mergear.
 - **Cron**: `src/scripts/dailyCron.ts` es el entrypoint pensado para un servicio de cron de Railway. También existen los endpoints `/cron/*`.
 
 ## 3. Aislamiento entre gimnasios
@@ -76,6 +79,8 @@ gymhour-multitenant/
 **Subida de archivos.** Los eventos de Multer pueden ejecutarse fuera del contexto. Por eso `src/services/multer.service.ts` envuelve `upload.single` con `preserveTenantContext`. Cualquier forma nueva de subida tiene que pasar por ese envoltorio.
 
 **Modelos globales.** `TenantBillingOrder` está en `TENANT_MODELS`. `TenantPlanChange`, `RebillWebhookEvent` y `RebillProcessedPayment` no lo están, y todo el código de billing usa `systemPrisma`.
+
+**Cobros a socios con Mercado Pago.** `MercadoPagoAccount`, `CuotaPago` y `DebitoAutomatico` están en `TENANT_MODELS`, pero sus servicios usan `systemPrisma` con `tenantId` explícito, porque los avisos de Mercado Pago llegan sin sesión. `MercadoPagoOAuthState` y `MercadoPagoPendingNotification` son globales. Ver la [sección 19](#19-cobros-a-socios-con-mercado-pago).
 
 **Login.** `POST /auth/login` recibe email y contraseña. Si coinciden en varios gimnasios, devuelve un token de selección de 5 minutos, y `POST /auth/login/select-tenant` emite el JWT definitivo. El JWT dura 1 hora y cada request vuelve a validar usuario, `authVersion` y tenant.
 
@@ -173,7 +178,7 @@ Los códigos `UP_TO_100/300/1000_*` son el catálogo anterior (`LEGACY`). No se 
 
 ### Funciones por plan
 
-Son cuatro y `hasPaidFeature` las trata igual:
+Son cinco y `hasPaidFeature` las trata igual:
 
 | Función | Endpoints protegidos | Pantalla bloqueada |
 |---------|----------------------|--------------------|
@@ -181,6 +186,9 @@ Son cuatro y `hasPaidFeature` las trata igual:
 | `ATTENDANCE` | `GET /usuarios/asistencias/mis-asistencias`, `/historial` | `/admin/asistencias`, `/alumno/mis-asistencias` |
 | `CHURN` | `GET /admin/churn-risk`, `POST /admin/churn-risk/contact` | `/admin/predictor-bajas` |
 | `AI` | Todo `/ai/*` | `/admin/asistente-ia`, `/entrenador/asistente-ia` |
+| `MEMBER_PAYMENTS` | `POST /pagos/mercadopago/conectar`, `/pagos/cuotas/:id/checkout`, `/pagos/debito` | Sección "Cobros con Mercado Pago" de Ajustes y botón de pago del socio |
+
+`MEMBER_PAYMENTS` no frena los avisos de Mercado Pago: un pago cobrado se registra aunque el gimnasio haya bajado de plan o esté bloqueado.
 
 | Situación | Funciones |
 |-----------|-----------|
@@ -502,14 +510,26 @@ Excel puede convertir una fecha escrita y, si está configurado mes/día, invert
 
 | Acción | Endpoint | Reglas |
 |--------|----------|--------|
-| Registrar pago | `PUT /cuotas/:id/pay` | Medio obligatorio y fecha no posterior a hoy. Si ya estaba pagada, `409`. |
+| Registrar pago | `PUT /cuotas/:id/pay` | Medio obligatorio y fecha no posterior a hoy. Si ya estaba pagada, `409`. Acepta `referenciaPago` (número de comprobante) y `aplicarRecargo`: el recargo lo calcula el servidor. |
 | Editar | `PUT /cuotas/:id` | Solo el importe, mayor a 0, y solo si no está pagada. |
 | Eliminar | `DELETE /cuotas/:id` | También borra sus turnos. Se permite aunque esté pagada. No vuelve a aparecer. |
 | Regenerar turnos fijos | `POST /cuotas/usuario/:id/regenerate-turnos-fijos` | Sin cambios. |
 
+Con un pago de Mercado Pago en curso para la cuota, o si la cuota está cubierta por un débito automático, registrar el pago, editar y eliminar responden `409`. Así no puede haber un cobro doble. Ver la [sección 19](#19-cobros-a-socios-con-mercado-pago).
+
+### Recargo por atraso
+
+Cada gimnasio lo configura en Ajustes (`TenantSettings.recargoTipo`, `recargoValor`, `recargoTope`, `recargoDiasGracia`): sin recargo, monto fijo, porcentaje único o porcentaje diario con tope, con días de gracia opcionales.
+
+- Lo calcula `calculateLateFee` (`services/lateFee.service.ts`) para el día de pago.
+- Las consultas de cuotas devuelven `recargoSugerido` en las impagas.
+- `GET /cuotas/:id/recargo?fechaPago=` lo calcula para el pago manual.
+- Al pagar, queda en `Cuota.recargo`.
+- No aplica al débito automático.
+
 ### Reportes
 
-Dashboard, asistente de IA e insights ahora cuentan los ingresos por `fechaPago` y lo pendiente por `vence`. El estado de un socio se calcula sobre la cuota que cubre hoy, no sobre la del mes. El alumno ve "Período cubierto" y "Vencimiento del pago".
+Dashboard, asistente de IA e insights cuentan los ingresos por `fechaPago`, sumando `importe + recargo`, y lo pendiente por `vence`. El estado de un socio se calcula sobre la cuota que cubre hoy, no sobre la del mes. El alumno ve "Período cubierto" y "Vencimiento del pago".
 
 ## 10. Validaciones de ingreso y reservas
 
@@ -556,6 +576,16 @@ Se eliminaron: ya no existen `Plan.sesionesGracia` ni `Cuota.planSesionesGraciaS
 | Recordatorios | Cuota por vencer | Vence en exactamente 3 días, una vez por cuota |
 | Recordatorios | Inactividad | Última asistencia hace exactamente 15 días |
 
+Después de los gimnasios, `dailyCron.ts` y `GET /cron/nightly` corren `runMercadoPagoMaintenance` para **todos** los gimnasios conectados a Mercado Pago, también los bloqueados:
+
+1. Renueva tokens.
+2. Resuelve pagos sin confirmar.
+3. Cancela débitos sin autorizar después de 48 horas.
+4. Procesa los avisos en cola.
+5. Registra los cobros de débitos cuyo aviso se perdió.
+
+Ver `gymhour-backend/MERCADOPAGO.md`.
+
 `POST /cron/platform-maintenance` reintenta limpiezas de gimnasios eliminados y borra sesiones vencidas del backoffice. Todo `/cron/*` exige `Authorization: Bearer <CRON_SECRET>`.
 
 ## 12. Endpoints nuevos, modificados y eliminados
@@ -583,6 +613,8 @@ Se eliminaron: ya no existen `Plan.sesionesGracia` ni `Cuota.planSesionesGraciaS
 | `POST /platform/billing/unlinked-payments/:id/link` | Backoffice | Vincula el pago a una orden, con motivo y MFA |
 | `GET /platform/tenants/:id/billing-orders` | Backoffice | Últimas 30 órdenes |
 | `POST /usuarios/:id/welcome-email` | Admin | Envía la bienvenida a pedido |
+| `GET /cuotas/:id/recargo` | Admin | Recargo sugerido para la fecha de pago |
+| `/pagos/*` | Admin, socio, Mercado Pago | Cobros a socios con Mercado Pago. La lista completa está en `gymhour-backend/MERCADOPAGO.md`, "Endpoints". |
 
 **Modificados**
 
@@ -598,7 +630,16 @@ Se eliminaron: ya no existen `Plan.sesionesGracia` ni `Cuota.planSesionesGraciaS
 | `PATCH /platform/tenants/:id/status`, `POST /platform/tenants/:id/purge` | Pausan, retoman o cancelan la suscripción en Rebill. Si Rebill falla, responden `502` sin cambios. |
 | `GET /cuotas/usuario/:id/preview`, `POST /cuotas/usuario/:id` | Pasan al ciclo individual. |
 | `GET /cuotas` | `mes` filtra por mes de `vence` (`400` si es inválido), y se agrega `estado=vencida`. |
-| `PUT /cuotas/:id/pay` | Acepta `fechaPago`; responde `409` si ya estaba pagada. |
+| `PUT /cuotas/:id/pay` | Acepta `fechaPago`, `referenciaPago` y `aplicarRecargo`. Responde `409` si ya estaba pagada, si hay un pago de Mercado Pago en curso o si la cuota la cubre un débito automático. |
+| `PUT /cuotas/:id`, `DELETE /cuotas/:id` | `409` con un pago de Mercado Pago en curso o un débito automático. |
+| `GET /cuotas`, `GET /cuotas/me`, `GET /cuotas/usuario/:id/cuotas` | Suman `recargo`, `referenciaPago`, `recargoSugerido`, `pagoEnLinea` y `cubiertaPorDebito`. |
+| `PATCH /tenant/settings` | Acepta la configuración del recargo, validada. |
+| `GET /usuarios` | Filtro `debito` y `debitoAutomatico` en cada socio. |
+| `GET /usuarios/stats` | Suma `debitosAutomaticos`. |
+| `PUT /usuarios/:id`, `PUT /usuarios/estado/:id`, `DELETE /usuarios/:id` | Al dar de baja o eliminar a un socio, cancelan su débito automático. Si Mercado Pago no lo confirma, responden `502` sin cambios. El cambio de plan ajusta o cancela el débito. |
+| `PUT /planes/:id` | Un cambio de precio o duración ajusta o cancela los débitos de ese plan; responde `debitos`. |
+| `POST /platform/tenants/:id/purge` | Cancela los débitos de los socios antes de eliminar. Si falla, `502`. |
+| `GET /platform/tenants/:id` | Suma `mercadoPago` (estado de la conexión y débitos, sin tokens). |
 | `POST`, `PUT /planes` | Aceptan `duracionUnidad` y `duracionCantidad`. |
 | `/admin/churn-risk*`, `/ai/*`, `/usuarios/asistencias/*` | Exigen la función del plan. |
 
@@ -623,8 +664,13 @@ Solo las relacionadas con este documento. La lista completa está en `gymhour-ba
 | `TIMEZONE` | Backend | Zona por defecto de los nuevos gimnasios | Usa Córdoba |
 | `REACT_APP_APP_MODE=platform` | Build del frontend | Compila el backoffice | Compila la app de gimnasios |
 | `REACT_APP_API_URL` | Build del frontend | URL de la API | Usa `http://localhost:3000` |
+| `MP_CLIENT_ID`, `MP_CLIENT_SECRET` | Backend, nunca al frontend | App "Gymhour" de Mercado Pago | La conexión con Mercado Pago no está disponible |
+| `MP_TOKEN_ENCRYPTION_KEY` | Backend | Cifra los tokens de los gimnasios (32 bytes) | No está disponible. Si cambia, todos los gimnasios tienen que reconectar. |
+| `MP_WEBHOOK_SECRET` | Backend | Firma de los avisos de Mercado Pago | No se valida la firma; los avisos se verifican igual contra la API |
+| `API_PUBLIC_URL` | Backend | URL pública https de la API: vuelta de OAuth y avisos | La conexión con Mercado Pago no está disponible |
+| `MP_TEST_MODE` | Backend | `true` en el sandbox | Modo real: solo acepta cuentas reales |
 
-En Rebill hay que crear un webhook HTTPS a `/billing/webhooks/rebill` con `payment.created`, `payment.updated` y `subscription.updated`.
+En Rebill hay que crear un webhook HTTPS a `/billing/webhooks/rebill` con `payment.created`, `payment.updated` y `subscription.updated`. La configuración de Mercado Pago está en `gymhour-backend/MERCADOPAGO.md`, "Puesta en marcha".
 
 ## 14. Migraciones
 
@@ -638,8 +684,11 @@ En Rebill hay que crear un webhook HTTPS a `/billing/webhooks/rebill` con `payme
 | `20261102000100_remove_session_grace` | Elimina `Plan.sesionesGracia` y `Cuota.planSesionesGraciaSnapshot` | **Borra esos datos sin vuelta atrás** |
 | `20261102000200_subscription_controls` | `Tenant.billingGraceUntil`, `TenantBillingOrder.cancelledAt`, `cancelReason` y `pausedBySuspensionAt` | Ninguno. Los gimnasios actuales con tarjeta reciben la tolerancia en su próxima renovación aprobada. |
 | `20261110000100_billing_followups` | `TenantBillingOrder.cancelledBy` y `failureNotifiedUntil`, y la tabla `RebillUnlinkedPayment` | Ninguno |
+| `20261119000100_late_fee` | Recargo en `TenantSettings`, y `Cuota.recargo` y `referenciaPago` | Ninguno: sin recargo por defecto |
+| `20261119000200_mercadopago_payments` | `MercadoPagoAccount`, `MercadoPagoOAuthState`, `CuotaPago` y `MercadoPagoPendingNotification` | Ninguno |
+| `20261119000300_mercadopago_debits` | `DebitoAutomatico` | Ninguno |
 
-Las tres últimas no se aplicaron en producción. El pre-deploy de Railway las va a aplicar solo al desplegar el código.
+Las migraciones se aplican a mano: Railway no tiene pre-deploy. Hasta `20261110000100` están aplicadas en producción. Las tres de cobros a socios, de la rama `feature-mercadopago`, todavía no: son aditivas y se pueden aplicar justo antes del merge.
 
 ## 15. Entorno local y tests
 
@@ -675,6 +724,8 @@ npm run dev
 | `rebill.test.ts` | Firma del webhook, lectura de pagos, validación de suscripciones, actualización y enlace de tarjeta |
 | `feeDates.test.ts` | Períodos, día ancla, duraciones y altas retroactivas |
 | `multitenant.integration.test.ts` | Registro, verificación, aislamiento y bloqueo por vencimiento |
+| `lateFee.test.ts` | Recargo por atraso: cálculo, Ajustes y pago manual |
+| `mercadoPagoClient.test.ts`, `mercadoPagoAccount.test.ts`, `memberPayments.test.ts`, `automaticDebit.test.ts`, `mercadoPagoWebhook.test.ts` | Cobros a socios con Mercado Pago. Detalle en `gymhour-backend/MERCADOPAGO.md`, "Tests". |
 
 `npm test` también ejecuta `multitenant.integration.test.ts`, que aplica migraciones sobre `TEST_DATABASE_URL`. Para correr solo lo que usa Prisma simulado, indicá los archivos: `npx vitest run test/billing.test.ts`.
 
@@ -749,7 +800,9 @@ Falta probarlos en sandbox y aplicar la migración.
 - [ ] `REBILL_SIGNING_SECRET` cargado y webhook creado en Rebill con los tres eventos.
 - [ ] Servicio de cron de Railway activo, una vez por día.
 - [ ] `FRONTEND_URL` y `PLATFORM_FRONTEND_URL` correctas.
-- [ ] Revisar `20261102000100_remove_session_grace` antes de desplegar: borra columnas, y el pre-deploy de Railway la aplica solo.
+- [x] `20261102000100_remove_session_grace` aplicada a mano en producción, junto con las de noviembre.
+- [ ] Cobros a socios con Mercado Pago: cuenta de Mercado Pago de Gymhour, app con PKCE y webhooks, variables `MP_*` y `API_PUBLIC_URL`, y las tres migraciones del 19 de noviembre aplicadas a mano antes del merge.
+- [ ] Sandbox de Mercado Pago: los puntos de "Puesta en marcha" y "A confirmar en sandbox" de `gymhour-backend/MERCADOPAGO.md`.
 - [ ] Sandbox: compra con tarjeta, renovación, webhook repetido y bloqueo al vencer.
 - [ ] Sandbox: tarjeta rechazada, 48 horas de acceso, cambio de tarjeta con cobro inmediato y compra de reemplazo sin doble suscripción.
 - [ ] Sandbox: cancelar como admin y desde el backoffice, suspender y reactivar, y eliminar un gimnasio con suscripción activa.
@@ -769,6 +822,7 @@ Falta probarlos en sandbox y aplicar la migración.
 | `apiService.js` | Conserva llamadas a los endpoints eliminados. |
 | `COMENTARIOS_DESARROLLO.md` | Describe límite semanal, turno "ese día" y sesiones de gracia. Hoy es tope total, ventana de ±20 minutos y sin gracia. |
 | `CLAUDE.md` del repo `GYMHOUR` | Describe la generación masiva. No aplica a este repo. |
+| `scripts/auditTenantIsolation.mjs` (`npm run audit:tenant`) | Falla aunque no haya problemas. La lista de archivos permitidos para `systemPrisma` quedó vieja (billing, backoffice y cobros con Mercado Pago lo usan con `tenantId` explícito), y en Windows compara rutas con barras invertidas, así que marca hasta los archivos permitidos. |
 
 ## 18. Reglas que no hay que romper
 
@@ -801,3 +855,32 @@ Falta probarlos en sandbox y aplicar la migración.
 - Un alumno no puede tener dos turnos el mismo día, y el tope de sesiones es por período.
 - Las fechas se manejan como wall-clock UTC. Para fechas de cuota, usar `feeDates.service.ts`.
 - Los crons se protegen con `CRON_SECRET` y los jobs corren con contexto de tenant.
+- El recargo y el monto a cobrar se calculan siempre en el servidor, nunca en el navegador.
+
+**Cobros a socios con Mercado Pago**
+- Solo `services/mercadoPago.service.ts` habla con la API de Mercado Pago, y solo con las rutas de `MERCADOPAGO_ROUTES`. Agregar una ruta es una decisión de permisos: se documenta en `MERCADOPAGO.md` y se actualiza su test.
+- Nunca hacer devoluciones ni cancelar pagos desde Gymhour.
+- Nunca confiar en el cuerpo de un aviso: se vuelve a consultar el recurso con el token del gimnasio y se valida el collector, la referencia, el monto y la moneda.
+- Los tokens van cifrados con `MP_TOKEN_ENCRYPTION_KEY` y nunca salen del backend. No rotar la clave sin recifrar o sin pedir que los gimnasios reconecten.
+- Un solo pago en curso por socio (`CuotaPago.lockKey`), y ninguna acción manual sobre una cuota con un pago en curso o cubierta por un débito activo.
+- Todo pago se aplica de forma idempotente: `mpPaymentId` es único y la cuota se marca solo si sigue impaga.
+- Antes de dar de baja o eliminar un socio, desconectar Mercado Pago o eliminar un gimnasio, se cancelan los débitos en Mercado Pago. Si falla, la acción no se hace.
+
+## 19. Cobros a socios con Mercado Pago
+
+Rama `feature-mercadopago`, sin commit ni migraciones aplicadas. La guía completa (flujos, seguridad, endpoints, configuración, prueba en sandbox y puntos a confirmar) está en `gymhour-backend/MERCADOPAGO.md`.
+
+Cada gimnasio conecta su propia cuenta de Mercado Pago con OAuth, y la plata llega directo a esa cuenta: Gymhour nunca la recibe.
+
+| Parte | Resumen | Plan |
+|---|---|---|
+| Recargo por atraso | Lo configura cada gimnasio y lo calcula el servidor. Se cobra en el botón de pago y se sugiere en el pago manual. | Todos |
+| Botón de pago | Checkout Pro de 10 minutos, sin efectivo y en un pago. Un solo pago en curso por socio, y la cuota queda pagada con el número de operación. | Pro |
+| Débito automático | Suscripción de Mercado Pago desde el primer período sin pagar. Si un cobro falla, el socio actualiza la tarjeta o cancela el débito para pagar de otra forma. | Pro |
+
+- **Permisos:** Mercado Pago no tiene un permiso de "solo cobrar". Gymhour usa el token únicamente para la lista cerrada de `MERCADOPAGO_ROUTES`: crear checkouts y débitos, consultar sus pagos, cancelar o cambiar el monto de un débito y renovar el token. No hace devoluciones.
+- **Avisos al admin:** devoluciones, contracargos, duplicados y pagos que no coinciden aparecen en Cuotas, para revisarlos y resolverlos desde Mercado Pago.
+- **Pendiente:**
+  - Crear la cuenta de Mercado Pago de Gymhour y su app.
+  - Cargar las variables y aplicar las tres migraciones.
+  - Probar en sandbox y confirmar los puntos marcados en `MERCADOPAGO.md`.

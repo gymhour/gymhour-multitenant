@@ -583,6 +583,19 @@ export async function sendSubscriptionCancelledEmail(email: string, data: { acce
   await sendEmail(email, "Cancelaste tu suscripción a Gymhour", emailShell(BILLING_HERO, "Suscripción cancelada", "No se harán más débitos", body));
 }
 
+// --- Cobro de cuotas con Mercado Pago (se envía a los administradores) ---
+
+export async function sendMercadoPagoReconnectEmail(email: string, data: { reason: string }): Promise<void> {
+  const url = `${process.env.FRONTEND_URL ?? ""}/admin/configuracion`;
+  const body = `
+    <p>${escapeHtml(data.reason)}</p>
+    <p>Mientras tanto, tus socios no pueden pagar sus cuotas con Mercado Pago desde Gymhour, y los cobros del débito automático se registran recién cuando vuelvas a conectar la cuenta. La plata de los cobros sigue llegando a tu cuenta de Mercado Pago.</p>
+    <p>Entrá a Configuración → Cobros con Mercado Pago y tocá <strong>Reconectar</strong>.</p>
+    <div class="cta"><a class="btn" href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">Reconectar Mercado Pago</a></div>
+  `;
+  await sendEmail(email, "Reconectá Mercado Pago en Gymhour", emailShell("linear-gradient(90deg,#f59e0b 0%, #f97316 100%)", "Reconectá Mercado Pago", "Los cobros online de cuotas están en pausa", body));
+}
+
 /**
  * Helpers:
  * - escapeHtml: evita inyección de caracteres en el template

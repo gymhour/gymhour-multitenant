@@ -26,6 +26,11 @@
 .settings-field input { width: 100%; height: 46px; padding: 11px 13px; box-sizing: border-box; color: var(--text-color); background: var(--background-color-distinct); border: 1px solid var(--border-color); border-radius: 10px; outline: none; font: inherit; font-size: 14px; font-weight: 400; transition: border-color .15s ease; }
 .settings-field input::placeholder { color: var(--text-color-distinct); opacity: .55; }
 .settings-field input:focus { border-color: var(--primary-color); }
+.settings-field select { width: 100%; height: 46px; padding: 11px 13px; box-sizing: border-box; color: var(--text-color); background: var(--background-color-distinct); border: 1px solid var(--border-color); border-radius: 10px; outline: none; font: inherit; font-size: 14px; }
+.settings-field select:focus { border-color: var(--primary-color); }
+.settings-late-fee-note { display: flex; flex-direction: column; gap: 6px; margin-top: 20px; padding: 14px 15px; background: var(--background-hover-color); border: 1px solid color-mix(in srgb, var(--primary-color) 26%, transparent); border-radius: 11px; font-size: 13px; line-height: 1.5; }
+.settings-late-fee-note strong { font-weight: 400; }
+.settings-late-fee-note span { color: var(--text-color-distinct); }
 .settings-readonly input { color: var(--text-color-distinct); cursor: not-allowed; }
 .settings-icon-input { position: relative; display: flex; align-items: center; }
 .settings-icon-input > svg { position: absolute; left: 13px; z-index: 1; color: var(--text-color-distinct); }

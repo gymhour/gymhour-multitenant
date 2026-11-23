@@ -80,7 +80,7 @@ export const getDashboardStats = async (req: Request, res: Response): Promise<vo
         const [paidSum, pendingSum] = await Promise.all([
             prismaC.aggregate({
                 where: { fechaPago: { gte: monthStart, lt: monthEnd }, pagada: true },
-                _sum: { importe: true }
+                _sum: { importe: true, recargo: true }
             }),
             prismaC.aggregate({
                 where: { vence: { gte: monthStart, lt: monthEnd }, pagada: false },
@@ -91,12 +91,13 @@ export const getDashboardStats = async (req: Request, res: Response): Promise<vo
         // 5) Histórico mensual de importes pagados
         const paidHistory = await prismaC.findMany({
             where: { pagada: true, fechaPago: { not: null } },
-            select: { fechaPago: true, importe: true },
+            select: { fechaPago: true, importe: true, recargo: true },
         });
         const monthlyPaidMap = new Map<string, number>();
         for (const fee of paidHistory) {
             const key = fee.fechaPago!.toISOString().slice(0, 7);
-            monthlyPaidMap.set(key, (monthlyPaidMap.get(key) || 0) + fee.importe);
+            // Lo cobrado incluye el recargo por atraso.
+            monthlyPaidMap.set(key, (monthlyPaidMap.get(key) || 0) + fee.importe + (fee.recargo || 0));
         }
         const monthlyPaidAmounts = Array.from(monthlyPaidMap, ([mes, totalPagado]) => ({ mes, totalPagado }));
 
@@ -112,7 +113,7 @@ export const getDashboardStats = async (req: Request, res: Response): Promise<vo
         // -----------------------------
         // FINANZAS: gastos, ganancia neta, tasa de cobranza
         // -----------------------------
-        const ingresosMes = paidSum._sum.importe ?? 0;
+        const ingresosMes = (paidSum._sum.importe ?? 0) + (paidSum._sum.recargo ?? 0);
         const pendienteMes = pendingSum._sum.importe ?? 0;
 
         const [gastosMesAgg, gastosByMes] = await Promise.all([

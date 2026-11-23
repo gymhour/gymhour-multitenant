@@ -4,7 +4,9 @@ import { getBillingAccess } from './billing.service.js';
 import { tierCodeFromPlanCode } from './billingCatalog.service.js';
 import { liveSubscriptionOrders } from './tenantSubscription.service.js';
 
-export type PaidFeature = 'CHECK_IN' | 'ATTENDANCE' | 'CHURN' | 'AI';
+// MEMBER_PAYMENTS: cobro de cuotas a socios con Mercado Pago (botón de pago y débito automático).
+export type PaidFeature = 'CHECK_IN' | 'ATTENDANCE' | 'CHURN' | 'AI' | 'MEMBER_PAYMENTS';
+export const PAID_FEATURES: PaidFeature[] = ['CHECK_IN', 'ATTENDANCE', 'CHURN', 'AI', 'MEMBER_PAYMENTS'];
 
 export function hasPaidFeature(state: string, tierCode: string | null, feature: PaidFeature, trialEndsAt?: Date | null, now = new Date()) {
   if (state === 'EXEMPT' || (trialEndsAt && trialEndsAt > now)) return true;
@@ -38,8 +40,8 @@ export async function tenantPlanAccess(tenantId: number) {
     scheduledPlanCode: scheduled && (order?.planCode === scheduled.fromPlanCode || billing.serverNow < scheduled.periodEnd)
       ? scheduled.toPlanCode : null,
     scheduledEffectiveAt: scheduled?.periodEnd ?? null,
-    features: Object.fromEntries((['CHECK_IN', 'ATTENDANCE', 'CHURN', 'AI'] as const)
-      .map(feature => [feature, hasPaidFeature(billing.state, tierCode, feature, tenant.trialEndsAt)])) };
+    features: Object.fromEntries(PAID_FEATURES
+      .map(feature => [feature, hasPaidFeature(billing.state, tierCode, feature, tenant.trialEndsAt)])) as Record<PaidFeature, boolean> };
 }
 
 export const requirePaidFeature = (feature: PaidFeature) => async (req: Request, res: Response, next: NextFunction) => {

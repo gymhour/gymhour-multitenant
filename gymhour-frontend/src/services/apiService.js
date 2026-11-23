@@ -896,6 +896,40 @@ const updateTenantProfile = async profile => {
     return response.data;
 };
 
+// Cobro de cuotas con Mercado Pago (ver gymhour-backend/MERCADOPAGO.md).
+// Los errores conservan el código del backend (PAGO_EN_CURSO, DEBITOS_ACTIVOS, etc.).
+const paymentsRequest = async (request, fallback) => {
+    try {
+        return (await request()).data;
+    } catch (error) {
+        const data = error?.response?.data || {};
+        const failure = new Error(data.message || fallback);
+        failure.code = data.code;
+        failure.status = error?.response?.status;
+        failure.details = data;
+        throw failure;
+    }
+};
+
+const getMercadoPagoConnection = () => paymentsRequest(() => apiClient.get('/pagos/mercadopago'), 'No pudimos cargar la conexión con Mercado Pago.');
+const connectMercadoPago = () => paymentsRequest(() => apiClient.post('/pagos/mercadopago/conectar'), 'No pudimos iniciar la conexión con Mercado Pago.');
+const disconnectMercadoPago = (cancelarDebitos = false) => paymentsRequest(
+    () => apiClient.delete('/pagos/mercadopago', { params: cancelarDebitos ? { cancelarDebitos: true } : {} }),
+    'No pudimos desconectar Mercado Pago.');
+const getPaymentAlerts = () => paymentsRequest(() => apiClient.get('/pagos/avisos'), 'No pudimos cargar los avisos de Mercado Pago.');
+const reviewPaymentAlert = id => paymentsRequest(() => apiClient.post(`/pagos/avisos/${encodeURIComponent(id)}/revisado`), 'No pudimos marcar el aviso.');
+const getAutomaticDebits = () => paymentsRequest(() => apiClient.get('/pagos/debitos'), 'No pudimos cargar los débitos automáticos.');
+const verifyAutomaticDebit = id => paymentsRequest(
+    () => apiClient.post(`/pagos/debitos/${encodeURIComponent(id)}/verificar`), 'No pudimos verificar los cobros del débito automático.');
+const cancelAutomaticDebit = (id, motivo) => paymentsRequest(
+    () => apiClient.post(`/pagos/debitos/${encodeURIComponent(id)}/cancelar`, { motivo }), 'No pudimos cancelar el débito automático.');
+const getMyPaymentState = () => paymentsRequest(() => apiClient.get('/pagos/mi-estado'), 'No pudimos cargar el estado de tus pagos.');
+const startCuotaCheckout = cuotaId => paymentsRequest(() => apiClient.post(`/pagos/cuotas/${cuotaId}/checkout`), 'No pudimos iniciar el pago.');
+const verifyPaymentAttempt = ref => paymentsRequest(() => apiClient.post(`/pagos/intentos/${encodeURIComponent(ref)}/verificar`), 'No pudimos verificar el pago.');
+const adhereAutomaticDebit = email => paymentsRequest(() => apiClient.post('/pagos/debito', { email }), 'No pudimos crear el débito automático.');
+const verifyMyAutomaticDebit = () => paymentsRequest(() => apiClient.post('/pagos/debito/verificar'), 'No pudimos verificar el débito automático.');
+const cancelMyAutomaticDebit = motivo => paymentsRequest(() => apiClient.post('/pagos/debito/cancelar', { motivo }), 'No pudimos dar de baja el débito automático.');
+
 
 // Ejercicios
 const getEjercicios = async () => {
@@ -1067,6 +1101,21 @@ export default {
     rotateKioskCredential,
     updateTenantSettings,
     updateTenantProfile,
+    // Cobros con Mercado Pago
+    getMercadoPagoConnection,
+    connectMercadoPago,
+    disconnectMercadoPago,
+    getPaymentAlerts,
+    reviewPaymentAlert,
+    getAutomaticDebits,
+    verifyAutomaticDebit,
+    cancelAutomaticDebit,
+    getMyPaymentState,
+    startCuotaCheckout,
+    verifyPaymentAttempt,
+    adhereAutomaticDebit,
+    verifyMyAutomaticDebit,
+    cancelMyAutomaticDebit,
     // Ejercicios
     getEjercicios,
     getEjercicioById,

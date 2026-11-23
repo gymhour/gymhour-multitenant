@@ -3,6 +3,7 @@ import { respondUnexpected } from "../services/apiError.service.js";
 import prisma from '../models/Prisma.js';
 import { getMaxSessionsForDuration, normalizePlanDuration } from '../services/accessRules.service.js';
 import { parseFeeDuration, serializeFeeDuration } from '../services/feeDates.service.js';
+import { syncDebitsWithPlan } from '../services/automaticDebit.service.js';
 
 // Crear un nuevo plan
 export const createPlan = async (req: Request, res: Response): Promise<void> => {
@@ -103,7 +104,14 @@ export const updatePlan = async (req: Request, res: Response): Promise<void> => 
                 ...(requiereTurno !== undefined && { requiereTurno: Boolean(requiereTurno) }),
             }
         });
-        res.status(200).json({ message: 'Plan actualizado', plan: updated });
+        // Los débitos automáticos del plan siguen el nuevo precio o duración. No bloquea la edición.
+        let debitos = null;
+        if (precio !== undefined || requestedDuration !== undefined) {
+            debitos = await syncDebitsWithPlan(req.tenant!.id, {
+                ID_Plan: updated.ID_Plan, precio: Number(updated.precio), duracion: String(updated.duracion),
+            }).catch(error => { console.error('[mercadopago] débitos del plan', ID_Plan, error); return null; });
+        }
+        res.status(200).json({ message: 'Plan actualizado', plan: updated, debitos });
     } catch (error: any) {
         respondUnexpected(res, error, "actualizar el plan");
     }

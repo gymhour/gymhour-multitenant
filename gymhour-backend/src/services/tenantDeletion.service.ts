@@ -66,6 +66,13 @@ async function deleteTenantRows(tx: TransactionClient, tenantId: number): Promis
   await tx.mediaAsset.deleteMany({ where });
   await tx.tenantKioskCredential.deleteMany({ where });
   await tx.tenantSettings.deleteMany({ where });
+  // Cobros con Mercado Pago: solo los datos guardados en Gymhour. La cuenta de Mercado Pago del
+  // gimnasio no se toca, y los débitos activos se cancelan antes de llegar acá.
+  await tx.cuotaPago.deleteMany({ where });
+  await tx.debitoAutomatico.deleteMany({ where });
+  await tx.mercadoPagoAccount.deleteMany({ where });
+  await tx.mercadoPagoOAuthState.deleteMany({ where });
+  await tx.mercadoPagoPendingNotification.deleteMany({ where });
   await tx.tenant.delete({ where: { id: tenantId } });
 }
 

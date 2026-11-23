@@ -13,6 +13,7 @@
 // Para ver el alcance sin escribir ni enviar nada: node prisma/runCron.js --tarea=<nombre>
 import 'dotenv/config'; // ANTES de todo: email.service lee SMTP_* a nivel de módulo
 import prisma from '../models/Prisma.js';
+import { runMercadoPagoMaintenance } from '../services/mercadoPagoMaintenance.service.js';
 import { runAllTenantDailyTasks } from '../services/tenantJobs.service.js';
 
 async function main(): Promise<number> {
@@ -23,9 +24,20 @@ async function main(): Promise<number> {
     const resultado = await runAllTenantDailyTasks();
     const errores = JSON.stringify(resultado).match(/Error/g) ?? [];
 
+    // Cobros con Mercado Pago: tokens, pagos sin resolver, débitos sin autorizar y avisos en cola.
+    // Corre para todos los gimnasios conectados, también los bloqueados. Ver MERCADOPAGO.md.
+    let mercadoPago: Awaited<ReturnType<typeof runMercadoPagoMaintenance>> | { error: string };
+    try {
+        mercadoPago = await runMercadoPagoMaintenance();
+    } catch (error) {
+        mercadoPago = { error: (error as Error).message };
+    }
+    const erroresMercadoPago = 'error' in mercadoPago ? 1 : mercadoPago.errores.length;
+
     console.log('[cron] resultado', JSON.stringify(resultado, null, 2));
+    console.log('[cron] mercado pago', JSON.stringify(mercadoPago, null, 2));
     console.log(`[cron] fin en ${Date.now() - inicio}ms`);
-    return errores.length;
+    return errores.length + erroresMercadoPago;
 }
 
 main()

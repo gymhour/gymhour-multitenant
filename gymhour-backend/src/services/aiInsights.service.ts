@@ -84,11 +84,11 @@ export async function getAiInsights(role: TenantRole): Promise<AiInsight[]> {
   }
 
   const [paid, pending, expenses] = await Promise.all([
-    prisma.cuota.aggregate({ where: { fechaPago: { gte: new Date(`${currentMonth}-01T00:00:00.000Z`), lt: new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1)) }, pagada: true }, _sum: { importe: true } }),
+    prisma.cuota.aggregate({ where: { fechaPago: { gte: new Date(`${currentMonth}-01T00:00:00.000Z`), lt: new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1)) }, pagada: true }, _sum: { importe: true, recargo: true } }),
     prisma.cuota.aggregate({ where: { vence: { gte: new Date(`${currentMonth}-01T00:00:00.000Z`), lt: new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1)) }, pagada: false }, _sum: { importe: true } }),
     prisma.gasto.aggregate({ where: { mes: currentMonth }, _sum: { monto: true } }),
   ]);
-  const income = Number(paid._sum.importe || 0);
+  const income = Number(paid._sum.importe || 0) + Number(paid._sum.recargo || 0);
   const pendingAmount = Number(pending._sum.importe || 0);
   const expenseAmount = Number(expenses._sum.monto || 0);
   const collectionRate = income + pendingAmount > 0 ? Math.round(income / (income + pendingAmount) * 100) : 0;

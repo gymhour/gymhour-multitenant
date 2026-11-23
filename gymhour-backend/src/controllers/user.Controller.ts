@@ -10,6 +10,23 @@ import { hashPassword } from "../services/password.service.js";
 import { isForbiddenSelfRoleChange } from "../services/userRole.service.js";
 import { feeDateString, feeNextDay, feePeriod, parseFeeDate } from '../services/feeDates.service.js';
 import { buildImportedFeeCycle, localFeeToday } from '../services/feeCycle.service.js';
+import { cancelDebitForUser, onUserPlanChange } from '../services/automaticDebit.service.js';
+
+// Si el socio tiene débito automático, se da de baja en Mercado Pago antes de la baja o la eliminación
+// en Gymhour. Si Mercado Pago no lo confirma, no se sigue: el socio no puede quedar con un débito activo.
+const cancelMemberDebit = async (req: Request, res: Response, userId: number, reason: string): Promise<boolean> => {
+    try {
+        await cancelDebitForUser(req.tenant!.id, userId, { by: `Admin · ${req.user!.email}`, reason });
+        return true;
+    } catch (error) {
+        console.error('[mercadopago] no se pudo cancelar el débito del socio', userId, error);
+        const reconnect = ['MP_RECONNECT_REQUIRED', 'MP_NOT_CONNECTED'].includes((error as { code?: string })?.code ?? '');
+        res.status(502).json({ message: reconnect
+            ? 'El socio tiene débito automático y la conexión con Mercado Pago necesita reconectarse. Reconectala en Configuración para poder darlo de baja.'
+            : 'No pudimos dar de baja el débito automático del socio en Mercado Pago. Probá de nuevo en unos minutos.' });
+        return false;
+    }
+};
 
 // Parsea la fecha de cumpleaños del import masivo. Acepta DD/MM/AAAA (formato del Excel) e ISO AAAA-MM-DD.
 // Devuelve { date } (mediodía UTC para evitar drift de día), { date: null } si viene vacío, o { error }.
@@ -498,12 +515,28 @@ export const getAllUsers = async (req: Request, res: Response): Promise<void> =>
             search,
             movimientoTipo,
             movimientoMes,
+            debito,
         } = req.query;
         const pageNumber = Math.max(1, parseInt(page as string, 10) || 1);
         const take = Math.min(100, Math.max(1, parseInt(takeQuery as string, 10) || 15));
         const skip = (pageNumber - 1) * take;
 
         const where: Prisma.UserWhereInput = {};
+        // Débito automático de Mercado Pago: ACTIVO, CON_RECHAZO, PENDIENTE, PAUSADO o NINGUNO.
+        const debits = await prisma.debitoAutomatico.findMany({
+            where: { activeKey: { not: null } },
+            select: { ID_Usuario: true, status: true, nextChargeDate: true, lastChargeStatus: true },
+        });
+        if (debito !== undefined && debito !== '') {
+            const filtro = String(debito).toUpperCase();
+            if (!['ACTIVO', 'CON_RECHAZO', 'PENDIENTE', 'PAUSADO', 'NINGUNO'].includes(filtro)) {
+                res.status(400).json({ message: "El filtro de débito automático no es válido." });
+                return;
+            }
+            where.ID_Usuario = filtro === 'NINGUNO'
+                ? { notIn: debits.map(item => item.ID_Usuario) }
+                : { in: debits.filter(item => item.status === filtro).map(item => item.ID_Usuario) };
+        }
         if (role) where.role = String(role).toUpperCase() as any;
         if (String(sinPlan).toLowerCase() === 'true' || sinPlan === '1') {
             where.ID_Plan = null;
@@ -619,6 +652,7 @@ export const getAllUsers = async (req: Request, res: Response): Promise<void> =>
 
         const data = (users as (UsuarioReturn & { imagenUsuario: string | null })[]).map(u => ({
             ...u,
+            debitoAutomatico: debits.find(item => item.ID_Usuario === u.ID_Usuario) ?? null,
             fichaMedicaUrl: u.fichaMedicaUrl ? getMedicalRecordUrl(u.fichaMedicaUrl) : null,
             avatarUrl: u.imagenUsuario
                 ? getImageUrl(u.imagenUsuario, { secure: true, width: 80, height: 80, crop: 'thumb' })
@@ -637,10 +671,11 @@ export const getAllUsers = async (req: Request, res: Response): Promise<void> =>
 const getUserStats = async (_req: Request, res: Response): Promise<void> => {
     try {
         const clienteWhere: Prisma.UserWhereInput = { role: 'STUDENT' };
-        const [activos, inactivos, sinPlanAsignado] = await prisma.$transaction([
+        const [activos, inactivos, sinPlanAsignado, debitos] = await prisma.$transaction([
             prisma.user.count({ where: { ...clienteWhere, estado: true } }),
             prisma.user.count({ where: { ...clienteWhere, estado: false } }),
             prisma.user.count({ where: { ...clienteWhere, ID_Plan: null } }),
+            prisma.debitoAutomatico.findMany({ where: { activeKey: { not: null } }, select: { status: true } }),
         ]);
 
         res.status(200).json({
@@ -648,6 +683,12 @@ const getUserStats = async (_req: Request, res: Response): Promise<void> => {
                 activos,
                 inactivos,
                 sinPlanAsignado,
+            },
+            // Débito automático de Mercado Pago: adheridos (activos) y con un cobro rechazado.
+            debitosAutomaticos: {
+                activos: debitos.filter(item => item.status === 'ACTIVO').length,
+                conRechazo: debitos.filter(item => item.status === 'CON_RECHAZO').length,
+                pendientes: debitos.filter(item => item.status === 'PENDIENTE').length,
             },
         });
     } catch (error: any) {
@@ -939,6 +980,8 @@ export const updateUser = async (req: Request, res: Response): Promise<void> => 
             }
         }
 
+        if (data.estado === false && !(await cancelMemberDebit(req, res, id, 'Baja del socio en Gymhour.'))) return;
+
         const updated = await prisma.$transaction(async (tx) => {
             if (turnosFijosIds !== null) {
                 const debeTener = parseBoolean(usaTurnosFijos ?? data.usaTurnosFijos) ? turnosFijosIds : [];
@@ -974,6 +1017,14 @@ export const updateUser = async (req: Request, res: Response): Promise<void> => 
                 }
             });
         });
+
+        // Un cambio de plan ajusta el monto del débito, o lo cancela si cambió la frecuencia.
+        // No bloquea la edición: si Mercado Pago falla, queda registrado en el log.
+        if (data.ID_Plan !== undefined) {
+            await onUserPlanChange(req.tenant!.id, id, updated.plan
+                ? { ID_Plan: updated.plan.ID_Plan, precio: Number(updated.plan.precio), duracion: String(updated.plan.duracion) }
+                : null).catch(error => console.error('[mercadopago] no se pudo ajustar el débito al cambiar el plan', id, error));
+        }
 
         res.status(200).json({
             ...updated,
@@ -1044,6 +1095,7 @@ export const deleteUser = async (req: Request, res: Response): Promise<void> => 
             res.status(403).json({ message: 'No se puede eliminar un admin' });
             return;
         }
+        if (!(await cancelMemberDebit(req, res, id, 'Socio eliminado en Gymhour.'))) return;
         if (user.imagenUsuario) await deleteImage(user.imagenUsuario);
         await prisma.user.delete({ where: { ID_Usuario: id } });
         res.status(200).json({ message: `Usuario ${id} eliminado` });
@@ -1118,6 +1170,7 @@ const estadoUser = async (req: Request, res: Response): Promise<void> => {
         // 4) Actualiza el usuario (+ registra el movimiento si hubo cambio de estado) y,
         //    en la baja, libera todo lo que el alumno tenía reservado hacia adelante.
         const esBaja = estado === false && actual.estado !== false;
+        if (esBaja && !(await cancelMemberDebit(req, res, ID_Usuario, 'Baja del socio en Gymhour.'))) return;
         const { user, turnosCancelados, turnosFijosDesactivados } = await prisma.$transaction(async (tx) => {
             const updated = await tx.user.update({
                 where: { ID_Usuario },

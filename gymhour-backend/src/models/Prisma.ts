@@ -44,7 +44,10 @@ export const TENANT_MODELS = new Set([
     'RutinaAsignacionGrupo', 'RutinaDia', 'Semana', 'Bloque', 'Ejercicio',
     'BloqueEjercicio', 'EjercicioMedicion', 'HistoricoEjercicio', 'Asistencia',
     'MediaAsset', 'TenantKioskCredential', 'TenantSettings', 'TenantBillingOrder', 'AiConversation',
-    'AiMessage'
+    'AiMessage',
+    // Cobros a socios con Mercado Pago. Los servicios los usan con systemPrisma y tenantId explícito
+    // (los avisos de Mercado Pago llegan sin sesión); estar acá protege cualquier uso con contexto.
+    'MercadoPagoAccount', 'CuotaPago', 'DebitoAutomatico'
 ]);
 
 const WHERE_OPERATIONS = new Set([

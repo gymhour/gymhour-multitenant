@@ -55,7 +55,21 @@ const normalizeTextFilters = (filters) => ({
   dni: normalizeFilterValue(filters.dni),
 });
 
-const emptyUsuariosFilters = { role: '', nombre: '', apellido: '', email: '', estado: '', dni: '', plan: '', movimiento: '', movimientoMes: '' };
+const emptyUsuariosFilters = { role: '', nombre: '', apellido: '', email: '', estado: '', dni: '', plan: '', movimiento: '', movimientoMes: '', debito: '' };
+
+// Débito automático con Mercado Pago (ver gymhour-backend/MERCADOPAGO.md).
+const DEBITO_OPTIONS = [
+  { value: 'ACTIVO', label: 'Activo' },
+  { value: 'CON_RECHAZO', label: 'Con rechazo' },
+  { value: 'PENDIENTE', label: 'Pendiente de autorizar' },
+  { value: 'PAUSADO', label: 'Pausado' },
+  { value: 'NINGUNO', label: 'No adherido' },
+];
+const DEBITO_LABELS = Object.fromEntries(DEBITO_OPTIONS.map(option => [option.value, option.label]));
+const normalizeDebitoParam = (value) => {
+  const normalized = String(value || '').toUpperCase();
+  return DEBITO_LABELS[normalized] ? normalized : '';
+};
 
 const normalizeTipoParam = (value) => {
   const normalized = String(value || '').toUpperCase();
@@ -86,6 +100,7 @@ const getUsuariosFiltersFromSearch = (searchParams) => ({
   plan: normalizeFilterValue(searchParams.get('plan')),
   movimiento: normalizeMovimientoParam(searchParams.get('movimiento')),
   movimientoMes: normalizeFilterValue(searchParams.get('mes')),
+  debito: normalizeDebitoParam(searchParams.get('debito')),
 });
 
 const UsuariosList = ({ fromAdmin, fromTRAINER }) => {
@@ -180,6 +195,7 @@ const UsuariosList = ({ fromAdmin, fromTRAINER }) => {
       }
       if (activeFilters.movimiento) params.movimientoTipo = activeFilters.movimiento;
       if (activeFilters.movimientoMes) params.movimientoMes = activeFilters.movimientoMes;
+      if (activeFilters.debito) params.debito = activeFilters.debito;
 
       // ➜ enviar estado=true/false si corresponde
       if (activeFilters.estado) {
@@ -736,6 +752,20 @@ const UsuariosList = ({ fromAdmin, fromTRAINER }) => {
               />
             </div>
 
+            {fromAdmin && (
+              <div className='usuarios-filtros-form-inputs-ctn'>
+                <label htmlFor="debito">Débito automático:</label>
+                <CustomDropdown
+                  id="debito"
+                  name="debito"
+                  value={draftFiltros.debito}
+                  onChange={handleChangeDraft}
+                  options={DEBITO_OPTIONS}
+                  placeholderOption="— Todos —"
+                />
+              </div>
+            )}
+
             <div className='usuarios-filtros-form-ctn'>
               <button type="submit" className="primary-button">
                 Aplicar filtros
@@ -800,6 +830,11 @@ const UsuariosList = ({ fromAdmin, fromTRAINER }) => {
 
                     <td data-label="Plan" style={{ textTransform: 'capitalize' }}>
                       {u.plan?.nombre || '—'}
+                      {u.debitoAutomatico && (
+                        <div className={`usuarios-debito-badge usuarios-debito-badge--${u.debitoAutomatico.status.toLowerCase()}`} title="Débito automático con Mercado Pago">
+                          Débito: {DEBITO_LABELS[u.debitoAutomatico.status] || u.debitoAutomatico.status}
+                        </div>
+                      )}
                     </td>
 
                     <td data-label="Registro">{new Date(u.fechaRegistro).toLocaleDateString()}</td>

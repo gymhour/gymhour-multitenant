@@ -120,6 +120,16 @@ const AdminInicio = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Débito automático con Mercado Pago: adheridos y débitos con un cobro rechazado.
+  const onlinePayments = Boolean(tenant?.billing?.features?.MEMBER_PAYMENTS);
+  const [debitos, setDebitos] = useState(null);
+  useEffect(() => {
+    if (!onlinePayments) return;
+    apiService.getUsuariosStats()
+      .then(stats => setDebitos(stats?.debitosAutomaticos || null))
+      .catch(() => setDebitos(null));
+  }, [onlinePayments]);
+
   useEffect(() => {
     if (!setupGuide?.isComplete || tenant?.settings?.setupGuideCompletedAt || completionRequestedRef.current) return;
     completionRequestedRef.current = true;
@@ -451,6 +461,24 @@ const AdminInicio = () => {
               {kpi.crecimientoNetoMes > 0 ? '+' : ''}{kpi.crecimientoNetoMes}
             </p>
           </div>
+
+          {debitos && (debitos.activos > 0 || debitos.conRechazo > 0) && (
+            <button
+              type="button"
+              className='admin-kpi-card admin-kpi-card-action'
+              onClick={() => navigateToUsuarios({ role: 'STUDENT', debito: debitos.conRechazo > 0 ? 'CON_RECHAZO' : 'ACTIVO' })}
+              aria-label="Ver socios con débito automático"
+            >
+              <div className='admin-kpi-card-header'>
+                <Wallet size={20} className="icon-soft-grey" />
+                <h3>Débito automático</h3>
+              </div>
+              <p className='value'>
+                {debitos.activos}
+                <span className="admin-kpi-count">({debitos.conRechazo} con rechazo)</span>
+              </p>
+            </button>
+          )}
         </div>
 
         {/* ===================== TENDENCIAS ===================== */}

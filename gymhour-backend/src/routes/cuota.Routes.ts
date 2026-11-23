@@ -22,6 +22,7 @@ cuotaRouter.post("/usuario/:idUsuario", authenticateToken, isAdmin, createManual
 cuotaRouter.post("/usuario/:idUsuario/regenerate-turnos-fijos", authenticateToken, isAdmin, cuotaMethods.regenerateTurnosFijosByUsuario);
 cuotaRouter.put("/:id", authenticateToken, isAdmin, cuotaMethods.updateCuota);
 cuotaRouter.put("/:id/pay", authenticateToken, isAdmin, cuotaMethods.payCuota);
+cuotaRouter.get("/:id/recargo", authenticateToken, isAdmin, cuotaMethods.getRecargoCuota);
 cuotaRouter.delete("/:id", authenticateToken, isAdmin, cuotaMethods.deleteCuota);
 
 export default cuotaRouter;

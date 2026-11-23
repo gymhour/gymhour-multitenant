@@ -31,6 +31,7 @@ import userRouter from './routes/user.Routes.js';
 import tenantRouter from './routes/tenant.Routes.js';
 import platformRouter from './routes/platform.Routes.js';
 import billingRouter from './routes/billing.Routes.js';
+import mercadoPagoRouter from './routes/mercadoPago.Routes.js';
 
 // :=)
 const app = express();
@@ -116,6 +117,7 @@ app.use('/auth', authRoutes);
 app.use('/tenant', tenantRouter);
 app.use('/platform', platformRouter);
 app.use('/billing', billingRouter);
+app.use('/pagos', mercadoPagoRouter);
 app.use('/clase', claseRoutes);
 app.use('/turnos', turnoRoutes);
 app.use('/rutinas', rutinaRoutes);

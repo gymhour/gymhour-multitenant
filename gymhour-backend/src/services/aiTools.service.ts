@@ -289,12 +289,12 @@ export async function executeAiTool(name: string, args: any, role: TenantRole): 
       if (role !== 'ADMIN') return { error: 'Esta información está disponible únicamente para administradores.' };
       const month = typeof args.month === 'string' && /^\d{4}-\d{2}$/.test(args.month) ? args.month : currentMonth();
       const [paid, pending, overdue, expenses] = await Promise.all([
-        prisma.cuota.aggregate({ where: { fechaPago: { gte: new Date(`${month}-01T00:00:00.000Z`), lt: new Date(Date.UTC(Number(month.slice(0, 4)), Number(month.slice(5, 7)), 1)) }, pagada: true }, _sum: { importe: true }, _count: true }),
+        prisma.cuota.aggregate({ where: { fechaPago: { gte: new Date(`${month}-01T00:00:00.000Z`), lt: new Date(Date.UTC(Number(month.slice(0, 4)), Number(month.slice(5, 7)), 1)) }, pagada: true }, _sum: { importe: true, recargo: true }, _count: true }),
         prisma.cuota.aggregate({ where: { vence: { gte: new Date(`${month}-01T00:00:00.000Z`), lt: new Date(Date.UTC(Number(month.slice(0, 4)), Number(month.slice(5, 7)), 1)) }, pagada: false }, _sum: { importe: true }, _count: true }),
         prisma.cuota.aggregate({ where: { pagada: false, OR: [{ vencida: true }, { vence: { lt: new Date() } }] }, _sum: { importe: true }, _count: true }),
         prisma.gasto.aggregate({ where: { mes: month }, _sum: { monto: true }, _count: true }),
       ]);
-      const income = Number(paid._sum.importe || 0);
+      const income = Number(paid._sum.importe || 0) + Number(paid._sum.recargo || 0);
       const expense = Number(expenses._sum.monto || 0);
       return {
         month, ingresos: income, cuotasPagadas: paid._count,

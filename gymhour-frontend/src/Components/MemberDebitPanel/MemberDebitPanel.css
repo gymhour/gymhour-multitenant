@@ -1,0 +1,9 @@
+.member-debit-panel { display: flex; align-items: center; gap: 12px; margin: 0 0 18px; padding: 12px 14px; background: color-mix(in srgb, var(--primary-color) 7%, transparent); border: 1px solid color-mix(in srgb, var(--primary-color) 30%, transparent); border-radius: 12px; font-size: 13px; }
+.member-debit-panel > svg { flex: none; color: var(--primary-color); }
+.member-debit-panel > div { display: flex; flex: 1; flex-direction: column; gap: 3px; min-width: 0; }
+.member-debit-panel strong { font-weight: 500; }
+.member-debit-panel span { color: var(--text-color-distinct); }
+.member-debit-actions { display: flex; flex: none; gap: 8px; }
+.member-debit-actions button { padding: 7px 12px; color: var(--text-color); background: var(--background-color); border: 1px solid var(--border-color); border-radius: 8px; font-size: 12px; cursor: pointer; }
+.member-debit-actions button:disabled { opacity: .6; cursor: wait; }
+@media (max-width: 600px) { .member-debit-panel { flex-wrap: wrap; } .member-debit-actions { width: 100%; } .member-debit-actions button { flex: 1; } }

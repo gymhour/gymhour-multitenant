@@ -3,6 +3,7 @@ import type { NextFunction, Request, Response } from 'express';
 import argon2 from 'argon2';
 import { verify as verifyTotpToken } from 'otplib';
 import { systemPrisma } from '../models/Prisma.js';
+import { openSecret, parseEncryptionKey, sealSecret } from './secretBox.service.js';
 
 const SESSION_COOKIE = 'gh_platform_session';
 const CHALLENGE_COOKIE = 'gh_platform_challenge';
@@ -30,27 +31,11 @@ const readCookie = (req: Request, name: string): string | null => {
   return null;
 };
 
-const encryptionKey = (): Buffer => {
-  const raw = process.env.PLATFORM_MFA_ENCRYPTION_KEY ?? '';
-  const key = /^[a-f0-9]{64}$/i.test(raw) ? Buffer.from(raw, 'hex') : Buffer.from(raw, 'base64');
-  if (key.length !== 32) throw new Error('PLATFORM_MFA_ENCRYPTION_KEY debe contener exactamente 32 bytes.');
-  return key;
-};
+const encryptionKey = (): Buffer => parseEncryptionKey(process.env.PLATFORM_MFA_ENCRYPTION_KEY, 'PLATFORM_MFA_ENCRYPTION_KEY');
 
-export const encryptMfaSecret = (secret: string): string => {
-  const iv = crypto.randomBytes(12);
-  const cipher = crypto.createCipheriv('aes-256-gcm', encryptionKey(), iv);
-  const encrypted = Buffer.concat([cipher.update(secret, 'utf8'), cipher.final()]);
-  return [iv, cipher.getAuthTag(), encrypted].map(value => value.toString('base64url')).join('.');
-};
+export const encryptMfaSecret = (secret: string): string => sealSecret(secret, encryptionKey());
 
-export const decryptMfaSecret = (payload: string): string => {
-  const [ivRaw, tagRaw, encryptedRaw] = payload.split('.');
-  if (!ivRaw || !tagRaw || !encryptedRaw) throw new Error('MFA_SECRET_INVALID');
-  const decipher = crypto.createDecipheriv('aes-256-gcm', encryptionKey(), Buffer.from(ivRaw, 'base64url'));
-  decipher.setAuthTag(Buffer.from(tagRaw, 'base64url'));
-  return Buffer.concat([decipher.update(Buffer.from(encryptedRaw, 'base64url')), decipher.final()]).toString('utf8');
-};
+export const decryptMfaSecret = (payload: string): string => openSecret(payload, encryptionKey(), 'MFA_SECRET_INVALID');
 
 export const validatePlatformPassword = (password: string): boolean => (
   password.length >= 16 && password.length <= 128

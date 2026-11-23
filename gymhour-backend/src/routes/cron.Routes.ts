@@ -1,5 +1,6 @@
 import express, { Request, Response } from "express";
 import { runAllTenantNightlyTasks, runAllTenantReminderTasks } from '../services/tenantJobs.service.js';
+import { runMercadoPagoMaintenance } from '../services/mercadoPagoMaintenance.service.js';
 import { retryPendingTenantDeletions } from '../services/tenantDeletion.service.js';
 import { cleanupExpiredPlatformAuth } from '../services/platformSecurity.service.js';
 
@@ -25,7 +26,9 @@ cronRouter.get("/nightly", async (req: Request, res: Response) => {
   if (!requireCronSecret(req, res)) return;
   try {
     const tenants = await runAllTenantNightlyTasks();
-    res.status(200).json({ ok: true, tenants });
+    // Cobros con Mercado Pago: corre para todos los gimnasios conectados, también los bloqueados.
+    const mercadoPago = await runMercadoPagoMaintenance();
+    res.status(200).json({ ok: true, tenants, mercadoPago });
   } catch (e: any) {
     console.error("[cron/nightly] error:", e);
     res.status(500).json({ ok: false, error: e?.message ?? String(e) });
