@@ -1,5 +1,5 @@
 import { systemPrisma } from '../models/Prisma.js';
-import { expireStaleDebits, reconcileActiveDebits } from './automaticDebit.service.js';
+import { expireStaleDebits, reconcileActiveDebits, syncDebitAmounts } from './automaticDebit.service.js';
 import { isMercadoPagoConfigured } from './mercadoPago.service.js';
 import { TOKEN_REFRESH_WINDOW_MS, markAccountError, refreshAccount, withTenantToken } from './mercadoPagoAccount.service.js';
 import { processQueuedNotifications } from './mercadoPagoWebhook.service.js';
@@ -14,7 +14,7 @@ const HOUR_MS = 60 * 60 * 1000;
 export async function runMercadoPagoMaintenance() {
   const result = {
     tokensRenovados: 0, conexionesConError: 0, intentosResueltos: 0,
-    debitosVencidos: 0, cobrosDeDebitoRecuperados: 0, avisosProcesados: 0, errores: [] as string[],
+    debitosVencidos: 0, cobrosDeDebitoRecuperados: 0, montosDeDebitoActualizados: 0, avisosProcesados: 0, errores: [] as string[],
   };
   if (!isMercadoPagoConfigured()) return result;
   const now = Date.now();
@@ -67,9 +67,11 @@ export async function runMercadoPagoMaintenance() {
     try { result.avisosProcesados += await processQueuedNotifications(tenantId); } catch (error) { fail(`avisos gimnasio ${tenantId}`, error); }
     // 5) Cobros de débitos cuyo aviso se perdió: Mercado Pago cobró y Gymhour no se enteró.
     try { result.cobrosDeDebitoRecuperados += await reconcileActiveDebits(tenantId); } catch (error) { fail(`cobros de débitos gimnasio ${tenantId}`, error); }
+    // 6) Montos: cada débito pasa a cobrar el importe de la cuota que le toca, que el cron generó antes.
+    try { result.montosDeDebitoActualizados += await syncDebitAmounts(tenantId); } catch (error) { fail(`montos de débitos gimnasio ${tenantId}`, error); }
   }
 
-  // 6) Conexiones OAuth que nunca se completaron.
+  // 7) Conexiones OAuth que nunca se completaron.
   await systemPrisma.mercadoPagoOAuthState.deleteMany({ where: { expiresAt: { lt: new Date(now - 24 * HOUR_MS) } } });
   return result;
 }

@@ -583,6 +583,7 @@ Después de los gimnasios, `dailyCron.ts` y `GET /cron/nightly` corren `runMerca
 3. Cancela débitos sin autorizar después de 48 horas.
 4. Procesa los avisos en cola.
 5. Registra los cobros de débitos cuyo aviso se perdió.
+6. Ajusta el monto de cada débito al importe de la cuota que va a cobrar.
 
 Ver `gymhour-backend/MERCADOPAGO.md`.
 

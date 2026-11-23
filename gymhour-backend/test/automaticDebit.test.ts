@@ -25,7 +25,7 @@ vi.mock('../src/services/feeCycle.service.js', () => feeCycle);
 import { MercadoPagoError } from '../src/services/mercadoPago.service.js';
 import {
   adhereDebit, applyDebitPayment, cancelDebit, debitFrequency, firstDebitDate, onUserPlanChange, reconcileActiveDebits,
-  reconcileDebitCharges, syncDebit, syncDebitsWithPlan, verifyDebit,
+  reconcileDebitCharges, syncDebit, syncDebitAmounts, syncDebitsWithPlan, verifyDebit,
 } from '../src/services/automaticDebit.service.js';
 
 const DAY = 86_400_000;
@@ -95,6 +95,13 @@ describe('adhesión', () => {
     expect(body.auto_recurring).toMatchObject({ frequency: 1, frequency_type: 'months', transaction_amount: 25000, currency_id: 'ARS' });
     expect(new Date(body.auto_recurring.start_date).getTime()).toBeGreaterThan(Date.now());
     expect(db.debitoAutomatico.rows[0]).toMatchObject({ activeKey: '7:1', preapprovalId: 'pre_000001', status: 'PENDIENTE' });
+  });
+
+  it('si la próxima cuota ya está generada, la suscripción cobra su importe y no el precio del plan', async () => {
+    await db.cuota.create({ data: { ID_Cuota: 80, tenantId: 7, ID_Usuario: 1, importe: 27000, fechaInicio: utcDay(1), pagada: false } });
+    await adhereDebit({ tenantId: 7, userId: 1, payerEmail: 'a@b.com' });
+    expect(mp.createPreapproval.mock.calls[0][1].auto_recurring.transaction_amount).toBe(27000);
+    expect(db.debitoAutomatico.rows[0].amount).toBe(27000);
   });
 
   it('valida el email, el plan, el ciclo y los pagos en curso', async () => {
@@ -219,6 +226,31 @@ describe('baja y cambios', () => {
     mp.cancelPreapproval.mockResolvedValue({ status: 'cancelled' });
     await onUserPlanChange(7, 1, { ID_Plan: 5, precio: 9000, duracion: 'WEEKS:1' });
     expect(db.debitoAutomatico.rows[0].status).toBe('CANCELADO');
+  });
+
+  it('si cambia el precio del plan, el débito cobra la cuota ya generada con su importe y el precio nuevo desde la próxima', async () => {
+    await seedDebit();
+    await db.cuota.create({ data: { ID_Cuota: 70, tenantId: 7, ID_Usuario: 1, importe: 25000, fechaInicio: utcDay(1), pagada: false } });
+    expect(await syncDebitsWithPlan(7, { ID_Plan: 3, precio: 30000, duracion: 'MONTHS:1' })).toMatchObject({ updated: 0 });
+    expect(mp.updatePreapprovalAmount).not.toHaveBeenCalled();
+    expect(db.debitoAutomatico.rows[0].amount).toBe(25000);
+    // Se cobra esa cuota y el cron genera la siguiente con el precio nuevo: la tarea diaria ajusta el débito.
+    db.cuota.rows[0].pagada = true;
+    await db.cuota.create({ data: { ID_Cuota: 71, tenantId: 7, ID_Usuario: 1, importe: 30000, fechaInicio: utcDay(31), pagada: false } });
+    mp.updatePreapprovalAmount.mockResolvedValue({});
+    expect(await syncDebitAmounts(7)).toBe(1);
+    expect(mp.updatePreapprovalAmount).toHaveBeenCalledWith('TOKEN', 'pre_000001', 30000);
+    expect(db.debitoAutomatico.rows[0].amount).toBe(30000);
+    // Si ya coincide, no vuelve a tocar Mercado Pago.
+    expect(await syncDebitAmounts(7)).toBe(0);
+  });
+
+  it('si el socio cambia de plan con la misma frecuencia, la cuota ya generada conserva su importe', async () => {
+    await seedDebit();
+    await db.cuota.create({ data: { ID_Cuota: 90, tenantId: 7, ID_Usuario: 1, importe: 25000, fechaInicio: utcDay(1), pagada: false } });
+    await onUserPlanChange(7, 1, { ID_Plan: 4, precio: 28000, duracion: 'MONTHS:1' });
+    expect(db.debitoAutomatico.rows[0]).toMatchObject({ ID_Plan: 4, amount: 25000 });
+    expect(mp.updatePreapprovalAmount).not.toHaveBeenCalled();
   });
 
   it('la sincronización refleja la baja o la pausa hechas desde Mercado Pago', async () => {

@@ -228,8 +228,12 @@ Según la documentación de Mercado Pago, después de 3 cuotas rechazadas la sus
 - **Socio:** "Dar de baja el débito automático" (`POST /pagos/debito/cancelar`), visible, como exige la normativa de consumo para servicios contratados online.
 - **Admin:** desde la ficha del socio o desde Cuotas ("Cancelar débito y registrar pago").
 - **Automáticas:** al dar de baja o eliminar al socio en Gymhour (si Mercado Pago no confirma, la baja no avanza), al desconectar Mercado Pago y al eliminar el gimnasio (si falla, no se elimina).
-- **Cambio de precio del plan:** actualiza el monto de los débitos de ese plan.
-- **Cambio de duración del plan, o del plan del socio a otra frecuencia:** cancela el débito para que el socio se vuelva a adherir. Con la misma frecuencia, ajusta el monto.
+- **Monto:** el débito siempre cobra el **importe de la cuota que va a pagar**.
+  - Si esa cuota ya está generada, cobra su importe. Si todavía no, cobra el precio actual del plan, que es el que va a tener la cuota cuando la genere el cron.
+  - El monto se ajusta en Mercado Pago (`syncDebitAmount`) en cuatro momentos: al adherirse, al cambiar el precio del plan, al cambiar el plan del socio y en la tarea diaria, después de que el cron genera las cuotas.
+- **Cambio de precio del plan:** la cuota ya generada conserva su importe y el débito la cobra así. Las cuotas que se generen después llevan el precio nuevo, y el débito pasa a cobrarlo cuando se genera cada una. Regla pedida por el usuario el 23 de noviembre de 2026.
+- **Cambio de duración del plan, o del plan del socio a otra frecuencia:** cancela el débito para que el socio se vuelva a adherir. Con la misma frecuencia, sigue el mismo débito con la regla del monto.
+- Si igual Mercado Pago cobra un monto distinto del de la cuota, la marca pagada y le avisa al admin.
 
 Código: `services/automaticDebit.service.ts`.
 
@@ -283,7 +287,8 @@ Código: `services/mercadoPagoWebhook.service.ts`, `controllers/mercadoPago.Cont
 3. Cancela los débitos sin autorizar después de 48 horas.
 4. Procesa la cola de avisos.
 5. Registra los cobros de débitos cuyo aviso se perdió (`reconcileActiveDebits`).
-6. Borra las conexiones OAuth que nunca se completaron.
+6. Ajusta el monto de cada débito al importe de la cuota que le toca, que el cron acaba de generar (`syncDebitAmounts`).
+7. Borra las conexiones OAuth que nunca se completaron.
 
 ## Seguridad
 
@@ -447,13 +452,17 @@ En el entorno test (o en local con un túnel), con la app Gymhour Sandbox, `MP_T
 
 1. Conectar con el Vendedor de prueba, en una ventana privada. Funcionó el 23 de noviembre de 2026.
 2. Configurar un recargo y verlo en una cuota vencida, en el pago manual y en el botón de pago.
-3. Pagar una cuota con el comprador de prueba: queda pagada con su número de operación.
+3. Pagar una cuota con el comprador de prueba: queda pagada con su número de operación. Funcionó el 23 de noviembre de 2026, con dinero en cuenta. También funcionó cerrando Mercado Pago antes de volver a Gymhour: la cuota se registró solo por el webhook.
 4. Probar un pago rechazado y un reintento.
 5. Abandonar un checkout: a los 10 minutos se libera.
 6. Intentar pagar otra cuota con un pago en curso: `409`.
 7. Pagar el mismo checkout en dos pestañas: el segundo queda duplicado.
 8. Devolver un pago desde Mercado Pago: la cuota vuelve a impaga.
 9. Adherirse al débito y forzar un cobro: la cuota del período queda pagada.
+   - La adhesión funcionó el 23 de noviembre de 2026.
+   - Mercado Pago no vuelve solo a Gymhour: se vuelve con "Ir al sitio del vendedor".
+   - Como el primer cobro es futuro, Mercado Pago muestra "Tu prueba gratis comenzó".
+   - Para forzar un cobro sin esperar un mes: un plan de 1 día, con la cuota de hoy pagada.
 10. Rechazar un cobro del débito: probar "Actualizar mi tarjeta" y "Pagar por otro medio".
 11. Dar de baja el débito, y desconectar con débitos activos.
 

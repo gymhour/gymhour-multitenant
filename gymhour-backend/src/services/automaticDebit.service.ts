@@ -114,13 +114,14 @@ export async function adhereDebit(input: { tenantId: number; userId: number; pay
       tenantTimezone(tenantId),
     ]);
     const startDate = await firstDebitDate(tenantId, { ...user, plan: user.plan! }, feeToday(timezone));
+    const amount = await debitTargetAmount(tenantId, userId, startDate, Number(user.plan!.precio));
     const externalReference = crypto.randomUUID();
     let debit: DebitoAutomatico;
     try {
       debit = await systemPrisma.debitoAutomatico.create({ data: {
         tenantId, ID_Usuario: userId, ID_Plan: user.ID_Plan, externalReference,
         activeKey: activeKeyFor(tenantId, userId), status: 'PENDIENTE', payerEmail,
-        amount: Number(user.plan!.precio), ...frequency, startDate,
+        amount, ...frequency, startDate,
       } });
     } catch (error) {
       if (isUniqueError(error)) throw new MemberPaymentError(409, 'DEBITO_ACTIVO', 'Ya tenés un débito automático.');
@@ -133,7 +134,7 @@ export async function adhereDebit(input: { tenantId: number; userId: number; pay
         payer_email: payerEmail,
         auto_recurring: {
           frequency: frequency.frequency, frequency_type: frequency.frequencyType,
-          start_date: mpStartDate(startDate), transaction_amount: Number(user.plan!.precio), currency_id: 'ARS',
+          start_date: mpStartDate(startDate), transaction_amount: amount, currency_id: 'ARS',
         },
         back_url: `${frontendUrl()}/alumno/cuotas?debito=${externalReference}`,
         status: 'pending',
@@ -415,8 +416,54 @@ export async function cancelAllDebits(tenantId: number, input: { by: string; rea
   return debits.length;
 }
 
-// El admin cambió el precio o la duración de un plan: se actualiza el monto de los débitos activos
-// de ese plan, o se cancelan si cambió la frecuencia o el plan pasó a no tener costo.
+// --- Monto del débito ---
+// El débito cobra el importe de la cuota que va a pagar. Si esa cuota ya está generada, su importe.
+// Si todavía no, el precio actual del plan, que es el que va a tener cuando la genere el cron.
+
+export async function debitTargetAmount(tenantId: number, userId: number, from: Date, planPrice: number): Promise<number> {
+  const cuota = await systemPrisma.cuota.findFirst({
+    where: { tenantId, ID_Usuario: userId, pagada: false, fechaInicio: { gte: from } },
+    orderBy: { fechaInicio: 'asc' },
+    select: { importe: true },
+  });
+  return cuota && Number(cuota.importe) > 0 ? Number(cuota.importe) : planPrice;
+}
+
+// Deja el monto del débito en Mercado Pago igual al de la próxima cuota que va a cobrar.
+export async function syncDebitAmount(debit: DebitoAutomatico, planPrice: number): Promise<boolean> {
+  if (!debit.preapprovalId || !debit.activeKey) return false;
+  const today = feeToday(await tenantTimezone(debit.tenantId));
+  const from = debit.startDate > today ? debit.startDate : today;
+  const amount = await debitTargetAmount(debit.tenantId, debit.ID_Usuario, from, planPrice);
+  if (!(amount > 0) || Math.abs(amount - debit.amount) <= 0.01) return false;
+  const preapprovalId = debit.preapprovalId;
+  await withTenantToken(debit.tenantId, ({ accessToken }) => updatePreapprovalAmount(accessToken, preapprovalId, amount));
+  await systemPrisma.debitoAutomatico.update({ where: { id: debit.id }, data: { amount } });
+  return true;
+}
+
+// Tarea diaria: corre después de que el cron genera las cuotas, así cada débito activo pasa a cobrar
+// el importe de la cuota que le toca.
+export async function syncDebitAmounts(tenantId: number): Promise<number> {
+  const debits = await systemPrisma.debitoAutomatico.findMany({
+    where: { tenantId, activeKey: { not: null }, preapprovalId: { not: null } },
+  });
+  let updated = 0;
+  for (const debit of debits) {
+    const user = await systemPrisma.user.findFirst({ where: { tenantId, ID_Usuario: debit.ID_Usuario }, include: { plan: true } });
+    if (!user?.plan) continue;
+    try {
+      if (await syncDebitAmount(debit, Number(user.plan.precio))) updated += 1;
+    } catch (error) {
+      console.error('[mercadopago] no se pudo ajustar el monto del débito', debit.id, (error as Error).message);
+    }
+  }
+  return updated;
+}
+
+// El admin cambió el precio o la duración de un plan. Si cambió la frecuencia o el plan pasó a no tener
+// costo, se cancelan los débitos de ese plan. Si cambió el precio, cada débito sigue cobrando el importe
+// de la cuota que ya está generada y toma el precio nuevo desde la próxima cuota.
 export async function syncDebitsWithPlan(tenantId: number, plan: { ID_Plan: number; precio: number; duracion: string }) {
   const debits = await systemPrisma.debitoAutomatico.findMany({ where: { tenantId, ID_Plan: plan.ID_Plan, activeKey: { not: null } } });
   if (!debits.length) return { updated: 0, cancelled: 0, failed: 0 };
@@ -428,10 +475,7 @@ export async function syncDebitsWithPlan(tenantId: number, plan: { ID_Plan: numb
         || frequency.frequency !== debit.frequency || frequency.frequencyType !== debit.frequencyType) {
         await cancelDebit(debit, { by: 'Gymhour', reason: 'Cambió el plan: volvé a adherirte al débito automático.' });
         result.cancelled += 1;
-      } else if (plan.precio !== debit.amount && debit.preapprovalId) {
-        const preapprovalId = debit.preapprovalId;
-        await withTenantToken(tenantId, ({ accessToken }) => updatePreapprovalAmount(accessToken, preapprovalId, plan.precio));
-        await systemPrisma.debitoAutomatico.update({ where: { id: debit.id }, data: { amount: plan.precio } });
+      } else if (await syncDebitAmount(debit, plan.precio)) {
         result.updated += 1;
       }
     } catch (error) {
@@ -452,11 +496,11 @@ export async function onUserPlanChange(
     || frequency.frequency !== debit.frequency || frequency.frequencyType !== debit.frequencyType) {
     return cancelDebit(debit, { by: 'Gymhour', reason: 'Cambió el plan: volvé a adherirte al débito automático.' });
   }
-  if (debit.preapprovalId && plan.precio !== debit.amount) {
-    const preapprovalId = debit.preapprovalId;
-    await withTenantToken(tenantId, ({ accessToken }) => updatePreapprovalAmount(accessToken, preapprovalId, plan.precio));
-  }
-  return systemPrisma.debitoAutomatico.update({ where: { id: debit.id }, data: { ID_Plan: plan.ID_Plan, amount: plan.precio } });
+  // Misma frecuencia: sigue el mismo débito. La cuota ya generada conserva su importe, y el plan nuevo
+  // rige desde la próxima.
+  const moved = await systemPrisma.debitoAutomatico.update({ where: { id: debit.id }, data: { ID_Plan: plan.ID_Plan } });
+  await syncDebitAmount(moved, plan.precio);
+  return systemPrisma.debitoAutomatico.findUniqueOrThrow({ where: { id: debit.id } });
 }
 
 // --- Pantallas ---
