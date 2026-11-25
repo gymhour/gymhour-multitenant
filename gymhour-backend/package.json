@@ -4,6 +4,9 @@
   "version": "1.0.0",
   "description": "",
   "main": "dist/server.js",
+  "engines": {
+    "node": "24.x"
+  },
   "scripts": {
     "clean": "rimraf dist",
     "dev": "npm run clean && tsc-watch --noClear -p tsconfig.json --onSuccess \"node dist/server.js\"",
